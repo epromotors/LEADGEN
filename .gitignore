@@ -1,0 +1,81 @@
+# Environment & Secrets (NEVER COMMIT!)
+.env
+*.env
+backend/.env
+!backend/.env.example
+
+# Logs
+logs/
+backend/logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+venv/
+.venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database / SQLite
+*.sqlite3
+*.db
+leadgen.db
+
+# Generated PDF audit reports & samples
+reports/
+backend/reports/
+samples/
+
+# Backups & restores
+restores/
+*.bak*
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Proprietary / Scraped Lead Datasets & Exports
+US_leads.csv
+US_leads.xlsx
+leads1_clean_mobiles.csv
+leads_export_*.csv
+backend/reports/*.csv
+leads/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
