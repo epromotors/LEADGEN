@@ -1,0 +1,80 @@
+{
+  "project": {
+    "name": "LEADGEN",
+    "version": "5.1.0",
+    "purpose": "Lead generation, website auditing, PDF reporting, and outreach operations.",
+    "status": "Phase 0 control plane established; audit integrity remediation not started."
+  },
+  "architecture": {
+    "frontend": "React 18 + Vite at frontend/",
+    "backend": "FastAPI + SQLAlchemy async at backend/app/",
+    "audit_engine": "backend/app/engines/audit_engine.py",
+    "audit_modules": "auditor/auditor/auditor/",
+    "database": "PostgreSQL models in backend/app/models.py",
+    "reporting": "ReportLab renderer at auditor/auditor/reporter/pdf_report.py",
+    "crawler": "HTTP crawler at auditor/auditor/auditor/crawler.py"
+  },
+  "entrypoints": {
+    "backend": "backend/run.py -> backend/app/main.py",
+    "frontend": "frontend/src/main.jsx -> frontend/src/App.jsx",
+    "audit": "backend/app/engines/audit_engine.py:run_audit",
+    "api": "backend/app/routers/",
+    "database": "backend/app/database.py and backend/app/models.py"
+  },
+  "navigation": {
+    "audit_engine": "backend/app/engines/audit_engine.py",
+    "audit_modules": "auditor/auditor/auditor/",
+    "crawler": "auditor/auditor/auditor/crawler.py",
+    "models": "backend/app/models.py",
+    "schemas": "backend/app/schemas.py",
+    "frontend_audits": "frontend/src/pages/Audits.jsx",
+    "pdf_reports": "auditor/auditor/reporter/pdf_report.py"
+  },
+  "data_flow": [
+    "lead",
+    "POST /audits/trigger/{lead_id}",
+    "site classification",
+    "HTTP homepage fetch",
+    "62 synchronous factor calls",
+    "HTTP crawl",
+    "audit_results JSON plus mapped Audit columns",
+    "GET /audits/{lead_id}",
+    "Audits.jsx and PDF"
+  ],
+  "critical_rules": [
+    "Runtime code is authoritative; record documentation drift explicitly.",
+    "Preserve existing lead, campaign, CRM, outreach, and scraping behavior unless the task authorizes a change.",
+    "Use factor_registry.json for all audit-factor changes."
+  ],
+  "known_issues": [
+    "DOCUMENTATION_DRIFT: prose says 55 factors; runtime builds 62.",
+    "INTEGRITY_GAP: Audits.jsx hard-codes 53 rows and omits 9 executable factors.",
+    "SCORE_RISK: score lookup falls back to 5 for unknown factor IDs.",
+    "RESILIENCE_RISK: a factor exception can abort the full audit; crawl errors are converted to an empty completed crawl.",
+    "DATA_RISK: mapper parses display messages to obtain numeric DB values.",
+    "CLASSIFIER_RISK: classifier errors fall back to REAL.",
+    "STATE_RISK: current AuditStatus lacks COMPLETE, PARTIAL, and BLOCKED."
+  ],
+  "current_phase": "Phase 0 - Agent Brain",
+  "next_action": "Obtain approval for Phase 1 audit-integrity changes; do not implement them in this phase.",
+  "do_not_touch": [
+    "lead generation and import flows",
+    "campaign and outreach behavior",
+    "CRM/reply workflows",
+    "audit behavior before Phase 1 approval"
+  ],
+  "verification_commands": [
+    "python scripts/validate_agent_brain.py --report",
+    "python -m compileall backend/app auditor/auditor scripts/validate_agent_brain.py",
+    "npm run build (from frontend)",
+    "git diff --check"
+  ],
+  "source_of_truth": {
+    "runtime_code": "backend/app/engines/audit_engine.py",
+    "factor_registry": ".agent/factor_registry.json",
+    "database": "backend/app/models.py",
+    "api": "backend/app/schemas.py and backend/app/routers/audits.py",
+    "frontend": "frontend/src/pages/Audits.jsx",
+    "pdf": "auditor/auditor/reporter/pdf_report.py"
+  }
+}

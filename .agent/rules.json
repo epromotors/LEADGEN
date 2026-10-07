@@ -1,0 +1,21 @@
+{
+  "rules": [
+    {"id": "ARCH-001", "rule": "Do not rewrite the existing architecture unless explicitly approved."},
+    {"id": "ARCH-002", "rule": "Trace executable code before changing behavior; record documentation drift when prose conflicts with code."},
+    {"id": "AUDIT-001", "rule": "Every audit factor must have a unique machine-readable ID in factor_registry.json."},
+    {"id": "AUDIT-002", "rule": "Every factor must produce structured evidence before it is treated as reliable."},
+    {"id": "AUDIT-003", "rule": "One factor failure must never fail a complete audit."},
+    {"id": "AUDIT-004", "rule": "Never silently convert unknown factors into scored factors."},
+    {"id": "AUDIT-005", "rule": "Never treat audit uncertainty as PASS."},
+    {"id": "AUDIT-006", "rule": "N/A factors must not reduce the score."},
+    {"id": "AUDIT-007", "rule": "Audit evidence must come from the appropriate evidence provider."},
+    {"id": "DATA-001", "rule": "Do not parse human-readable audit messages to recover numeric values."},
+    {"id": "DATA-002", "rule": "Store structured factor values independently from display messages."},
+    {"id": "CRAWL-001", "rule": "Represent crawl failures explicitly; never convert them into successful audit coverage."},
+    {"id": "CLASS-001", "rule": "Classifier errors must not automatically classify a website as REAL."},
+    {"id": "UI-001", "rule": "Frontend factor definitions must derive from the factor registry or a registry-backed API."},
+    {"id": "DB-001", "rule": "Validate database mappings against the factor registry."},
+    {"id": "API-001", "rule": "Preserve existing API fields while introducing structured results; migrate consumers before removals."},
+    {"id": "TEST-001", "rule": "Every audit-engine change requires automated verification and a factor-parity check."}
+  ]
+}
