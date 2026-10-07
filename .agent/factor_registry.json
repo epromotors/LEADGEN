@@ -1,0 +1,92 @@
+{
+  "registry_version": 1,
+  "source": "Static discovery of backend/app/engines/audit_engine.py on 2026-10-07",
+  "result_contract_target": {
+    "statuses": ["PASS", "WARN", "FAIL", "N/A", "ERROR", "UNKNOWN"],
+    "required_future_fields": ["id", "status", "value", "value_type", "score", "max_score", "severity", "confidence", "message", "evidence", "threshold", "engine", "checked_at", "duration_ms"]
+  },
+  "record_defaults": {
+    "applicable_to": ["website"],
+    "status": "active",
+    "severity": "unclassified",
+    "engine": "http_raw_dom",
+    "evidence": "unstructured result message/detail/fix; structured evidence not yet implemented",
+    "threshold": "function-defined",
+    "api_field": "AuditResponse.audit_results",
+    "pdf_section": "dynamic group from audit_results",
+    "tests": []
+  },
+  "factors": [
+    {"id":"technical.ssl","name":"SSL / HTTPS","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_ssl","score_weight":10,"value_type":"boolean","database_field":"ssl_valid","frontend_key":"ssl_valid"},
+    {"id":"technical.sitemap","name":"XML sitemap","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_sitemap","score_weight":8,"value_type":"boolean","database_field":"has_sitemap","frontend_key":"has_sitemap"},
+    {"id":"technical.robots","name":"robots.txt","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_robots","score_weight":7,"value_type":"boolean","database_field":"has_robots","frontend_key":"has_robots"},
+    {"id":"technical.canonical","name":"Canonical tag presence","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_canonical","score_weight":5,"value_type":"boolean","database_field":"has_canonical","frontend_key":"has_canonical"},
+    {"id":"technical.favicon","name":"Favicon","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_favicon","score_weight":3,"value_type":"boolean","database_field":null,"frontend_key":"favicon"},
+    {"id":"technical.mobile","name":"Mobile viewport","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_mobile","score_weight":8,"value_type":"boolean","database_field":"mobile_friendly","frontend_key":"mobile_friendly"},
+    {"id":"technical.https_redirect","name":"HTTP to HTTPS redirect","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_https_redirect","score_weight":6,"value_type":"boolean","database_field":"has_https_redirect","frontend_key":null},
+    {"id":"technical.redirect_chain","name":"Redirect chain","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_redirect_chain","score_weight":4,"value_type":"boolean","database_field":"redirect_chain_ok","frontend_key":null},
+    {"id":"technical.mixed_content","name":"Mixed content","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_mixed_content","score_weight":5,"value_type":"boolean","database_field":"has_mixed_content","frontend_key":null},
+    {"id":"technical.www_canonicalization","name":"WWW canonicalization","axis":"technical","module":"auditor/auditor/auditor/technical.py","function":"audit_www_canonicalization","score_weight":4,"value_type":"boolean","database_field":"www_canonical_ok","frontend_key":null},
+
+    {"id":"onpage.page_title","name":"Page title","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_title","score_weight":10,"value_type":"boolean","database_field":"has_page_title","frontend_key":"has_page_title"},
+    {"id":"onpage.meta_desc","name":"Meta description","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_meta_description","score_weight":8,"value_type":"boolean","database_field":"has_meta_desc","frontend_key":"has_meta_desc"},
+    {"id":"onpage.h1","name":"H1 heading","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_h1","score_weight":8,"value_type":"boolean","database_field":"missing_h1","frontend_key":"missing_h1"},
+    {"id":"onpage.og_tags","name":"Open Graph tags","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_og_tags","score_weight":5,"value_type":"boolean","database_field":"has_og_tags","frontend_key":"has_og_tags"},
+    {"id":"onpage.schema","name":"Schema / JSON-LD presence","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_schema","score_weight":7,"value_type":"boolean","database_field":"has_json_ld","frontend_key":"has_json_ld"},
+    {"id":"onpage.noindex","name":"No noindex tag","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_noindex","score_weight":8,"value_type":"boolean","database_field":"has_noindex","frontend_key":null},
+    {"id":"onpage.heading_hierarchy","name":"Heading hierarchy","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_heading_hierarchy","score_weight":4,"value_type":"boolean","database_field":"heading_hierarchy_ok","frontend_key":null},
+    {"id":"onpage.internal_links","name":"Internal links","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_internal_links","score_weight":4,"value_type":"count","database_field":"internal_links_count","frontend_key":null},
+    {"id":"onpage.anchor_text_quality","name":"Anchor text quality","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_anchor_text_quality","score_weight":3,"value_type":"boolean","database_field":"anchor_text_ok","frontend_key":null},
+    {"id":"onpage.image_filenames","name":"Image filenames","axis":"onpage","module":"auditor/auditor/auditor/onpage.py","function":"audit_image_filenames","score_weight":3,"value_type":"boolean","database_field":"image_filenames_ok","frontend_key":null},
+
+    {"id":"images.alt_text","name":"Image alt text","axis":"images","module":"auditor/auditor/auditor/images.py","function":"audit_alt_text","score_weight":5,"value_type":"count","database_field":"missing_alt_count","frontend_key":"alt_text"},
+    {"id":"images.webp","name":"WebP image format","axis":"images","module":"auditor/auditor/auditor/images.py","function":"audit_webp","score_weight":4,"value_type":"boolean","database_field":"uses_webp","frontend_key":"uses_webp"},
+    {"id":"images.lazy_load","name":"Image lazy loading","axis":"images","module":"auditor/auditor/auditor/images.py","function":"audit_lazy_loading","score_weight":3,"value_type":"boolean","database_field":"has_lazy_load","frontend_key":"has_lazy_load"},
+    {"id":"links.broken_links","name":"Broken links","axis":"links","module":"auditor/auditor/auditor/links.py","function":"audit_broken_links","score_weight":10,"value_type":"count","database_field":"broken_links_count","frontend_key":"broken_links_ok"},
+
+    {"id":"conversion.social","name":"Social profile links","axis":"conversion","module":"auditor/auditor/auditor/social.py","function":"audit_social_links","score_weight":4,"value_type":"list","database_field":"missing_social","frontend_key":"social"},
+    {"id":"conversion.contact","name":"Clickable contact links","axis":"conversion","module":"auditor/auditor/auditor/social.py","function":"audit_contact_links","score_weight":6,"value_type":"boolean","database_field":"has_contact","frontend_key":"has_contact"},
+    {"id":"conversion.whatsapp","name":"WhatsApp integration","axis":"conversion","module":"auditor/auditor/auditor/social.py","function":"audit_whatsapp","score_weight":4,"value_type":"boolean","database_field":"has_whatsapp","frontend_key":"has_whatsapp"},
+    {"id":"conversion.trust","name":"Trust pages","axis":"conversion","module":"auditor/auditor/auditor/trust.py","function":"audit_trust_pages","score_weight":6,"value_type":"boolean","database_field":"has_trust","frontend_key":"has_trust"},
+
+    {"id":"ux.cta","name":"Call to action","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_cta","score_weight":8,"value_type":"boolean","database_field":"has_cta","frontend_key":"has_cta"},
+    {"id":"ux.cta_above_fold","name":"CTA above the fold","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_cta_above_fold","score_weight":5,"value_type":"boolean","database_field":"cta_above_fold","frontend_key":"cta_above_fold"},
+    {"id":"ux.hero_headline","name":"Hero headline","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_hero_headline","score_weight":6,"value_type":"boolean","database_field":"has_hero_headline","frontend_key":"has_hero_headline"},
+    {"id":"ux.font_size","name":"Font size","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_font_size","score_weight":4,"value_type":"boolean","database_field":"font_size_ok","frontend_key":"font_size_ok"},
+    {"id":"ux.contrast","name":"Color contrast","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_contrast","score_weight":5,"value_type":"boolean","database_field":"contrast_ok","frontend_key":"contrast_ok"},
+    {"id":"ux.nav_links","name":"Navigation links","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_nav_links","score_weight":5,"value_type":"count","database_field":"nav_links_count","frontend_key":"nav_ok"},
+    {"id":"ux.cookie_notice","name":"Cookie notice","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_cookie_notice","score_weight":3,"value_type":"boolean","database_field":"has_cookie_notice","frontend_key":"has_cookie_notice"},
+    {"id":"ux.live_chat","name":"Live chat","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_live_chat","score_weight":4,"value_type":"boolean","database_field":"has_live_chat","frontend_key":"has_live_chat"},
+    {"id":"ux.phone_number","name":"Phone number presence","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_phone_number","score_weight":5,"value_type":"boolean","database_field":"has_phone_number","frontend_key":"has_phone_number"},
+    {"id":"ux.address_presence","name":"Address presence","axis":"ux","module":"auditor/auditor/auditor/ux.py","function":"audit_address_presence","score_weight":5,"value_type":"boolean","database_field":"has_address","frontend_key":"has_address"},
+
+    {"id":"indexability.noindex","name":"No noindex tag","axis":"indexability","module":"auditor/auditor/auditor/indexability.py","function":"audit_noindex","score_weight":8,"value_type":"boolean","database_field":null,"frontend_key":"has_noindex"},
+    {"id":"indexability.url_structure","name":"URL structure","axis":"indexability","module":"auditor/auditor/auditor/indexability.py","function":"audit_url_structure","score_weight":5,"value_type":"boolean","database_field":"url_structure_ok","frontend_key":"url_structure_ok"},
+    {"id":"indexability.www_vs_nonwww","name":"WWW/non-WWW consistency","axis":"indexability","module":"auditor/auditor/auditor/indexability.py","function":"audit_www_vs_nonwww","score_weight":6,"value_type":"boolean","database_field":"www_nonwww_ok","frontend_key":"www_nonwww_ok"},
+    {"id":"indexability.soft_404","name":"Soft 404 detection","axis":"indexability","module":"auditor/auditor/auditor/indexability.py","function":"audit_soft_404_content","score_weight":6,"value_type":"boolean","database_field":"soft_404_ok","frontend_key":"soft_404_ok"},
+
+    {"id":"content.word_count","name":"Word count","axis":"content","module":"auditor/auditor/auditor/content.py","function":"audit_word_count","score_weight":8,"value_type":"count","database_field":"word_count","frontend_key":"word_count_ok"},
+    {"id":"content.duplicate_meta","name":"Duplicate metadata","axis":"content","module":"auditor/auditor/auditor/content.py","function":"audit_duplicate_meta","score_weight":5,"value_type":"boolean","database_field":"duplicate_meta_ok","frontend_key":"duplicate_meta_ok"},
+    {"id":"content.keyword_in_title","name":"Keyword in title","axis":"content","module":"auditor/auditor/auditor/content.py","function":"audit_keyword_in_title","score_weight":6,"value_type":"boolean","database_field":"keyword_in_title_ok","frontend_key":"keyword_in_title_ok"},
+    {"id":"content.reading_level","name":"Reading level","axis":"content","module":"auditor/auditor/auditor/content.py","function":"audit_reading_level","score_weight":5,"value_type":"number","database_field":"reading_level_ok","frontend_key":"reading_level_ok"},
+
+    {"id":"local_seo.nap_consistency","name":"NAP presence heuristic","axis":"local_seo","module":"auditor/auditor/auditor/local_seo.py","function":"audit_nap_consistency","score_weight":8,"value_type":"boolean","database_field":"has_nap","frontend_key":"has_nap"},
+    {"id":"local_seo.local_business_schema","name":"LocalBusiness schema","axis":"local_seo","module":"auditor/auditor/auditor/local_seo.py","function":"audit_local_business_schema","score_weight":8,"value_type":"boolean","database_field":"has_local_business_schema","frontend_key":"has_local_business_schema"},
+    {"id":"local_seo.google_maps_embed","name":"Google Maps embed","axis":"local_seo","module":"auditor/auditor/auditor/local_seo.py","function":"audit_google_maps_embed","score_weight":5,"value_type":"boolean","database_field":"has_google_maps","frontend_key":"has_google_maps"},
+    {"id":"local_seo.city_in_title","name":"City in title","axis":"local_seo","module":"auditor/auditor/auditor/local_seo.py","function":"audit_city_in_title","score_weight":5,"value_type":"boolean","database_field":"city_in_title_ok","frontend_key":"city_in_title_ok"},
+    {"id":"local_seo.business_hours","name":"Business hours","axis":"local_seo","module":"auditor/auditor/auditor/local_seo.py","function":"audit_business_hours","score_weight":4,"value_type":"boolean","database_field":"has_business_hours","frontend_key":"has_business_hours"},
+
+    {"id":"performance.response_time","name":"HTTP response time","axis":"performance","module":"auditor/auditor/auditor/performance.py","function":"audit_response_time","score_weight":8,"value_type":"duration_ms","database_field":"response_time_ms","frontend_key":"response_time_ok"},
+    {"id":"performance.page_size","name":"Page size","axis":"performance","module":"auditor/auditor/auditor/performance.py","function":"audit_page_size","score_weight":4,"value_type":"bytes","database_field":"page_size_ok","frontend_key":"page_size_ok"},
+    {"id":"performance.render_blocking","name":"Render-blocking resources","axis":"performance","module":"auditor/auditor/auditor/performance.py","function":"audit_render_blocking","score_weight":5,"value_type":"boolean","database_field":"render_blocking_ok","frontend_key":"render_blocking_ok"},
+    {"id":"performance.gzip_compression","name":"Gzip compression","axis":"performance","module":"auditor/auditor/auditor/performance.py","function":"audit_gzip_compression","score_weight":5,"value_type":"boolean","database_field":"gzip_enabled","frontend_key":"gzip_enabled"},
+    {"id":"performance.webp_images","name":"WebP image coverage","axis":"performance","module":"auditor/auditor/auditor/performance.py","function":"audit_webp_images","score_weight":4,"value_type":"boolean","database_field":"webp_coverage_ok","frontend_key":"webp_coverage_ok"},
+    {"id":"performance.minification","name":"CSS/JS minification","axis":"performance","module":"auditor/auditor/auditor/performance.py","function":"audit_minification","score_weight":3,"value_type":"boolean","database_field":"minification_ok","frontend_key":"minification_ok"},
+
+    {"id":"schema_advanced.faq_schema","name":"FAQ schema","axis":"schema_advanced","module":"auditor/auditor/auditor/schema_advanced.py","function":"audit_faq_schema","score_weight":5,"value_type":"boolean","database_field":"has_faq_schema","frontend_key":"has_faq_schema"},
+    {"id":"schema_advanced.product_schema","name":"Product schema","axis":"schema_advanced","module":"auditor/auditor/auditor/schema_advanced.py","function":"audit_product_schema","score_weight":5,"value_type":"boolean","database_field":"has_product_schema","frontend_key":"has_product_schema"},
+    {"id":"schema_advanced.breadcrumb_schema","name":"Breadcrumb schema","axis":"schema_advanced","module":"auditor/auditor/auditor/schema_advanced.py","function":"audit_breadcrumb_schema","score_weight":4,"value_type":"boolean","database_field":"has_breadcrumb_schema","frontend_key":"has_breadcrumb_schema"},
+    {"id":"schema_advanced.review_schema","name":"Review schema","axis":"schema_advanced","module":"auditor/auditor/auditor/schema_advanced.py","function":"audit_review_schema","score_weight":5,"value_type":"boolean","database_field":"has_review_schema","frontend_key":"has_review_schema"},
+    {"id":"schema_advanced.graph_schema","name":"Schema graph","axis":"schema_advanced","module":"auditor/auditor/auditor/schema_advanced.py","function":"audit_graph_schema","score_weight":4,"value_type":"boolean","database_field":"schema_graph_ok","frontend_key":"schema_graph_ok"}
+  ]
+}
