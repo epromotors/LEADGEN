@@ -1,0 +1,15 @@
+{
+  "include": [
+    "backend"
+  ],
+  "extraPaths": [
+    "backend"
+  ],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "ignore": [
+    "gen_pdf_preview.py"
+  ]
+}

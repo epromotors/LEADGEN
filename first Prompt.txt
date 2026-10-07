@@ -1,0 +1,23 @@
+Read AGENT_MASTER.md first and follow it as your system instructions. Then help me with: check in DB if email is replaced or not, If not replace the email. Do not change any other code or lead data
+
+Update ChangeLog.md, Architecture.md, readme.md, system.md, AI_Prompt.md, and Agent_Master.md with all the latest changes and required information.
+Complete one task at a time before moving to the next task or file.
+
+
+Read AGENT_MASTER.md first and follow it as your system instructions. Then help me with: 
+
+Read and review all files, functions, and code. To fix bugs,
+Read and review any errors in the DB connection, overloading issues, and read and fix any format errors in PDF generations.
+Complete one task at a time before moving to the next task or file.
+
+
+Read AGENT_MASTER.md first and follow it as your system instructions. Then help me with: 
+
+1) Read and review all files, functions, and code. To fix bugs, remove junk, and leftover code.
+2) Read and review any errors in the DB connection and overloading issues.
+3) Update ChangeLog.md, Architecture.md, readme.md, system.md, AI_Prompt.md, and Agent_Master.md with all the latest changes and required information.
+4) Complete one task at a time before moving to the next task or file.
+
+Read AGENT_MASTER.md first and understand the code, system. Important- Do not Touch or chnage the Code, DB.
+Review whole system, code and give suggestion to improve and optimize for better fuctionality and lead generation.
+Save that as System-review.md (New File)
