@@ -1,0 +1,90 @@
+{
+  "phase": "Phase 2 Verification & Hardening",
+  "status": "COMPLETE",
+  "baseline_implementation_commit": "9b096d0",
+  "baseline_control_plane_commit": "62b28e4",
+  "factor_count": 62,
+  "browser_enabled_default": false,
+  "test_results": {
+    "total_tests": 81,
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0,
+    "breakdown": {
+      "phase1_regression": 18,
+      "phase2_unit_provider": 38,
+      "phase2_verification_hardening": 25
+    },
+    "python_compile": "pass",
+    "brain_validator_strict": "pass (valid=true, strict_valid=true, 62 factors)",
+    "frontend_build": "pass (Vite production build clean)",
+    "diff_check": "pass"
+  },
+  "runtime_verification": {
+    "disabled_mode_default": "verified; zero Playwright processes launched; audit factors unaffected",
+    "enabled_mode_runtime": "verified; headless Chromium launch, DOM extraction, console/network error capture",
+    "deterministic_fixtures": {
+      "static_html": "verified; raw vs rendered equivalence",
+      "js_rendered": "verified; client-rendered h1 and DOM correctly extracted into browser evidence",
+      "timeout": "verified; hard timeout budget enforced gracefully, status=TIMEOUT, zero factor disruption",
+      "console_network_errors": "verified; captured up to 20 errors each with metadata",
+      "dom_snippet_capping": "verified; capped at exactly 16 KB with truncation indicator"
+    },
+    "api_and_pdf_compatibility": "verified; AuditResponse schemas, get_audit endpoints, and PDF generation invariant"
+  },
+  "security_audit_and_hardening": {
+    "ssrf_schemes_blocked": ["file://", "gopher://", "ftp://", "data://", "javascript://"],
+    "ssrf_ip_ranges_blocked": [
+      "127.0.0.0/8",
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16",
+      "169.254.0.0/16",
+      "100.64.0.0/10",
+      "198.18.0.0/15",
+      "240.0.0.0/4",
+      "255.255.255.255/32",
+      "::1/128",
+      "fc00::/7",
+      "fe80::/10",
+      "2001:db8::/32",
+      "::/128"
+    ],
+    "numeric_ip_formats_handled": ["integer literal (e.g. 2130706433)", "hex literal (e.g. 0x7f000001)", "dotted hex/octal"],
+    "ipv4_mapped_ipv6_handled": ["::ffff:127.0.0.1", "::ffff:169.254.169.254"],
+    "redirect_ssrf_enforcement": "route.fetch(max_redirects=0) boundary inspection aborts navigation before following redirects to internal destinations",
+    "subresource_ssrf_enforcement": "route abort for private IP resources and prohibited resource types (image, font, stylesheet)",
+    "resource_exhaustion_guards": "module-level concurrency semaphore (2), per-page timeout (60s), DOM cap (16KB), guaranteed finally cleanup"
+  },
+  "confirmed_fixes": [
+    {
+      "component": "backend/app/engines/audit_engine.py",
+      "defect": "Premature browser import before adding _AUDITOR_PATH to sys.path caused _BROWSER_MODULE_AVAILABLE to fall back to False at runtime.",
+      "fix": "Reordered sys.path.insert(0, str(_AUDITOR_PATH)) prior to browser provider import."
+    },
+    {
+      "component": "auditor/auditor/browser/provider.py",
+      "defect": "Playwright Sync API threw runtime error when invoked inside active asyncio event loop thread.",
+      "fix": "Wrapped BrowserProvider.capture to detect active event loops and run in an isolated worker thread."
+    },
+    {
+      "component": "auditor/auditor/browser/security.py",
+      "defect": "validate_url did not detect integer/hex IP formats or IPv4-mapped IPv6 representations.",
+      "fix": "Added _parse_ip_literal parser and IPv4-mapped address unwrapper; expanded blocked CIDRs to include CGNAT, Class E, broadcast, benchmarking, documentation."
+    },
+    {
+      "component": "auditor/auditor/browser/provider.py",
+      "defect": "Chromium automatically followed HTTP 3xx redirects to private/loopback IPs, bypassing pre-navigation URL validation.",
+      "fix": "Implemented request-boundary route handler using route.fetch(max_redirects=0) to inspect Location headers and abort redirects to internal targets."
+    }
+  ],
+  "remaining_risks": [
+    "Playwright requires browser binaries installed in environment (playwright install chromium).",
+    "DNS rebinding risk on slow multi-A-record changes is mitigated by route-level redirect inspection and subresource route blocking, but full forward proxying would be required for zero-trust perimeter defense."
+  ],
+  "resume_instructions": {
+    "current_state": "Phase 2 Verification is complete and hardened with 81 passing tests.",
+    "next_phase": "Phase 3 (if and only if authorized; do not start automatically).",
+    "verification_command": "python scripts/validate_agent_brain.py --strict --report && python -m pytest"
+  }
+}

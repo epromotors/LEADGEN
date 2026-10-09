@@ -1,10 +1,30 @@
 {
-  "phase": "Phase 2",
+  "phase": "Phase 2 Verification",
   "status": "COMPLETE",
   "active_task": null,
-  "last_known_commit": "9b096d0",
+  "last_known_commit": "62b28e4",
   "uncommitted_changes_at_snapshot": false,
-  "last_updated": "2026-10-09T12:35:00+05:30",
+  "last_updated": "2026-10-09T13:28:00+05:30",
+  "verification_items": {
+    "P2_VERIFY_01_RUNTIME": {
+      "name": "Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF)",
+      "status": "COMPLETE",
+      "scope": "Verify browser disabled default, browser enabled runtime with Playwright, deterministic fixtures (static, client-rendered, timeout, error), API schemas, and PDF report generation.",
+      "acceptance_criteria": "Both enabled and disabled modes exercised; browser launched only when enabled; timeouts/errors isolated; API and PDF compatibility verified; no regressions."
+    },
+    "P2_VERIFY_02_SECURITY": {
+      "name": "Browser security audit and hardening (SSRF, URL/IP classes, redirects, DNS, resource limits)",
+      "status": "COMPLETE",
+      "scope": "Audit URL validation, DNS resolution, IPv4/IPv6 address classes (including IPv4-mapped IPv6, alternative numeric formats), redirect protection, route request boundary enforcement, and resource exhaustion bounds.",
+      "acceptance_criteria": "Unsupported schemes and private/loopback/link-local/multicast/mapped IPs blocked; redirect SSRF blocked at request boundary; resource limits enforced; tests pass."
+    },
+    "P2_VERIFY_03_CONTROL_PLANE": {
+      "name": "Agent Brain consistency, validator strictness, and resumability checkpoint",
+      "status": "COMPLETE",
+      "scope": "Reconcile brain.json, architecture.json, rules.json, factor_registry.json; verify scripts/validate_agent_brain.py; generate phase-2-verification.json snapshot with exact resume points.",
+      "acceptance_criteria": "Control-plane documents reconcile with runtime code; strict validation passes; snapshot contains complete evidence matrix and resume instruction."
+    }
+  },
   "completed": [
     "Step 2.0: Baseline and control-plane readiness — preflight passed, 18 tests pass, brain validator strict_valid=true, 62 factors, Playwright 1.58.0 available, browser launch confirmed",
     "Step 2.1: Provider interface and configuration — BrowserEvidence, BrowserProvider, BrowserConfig, BrowserStatus, is_browser_enabled; disabled by default; import-time safe",
@@ -12,13 +32,16 @@
     "Step 2.3: Audit orchestration and evidence comparison — lazy integration in _run_audit_sync, _annotate_browser_comparisons for page_title/h1/cta, browser_evidence stored in site_summary",
     "Step 2.4: API, frontend, and PDF compatibility — AuditResponse.browser_status/browser_evidence fields, get_audit endpoint populates from site_summary; schemas.py backward-compatible; 62-factor parity preserved",
     "Step 2.5: Regression and security tests — 38 Phase 2 tests + 18 Phase 1 regression = 56 total, all pass",
-    "Step 2.6: Final checkpoint — committed 9b096d0, brain validator strict_valid=true, 62 factors, zero uncommitted changes"
+    "Step 2.6: Final checkpoint — committed 9b096d0, brain validator strict_valid=true, 62 factors, zero uncommitted changes",
+    "P2_VERIFY_01_RUNTIME: Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF) complete — 25 verification tests, 81 total tests pass",
+    "P2_VERIFY_02_SECURITY: Browser security audit and hardening (SSRF, URL/IP classes, redirects, DNS, resource limits) complete — literal IP formats, IPv4-mapped IPv6, and route redirect boundary enforcement added",
+    "P2_VERIFY_03_CONTROL_PLANE: Agent Brain consistency, validator strictness, and snapshots generated — strict validation passes, phase-2-verification.json created"
   ],
   "in_progress": [],
   "blocked": [],
   "next": [],
-  "last_verified": "2026-10-09 (56 pytest tests pass; brain validator strict mode pass with 62 factors; commit 9b096d0; clean working tree)",
-  "last_checkpoint": "Phase 2 COMPLETE — commit 9b096d0",
+  "last_verified": "2026-10-09 (81 pytest tests pass; brain validator strict mode pass with 62 factors; python_compile pass; frontend build pass)",
+  "last_checkpoint": "Phase 2 Verification COMPLETE — 81 tests pass, strict control-plane valid",
   "steps": {
     "2.0": {
       "name": "Baseline and control-plane readiness",
@@ -88,7 +111,7 @@
       "features": [
         "AuditResponse.browser_status (Optional[str]) — backward compatible",
         "AuditResponse.browser_evidence (Optional[dict]) — backward compatible",
-        "get_audit endpoint extracts fields from site_summary",
+        "get_audit endpoint populates browser fields from site_summary",
         "No new DB columns required",
         "62-factor parity preserved (brain validator strict_valid=true)"
       ]
@@ -116,14 +139,40 @@
         "brain_validator": "pass: valid=true, strict_valid=true, 62 code/registry/frontend/db/api/pdf factors",
         "python_compile": "pass: all modified files"
       }
+    },
+    "2.7": {
+      "name": "Phase 2 Verification and Hardening",
+      "status": "COMPLETE",
+      "files_created": [
+        "tests/test_phase2_verification.py",
+        ".agent/snapshots/phase-2.json",
+        ".agent/snapshots/phase-2-verification.json"
+      ],
+      "files_modified": [
+        "backend/app/engines/audit_engine.py",
+        "auditor/auditor/browser/provider.py",
+        "auditor/auditor/browser/security.py",
+        "scripts/validate_agent_brain.py",
+        ".agent/brain.json",
+        ".agent/architecture.json",
+        ".agent/rules.json",
+        ".agent/task_state.json"
+      ],
+      "verification": {
+        "tests": "pass: 81 total pytest tests (25 verification + 38 phase2 + 18 phase1)",
+        "brain_validator": "pass: valid=true, strict_valid=true, 62 factors",
+        "python_compile": "pass: all files compiled",
+        "frontend_build": "pass: Vite production build succeeded",
+        "diff_check": "clean"
+      }
     }
   },
   "verification": {
     "brain_validator": "pass; strict mode pass with 62 code/registry/frontend factors",
     "python_compile": "pass",
-    "unit_tests": "pass: 56 pytest tests (38 Phase 2 + 18 Phase 1 regression)",
-    "frontend_build": "not broken — no frontend files modified in Phase 2",
-    "diff_check": "pass (clean tree at commit 9b096d0)"
+    "unit_tests": "pass: 81 pytest tests (25 Phase 2 Verification + 38 Phase 2 + 18 Phase 1 regression)",
+    "frontend_build": "pass: Vite build completed successfully",
+    "diff_check": "pass"
   },
   "deferred_features": [
     "Lighthouse integration",
@@ -154,5 +203,14 @@
     "AuditResponse: browser_status, browser_evidence fields (backward-compatible)",
     "get_audit endpoint: populates browser fields from site_summary",
     "38 new tests for all Phase 2 components (all pass)"
+  ],
+  "phase_2_verification_completed": [
+    "Fixed sys.path order in audit_engine.py ensuring _BROWSER_MODULE_AVAILABLE is True at runtime",
+    "Wrapped BrowserProvider.capture to run in worker thread if called in active asyncio loop",
+    "Hardened validate_url against decimal/hex IPs and IPv4-mapped IPv6, expanded blocked CIDRs",
+    "Enforced redirect SSRF blocking at route fetch boundary before network egress",
+    "25 verification tests in tests/test_phase2_verification.py covering runtime, security, fixtures, invariants",
+    "Comprehensive control plane validation in scripts/validate_agent_brain.py",
+    "Created phase-2.json and phase-2-verification.json snapshots"
   ]
 }
