@@ -144,5 +144,33 @@ SCORE_BANDS = [
     (85, 101, "🟢 Excellent", "Your website is well-optimised for search engines."),
     (65, 85,  "🟡 Good — Needs Work", "Several issues need attention to reach top rankings."),
     (40, 65,  "🟠 Poor — Action Required", "Significant SEO problems are hurting your visibility."),
-    (0,  40,  "🔴 Critical", "Urgent fixes required. This site will struggle to rank at all."),
+    (0,  40,  "🔴 Critical", "Urgent fixes needed. This site will struggle to rank at all."),
 ]
+
+# ── Browser evidence provider (Phase 2) ───────────────────────────────────────
+# All defaults are safe for a local Windows development environment.
+# Set BROWSER_ENABLED=true in the environment (or .env) to activate the provider.
+# The browser is NEVER launched when BROWSER_ENABLED is absent or false.
+#
+# Production deployment note:
+#   Install browser binaries:   python -m playwright install chromium
+#   Consider running in a sandboxed environment (Docker, AppArmor, seccomp).
+#   Do not run the browser provider as a root/admin account.
+BROWSER_DEFAULTS = {
+    "enabled":             False,    # off by default; opt-in via env/config
+    "headless":            True,
+    "nav_timeout_ms":      25_000,   # 25 s navigation timeout
+    "op_timeout_ms":       15_000,   # 15 s per-operation timeout
+    "max_concurrency":     2,        # max simultaneous browser contexts
+    "budget_seconds":      60,       # per-site wall-clock budget
+    "screenshot":          False,    # screenshot capture disabled by default
+    "screenshot_dir":      "",       # "" = system tempdir
+    "screenshot_max_kb":   512,      # discard screenshots above this size
+    "executable":          "",       # "" = Playwright bundled Chromium
+    "dom_snippet_max_chars": 16_384, # cap rendered DOM stored in evidence
+    # Resource types blocked in the browser to reduce bandwidth/risk.
+    # "script" is intentionally NOT blocked — JS execution is needed for
+    # rendered evidence.
+    "blocked_resource_types": ("image", "font", "stylesheet"),
+}
+

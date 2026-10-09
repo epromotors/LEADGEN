@@ -23,6 +23,16 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
+# ── Phase 2: browser provider (lazy import — safe to load without a browser) ──
+# Importing the module does NOT launch a browser; the browser only launches
+# when BrowserConfig.enabled=True and BrowserProvider.capture() is called.
+try:
+    from browser.provider import BrowserProvider, BrowserConfig, BrowserEvidence, BrowserStatus
+    from browser.security import validate_url as _browser_validate_url
+    _BROWSER_MODULE_AVAILABLE = True
+except ImportError:
+    _BROWSER_MODULE_AVAILABLE = False
+
 # ── Import new auditor package ────────────────────────────────────────────────
 # The auditor sub-packages live at:
 #   C:\Users\LENOVO\LEADGEN\auditor\auditor\auditor\*.py   (from auditor.core import ...)
@@ -378,6 +388,34 @@ def _run_audit_sync(url: str) -> dict:
     except Exception as _ee:
         logger.warning(f"[audit_engine] email_finder failed for {url}: {_ee}")
 
+
+    # ── Phase 2: browser evidence capture ─────────────────────────────────────
+    # Runs only when BROWSER_ENABLED=true.  A browser failure NEVER aborts the
+    # HTTP audit or changes any factor status or score.
+    browser_evidence: dict = {}
+    browser_status: str = "DISABLED"
+    try:
+        if _BROWSER_MODULE_AVAILABLE:
+            _bcfg = BrowserConfig.from_env()
+            if _bcfg.enabled:
+                _provider = BrowserProvider(_bcfg)
+                _bev = _provider.capture(url)
+                browser_evidence = _bev.to_dict()
+                browser_status   = _bev.provider_status
+                logger.info(
+                    "[audit_engine] Browser evidence status=%s elapsed=%d ms for %s",
+                    browser_status, _bev.elapsed_ms, url,
+                )
+                _annotate_browser_comparisons(audit_results, _bev)
+            else:
+                browser_status = "DISABLED"
+        else:
+            browser_status = "UNAVAILABLE"
+    except Exception as _bexc:
+        browser_status   = "ERROR"
+        browser_evidence = {"provider_status": "ERROR", "provider_error": str(_bexc)}
+        logger.exception("[audit_engine] Browser evidence capture failed for %s", url)
+
     return {
         "audit_results": audit_results,
         "score": score,
@@ -388,6 +426,8 @@ def _run_audit_sync(url: str) -> dict:
         "html": html,
         "found_email":  found_email,
         "email_source": email_source,
+        "browser_evidence": browser_evidence,
+        "browser_status":   browser_status,
     }
 
 
@@ -404,6 +444,15 @@ def _compute_score(audit_results: dict) -> int:
     if not _NEW_AUDITOR_AVAILABLE:
         raise RuntimeError("Auditor package is not available")
     return compute_structured_score(audit_results, dict(SCORE_WEIGHTS))
+
+# _annotate_browser_comparisons is defined in the auditor browser package so
+# it can be imported in tests without pulling in FastAPI / pydantic-settings.
+try:
+    from browser.comparisons import annotate_browser_comparisons as _annotate_browser_comparisons
+except ImportError:
+    def _annotate_browser_comparisons(audit_results, bev):
+        pass  # no-op fallback if browser package is unavailable
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -804,6 +853,8 @@ async def run_audit(lead_id: str) -> None:
     homepage_html = data.get("html", "")
     found_email   = data.get("found_email")
     email_source  = data.get("email_source", "not_found")
+    browser_evidence = data.get("browser_evidence", {})
+    browser_status   = data.get("browser_status", "DISABLED")
 
     # ── PHASE 4: Extract business name (pure CPU, no DB) ─────────────────────
     suggested_name = None
@@ -919,7 +970,13 @@ async def run_audit(lead_id: str) -> None:
             audit.seo_score          = score
             audit.audited_url        = audit_url
             audit.audit_results      = audit_results
-            audit.site_summary       = {**site_summary, "crawl_coverage": crawl_coverage, "lifecycle": lifecycle}
+            audit.site_summary       = {
+                **site_summary,
+                "crawl_coverage": crawl_coverage,
+                "lifecycle": lifecycle,
+                "browser_evidence": browser_evidence,
+                "browser_status": browser_status,
+            }
             audit.audit_lifecycle    = lifecycle
             audit.page_audits        = page_audits
             audit.audit_summary      = db_cols["audit_summary"]

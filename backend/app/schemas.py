@@ -180,7 +180,14 @@ class AuditResponse(UTCBase):
     has_review_schema:     Optional[bool] = None
     schema_graph_ok:       Optional[bool] = None
 
-
+    # ── Phase 2 — Browser evidence (additive, backward-compatible) ───────────
+    # browser_status: DISABLED | SUCCESS | PARTIAL | TIMEOUT | BLOCKED |
+    #                 CRASHED | FAILED | UNAVAILABLE | ERROR
+    # browser_evidence is stored in site_summary["browser_evidence"] and exposed
+    # here as a convenience alias.  Consumers should check browser_status first.
+    # A non-SUCCESS status must NOT be interpreted as a website audit finding.
+    browser_status: Optional[str] = None
+    browser_evidence: Optional[dict] = None
 
 
 # ─── Campaigns ────────────────────────────────────────────────────────────────
