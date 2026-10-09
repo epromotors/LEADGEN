@@ -2,17 +2,20 @@
   "components": {
     "frontend": {"path": "frontend/", "entrypoint": "frontend/src/main.jsx", "depends_on": ["api"]},
     "api": {"path": "backend/app/routers/", "entrypoint": "backend/app/main.py", "depends_on": ["audit_engine", "database"]},
-    "audit_engine": {"path": "backend/app/engines/audit_engine.py", "entrypoint": "run_audit", "depends_on": ["factor_contract", "audit_modules", "crawler", "database", "pdf_report"]},
+    "audit_engine": {"path": "backend/app/engines/audit_engine.py", "entrypoint": "run_audit", "depends_on": ["factor_contract", "audit_modules", "crawler", "browser_provider", "database", "pdf_report"]},
     "factor_contract": {"path": "backend/app/engines/factor_contract.py", "depends_on": ["factor_registry"]},
     "audit_modules": {"path": "auditor/auditor/auditor/", "depends_on": ["http_provider"]},
     "crawler": {"path": "auditor/auditor/auditor/crawler.py", "depends_on": ["http_provider"]},
     "http_provider": {"path": "auditor/auditor/auditor/core.py"},
+    "browser_provider": {"path": "auditor/auditor/browser/provider.py", "depends_on": ["browser_security"]},
+    "browser_security": {"path": "auditor/auditor/browser/security.py"},
+    "browser_comparisons": {"path": "auditor/auditor/browser/comparisons.py"},
     "database": {"path": "backend/app/models.py", "depends_on": ["backend/app/database.py"]},
     "pdf_report": {"path": "auditor/auditor/reporter/pdf_report.py", "depends_on": ["audit_engine"]},
     "outreach": {"path": "backend/app/engines/outreach_engine.py", "depends_on": ["database", "pdf_report"]}
   },
   "flows": {
-    "audit": ["audits router", "audit_engine.run_audit", "registry validation", "isolated factor results", "crawler coverage/lifecycle", "Audit model", "AuditResponse", "Audits.jsx/PDF"],
+    "audit": ["audits router", "audit_engine.run_audit", "registry validation", "isolated factor results", "crawler coverage/lifecycle", "optional browser capture", "Audit model", "AuditResponse", "Audits.jsx/PDF"],
     "outreach": ["campaign router", "outreach_engine", "Lead/Audit", "SMTP"]
   }
 }

@@ -1,0 +1,45 @@
+{
+  "phase": "Phase 2 - Isolated Browser Evidence",
+  "status": "complete",
+  "implementation_commit": "9b096d0",
+  "control_plane_commit": "62b28e4",
+  "factor_count": 62,
+  "browser_enabled_default": false,
+  "provider": "Playwright Chromium headless",
+  "concurrency_limit": 2,
+  "timeout_seconds": 60,
+  "dom_snippet_max_bytes": 16384,
+  "lifecycle": ["PENDING", "RUNNING", "COMPLETE", "PARTIAL", "BLOCKED", "FAILED"],
+  "states": ["PASS", "WARN", "FAIL", "N/A", "ERROR", "UNKNOWN"],
+  "registry_validation": true,
+  "frontend_registry_driven": true,
+  "api_backward_compatible": true,
+  "database_changes": [],
+  "tests": {
+    "python_compile": "pass",
+    "pytest": "pass: 56 tests (38 Phase 2 + 18 Phase 1 regression)",
+    "registry_validation_strict": "pass: 62 code/registry/frontend factors",
+    "frontend_build": "pass",
+    "pdf_contract": "pass",
+    "diff_check": "pass"
+  },
+  "components_added": [
+    "auditor/auditor/browser/__init__.py",
+    "auditor/auditor/browser/provider.py",
+    "auditor/auditor/browser/security.py",
+    "auditor/auditor/browser/comparisons.py"
+  ],
+  "components_updated": [
+    "auditor/auditor/config.py",
+    "backend/app/engines/audit_engine.py",
+    "backend/app/schemas.py",
+    "backend/app/routers/audits.py"
+  ],
+  "known_limitations": [
+    "Browser capture covers single-page homepage only.",
+    "Disabled by default; activated via BROWSER_ENABLED=true.",
+    "No Lighthouse, PageSpeed Insights, or AI integration added.",
+    "Browser diffs annotate existing factors but never alter 62-factor scoring/weights."
+  ],
+  "next_step": "Phase 2 Verification & Hardening"
+}

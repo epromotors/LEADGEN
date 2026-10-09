@@ -23,16 +23,6 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
-# ── Phase 2: browser provider (lazy import — safe to load without a browser) ──
-# Importing the module does NOT launch a browser; the browser only launches
-# when BrowserConfig.enabled=True and BrowserProvider.capture() is called.
-try:
-    from browser.provider import BrowserProvider, BrowserConfig, BrowserEvidence, BrowserStatus
-    from browser.security import validate_url as _browser_validate_url
-    _BROWSER_MODULE_AVAILABLE = True
-except ImportError:
-    _BROWSER_MODULE_AVAILABLE = False
-
 # ── Import new auditor package ────────────────────────────────────────────────
 # The auditor sub-packages live at:
 #   C:\Users\LENOVO\LEADGEN\auditor\auditor\auditor\*.py   (from auditor.core import ...)
@@ -47,6 +37,16 @@ except ImportError:
 _AUDITOR_PATH = Path(__file__).resolve().parents[3] / "auditor" / "auditor"
 if str(_AUDITOR_PATH) not in sys.path:
     sys.path.insert(0, str(_AUDITOR_PATH))
+
+# ── Phase 2: browser provider (lazy import — safe to load without a browser) ──
+# Importing the module does NOT launch a browser; the browser only launches
+# when BrowserConfig.enabled=True and BrowserProvider.capture() is called.
+try:
+    from browser.provider import BrowserProvider, BrowserConfig, BrowserEvidence, BrowserStatus
+    from browser.security import validate_url as _browser_validate_url
+    _BROWSER_MODULE_AVAILABLE = True
+except ImportError:
+    _BROWSER_MODULE_AVAILABLE = False
 
 try:
     from auditor.core import make_session, normalize_url, fetch_page

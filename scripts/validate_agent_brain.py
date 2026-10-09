@@ -104,7 +104,77 @@ def report(strict: bool) -> int:
         print(json.dumps({"valid": False, "errors": errors}, indent=2))
         return 1
 
-    documents = {name: load_json(name) for name in required}
+    documents = {}
+    for name in required:
+        try:
+            documents[name] = load_json(name)
+        except json.JSONDecodeError as exc:
+            errors.append(f"Invalid JSON in .agent/{name}: {exc}")
+
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+
+    # ── Control-plane schema & resume workflow checks ─────────────────────────
+    valid_statuses = {"COMPLETE", "IN_PROGRESS", "NOT_STARTED", "BLOCKED", "VERIFICATION_FAILED"}
+
+    # 1. brain.json checks
+    brain_doc = documents.get("brain.json", {})
+    required_brain_keys = {"project", "architecture", "entrypoints", "navigation", "critical_rules", "current_phase", "next_action", "verification_commands"}
+    missing_brain_keys = required_brain_keys - brain_doc.keys()
+    if missing_brain_keys:
+        errors.append(f"brain.json lacks required keys: {sorted(missing_brain_keys)}")
+    if not brain_doc.get("next_action"):
+        errors.append("brain.json has empty next_action instruction")
+
+    # 2. task_state.json checks
+    task_doc = documents.get("task_state.json", {})
+    required_task_keys = {"phase", "status", "last_known_commit", "last_updated"}
+    missing_task_keys = required_task_keys - task_doc.keys()
+    if missing_task_keys:
+        errors.append(f"task_state.json lacks required keys: {sorted(missing_task_keys)}")
+
+    task_status = task_doc.get("status")
+    if task_status not in valid_statuses:
+        errors.append(f"task_state.json has invalid status: {task_status!r}; expected one of {sorted(valid_statuses)}")
+
+    v_items = task_doc.get("verification_items", {})
+    unfinished_v_items = [
+        k for k, v in v_items.items()
+        if isinstance(v, dict) and v.get("status") in ("IN_PROGRESS", "BLOCKED", "VERIFICATION_FAILED", "NOT_STARTED")
+    ]
+    if task_status == "COMPLETE" and unfinished_v_items:
+        errors.append(f"task_state.json is marked COMPLETE while verification items are unfinished: {unfinished_v_items}")
+
+    for k, v in v_items.items():
+        if isinstance(v, dict):
+            st = v.get("status")
+            if st not in valid_statuses:
+                errors.append(f"Verification item {k} has invalid status {st!r}")
+
+    if task_status != "COMPLETE" and not task_doc.get("active_task") and not brain_doc.get("next_action"):
+        errors.append("task_state.json is incomplete but has neither active_task nor next_action")
+
+    # 3. architecture.json path checks
+    arch_doc = documents.get("architecture.json", {})
+    for comp_name, comp_info in arch_doc.get("components", {}).items():
+        if isinstance(comp_info, dict) and "path" in comp_info:
+            cpath = ROOT / comp_info["path"]
+            if not cpath.exists():
+                errors.append(f"architecture.json component {comp_name!r} path does not exist: {comp_info['path']}")
+
+    # 4. Snapshot consistency check
+    snap_path = AGENT / "snapshots" / "phase-2-verification.json"
+    if snap_path.is_file():
+        try:
+            with snap_path.open(encoding="utf-8") as handle:
+                snap_doc = json.load(handle)
+            snap_status = snap_doc.get("status")
+            if snap_status and task_status and str(snap_status).upper() != str(task_status).upper():
+                errors.append(f"task_state.json status ({task_status}) contradicts snapshot status ({snap_status})")
+        except json.JSONDecodeError as exc:
+            errors.append(f"phase-2-verification.json has invalid JSON: {exc}")
+
     registry = documents["factor_registry.json"]
     factors = registry.get("factors", [])
     expected_fields = {"id", "name", "axis", "module", "function", "score_weight", "value_type", "database_field", "frontend_key"}

@@ -17,6 +17,9 @@
     {"id": "UI-001", "rule": "Frontend factor definitions must derive from the factor registry or a registry-backed API."},
     {"id": "DB-001", "rule": "Validate database mappings against the factor registry."},
     {"id": "API-001", "rule": "Preserve existing API fields while introducing structured results; migrate consumers before removals."},
-    {"id": "TEST-001", "rule": "Every audit-engine change requires automated verification and a factor-parity check."}
+    {"id": "TEST-001", "rule": "Every audit-engine change requires automated verification and a factor-parity check."},
+    {"id": "BROWSER-001", "rule": "Browser provider must be disabled by default (BROWSER_ENABLED=false) and never launch at import time."},
+    {"id": "BROWSER-002", "rule": "Browser execution failures must never crash the audit or change factor statuses."},
+    {"id": "BROWSER-003", "rule": "Browser navigation and subresources must enforce SSRF and IP blocking at pre-navigation and request boundaries."}
   ]
 }

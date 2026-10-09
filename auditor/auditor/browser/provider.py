@@ -225,6 +225,10 @@ class BrowserConfig:
     # because we need JS execution for rendered evidence.
     blocked_resource_types: tuple[str, ...] = ("image", "font", "stylesheet")
 
+    # Loopback allowance: strictly False in production. Only set to True
+    # in explicit local fixture tests.
+    allow_test_loopback: bool = False
+
     @classmethod
     def from_env(cls) -> "BrowserConfig":
         """Build a config from environment variables with safe defaults."""
@@ -253,6 +257,7 @@ class BrowserConfig:
             screenshot_dir=os.environ.get("BROWSER_SCREENSHOT_DIR", ""),
             screenshot_max_kb=_int("BROWSER_SCREENSHOT_MAX_KB", 512),
             executable=os.environ.get("BROWSER_EXECUTABLE", ""),
+            allow_test_loopback=_bool("ALLOW_TEST_LOOPBACK", False),
         )
 
 
@@ -353,7 +358,11 @@ class BrowserProvider:
 
         # Pre-navigation security check
         from browser.security import validate_url
-        pre_check = validate_url(url, context="pre-navigation")
+        pre_check = validate_url(
+            url,
+            context="pre-navigation",
+            allow_test_loopback=self._config.allow_test_loopback,
+        )
         if not pre_check.allowed:
             return BrowserEvidence.security_blocked(url, pre_check.reason)
 
@@ -364,7 +373,26 @@ class BrowserProvider:
             return BrowserEvidence.failed(url, "Concurrency limit: could not acquire browser slot within 30 s")
 
         try:
-            return self._capture_with_playwright(url)
+            # If current thread has an active asyncio event loop (e.g. pytest-anyio or async route),
+            # Playwright sync API raises Error. Isolate in a clean worker thread.
+            has_loop = False
+            try:
+                import asyncio
+                asyncio.get_running_loop()
+                has_loop = True
+            except RuntimeError:
+                has_loop = False
+
+            if has_loop:
+                ev_holder: list[BrowserEvidence] = []
+                def _worker() -> None:
+                    ev_holder.append(self._capture_with_playwright(url))
+                t = threading.Thread(target=_worker)
+                t.start()
+                t.join()
+                return ev_holder[0] if ev_holder else BrowserEvidence.failed(url, "Worker thread returned no evidence")
+            else:
+                return self._capture_with_playwright(url)
         finally:
             sem.release()
 
@@ -430,12 +458,58 @@ class BrowserProvider:
                     _failed_reqs.append(req.url[:300])
             page.on("requestfailed", _on_req_failed)
 
-            # Block heavy resource types to reduce bandwidth and risk
+            # Track request-boundary security blocks
+            _security_blocked_reasons: list[str] = []
+
+            # Block heavy resource types AND enforce request-boundary SSRF policy
             def _route_handler(route, request):  # type: ignore[no-untyped-def]
+                req_url = request.url
                 if request.resource_type in cfg.blocked_resource_types:
                     route.abort()
-                else:
-                    route.continue_()
+                    return
+
+                from browser.security import validate_url
+                req_check = validate_url(
+                    req_url,
+                    context="request-boundary",
+                    allow_test_loopback=cfg.allow_test_loopback,
+                )
+                if not req_check.allowed:
+                    logger.warning("[browser_security] Aborted request to %s: %s", req_url, req_check.reason)
+                    _security_blocked_reasons.append(f"{req_url}: {req_check.reason}")
+                    route.abort()
+                    return
+                # 3. For navigation requests, inspect redirect Location headers before following
+                if request.is_navigation_request():
+                    try:
+                        resp = route.fetch(max_redirects=0)
+                        if resp.status in (301, 302, 303, 307, 308):
+                            loc = resp.headers.get("location")
+                            if loc:
+                                import urllib.parse
+                                resolved_target = urllib.parse.urljoin(req_url, loc)
+                                target_check = validate_url(
+                                    resolved_target,
+                                    context="redirect-boundary",
+                                    allow_test_loopback=cfg.allow_test_loopback,
+                                )
+                                if not target_check.allowed:
+                                    logger.warning(
+                                        "[browser_security] Aborted redirect to %s: %s",
+                                        resolved_target,
+                                        target_check.reason,
+                                    )
+                                    _security_blocked_reasons.append(
+                                        f"Redirect to {resolved_target}: {target_check.reason}"
+                                    )
+                                    route.abort()
+                                    return
+                        route.fulfill(response=resp)
+                        return
+                    except Exception as _fetch_err:
+                        logger.debug("route.fetch exception: %s", _fetch_err)
+
+                route.continue_()
             page.route("**/*", _route_handler)
 
             # Budget check helper
@@ -457,8 +531,12 @@ class BrowserProvider:
                 evidence.failed_requests = _failed_reqs
                 return evidence
             except PWError as exc:
-                evidence.provider_status = BrowserStatus.CRASHED
-                evidence.provider_error = f"Navigation error: {exc}"
+                if _security_blocked_reasons:
+                    evidence.provider_status = BrowserStatus.BLOCKED
+                    evidence.provider_error = f"Security block at request boundary: {'; '.join(_security_blocked_reasons[:3])}"
+                else:
+                    evidence.provider_status = BrowserStatus.CRASHED
+                    evidence.provider_error = f"Navigation error: {exc}"
                 evidence.elapsed_ms = _elapsed_ms(started)
                 evidence.console_errors = _console_errors
                 evidence.failed_requests = _failed_reqs
@@ -467,7 +545,11 @@ class BrowserProvider:
             # Post-navigation security revalidation
             final_url = page.url or url
             from browser.security import validate_url
-            post_check = validate_url(final_url, context="post-redirect")
+            post_check = validate_url(
+                final_url,
+                context="post-redirect",
+                allow_test_loopback=cfg.allow_test_loopback,
+            )
             if not post_check.allowed:
                 evidence.provider_status = BrowserStatus.BLOCKED
                 evidence.provider_error = (
