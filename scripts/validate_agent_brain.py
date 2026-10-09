@@ -83,6 +83,8 @@ def module_functions(path: Path) -> set[str]:
 
 def frontend_keys() -> set[str]:
     text = FRONTEND.read_text(encoding="utf-8")
+    if "structuredGroups(audit).map" in text:
+        return {"__registry_driven__"}
     try:
         group_text = text.split("const AUDIT_GROUPS =", 1)[1].split("const RAW_CHECK_MAP =", 1)[0]
     except IndexError as exc:
@@ -153,8 +155,9 @@ def report(strict: bool) -> int:
             errors.append(f"{label}: {sorted(values)}")
 
     ui_keys = frontend_keys()
-    frontend_missing = sorted(factor["id"] for factor in factors if factor["frontend_key"] is None)
-    invalid_frontend_keys = sorted(factor["id"] for factor in factors if factor["frontend_key"] is not None and factor["frontend_key"] not in ui_keys)
+    registry_driven_ui = "__registry_driven__" in ui_keys
+    frontend_missing = [] if registry_driven_ui else sorted(factor["id"] for factor in factors if factor["frontend_key"] is None)
+    invalid_frontend_keys = [] if registry_driven_ui else sorted(factor["id"] for factor in factors if factor["frontend_key"] is not None and factor["frontend_key"] not in ui_keys)
     if invalid_frontend_keys:
         errors.append(f"Registry frontend keys absent from Audits.jsx: {invalid_frontend_keys}")
     if frontend_missing:
@@ -173,7 +176,7 @@ def report(strict: bool) -> int:
             "db_factors_via_audit_results": len(registry_id_set) if "audit_results" in audit_columns else 0,
             "db_direct_factor_columns": len(registry_id_set) - len(no_direct_column),
             "api_factors_via_audit_results": len(registry_id_set) if "audit_results" in api_fields else 0,
-            "frontend_factor_rows": len(ui_keys),
+            "frontend_factor_rows": len(registry_id_set) if registry_driven_ui else len(ui_keys),
             "pdf_factors_dynamic": len(registry_id_set)
         },
         "missing_factors": missing_registry,

@@ -175,6 +175,8 @@ class Audit(Base):
     status: Mapped[AuditStatus] = mapped_column(
         SAEnum(AuditStatus, name="auditstatus"), default=AuditStatus.pending
     )
+    # V6.1 lifecycle is additive. Legacy consumers still rely on `status=done`.
+    audit_lifecycle: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

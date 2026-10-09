@@ -59,7 +59,9 @@ def compute_score(audit_results: dict) -> int:
         total_pts = 0
         earned_pts = 0
         for test_id, result in tests.items():
-            max_pts = TEST_SCORES.get(test_id, 5)
+            if test_id not in TEST_SCORES:
+                raise ValueError(f"Unknown score configuration for factor: {test_id}")
+            max_pts = TEST_SCORES[test_id]
             total_pts += max_pts
             status = result.get("status", "FAIL")
             if status == "PASS":

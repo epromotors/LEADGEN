@@ -58,3 +58,4 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE audits ADD COLUMN IF NOT EXISTS audit_results JSON"))
         await conn.execute(text("ALTER TABLE audits ADD COLUMN IF NOT EXISTS site_summary JSON"))
         await conn.execute(text("ALTER TABLE audits ADD COLUMN IF NOT EXISTS page_audits JSON"))
+        await conn.execute(text("ALTER TABLE audits ADD COLUMN IF NOT EXISTS audit_lifecycle VARCHAR(20) NOT NULL DEFAULT 'PENDING'"))

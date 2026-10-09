@@ -48,7 +48,7 @@ def audit_social_links(soup, url=None, session=None) -> dict:
     if not missing:
         return result_pass(
             f"All major social profiles linked: {', '.join(found)}",
-            detail="Social links boost E-E-A-T (Experience, Expertise, Authoritativeness, Trust).",
+            detail="Social links boost E-E-A-T (Experience, Expertise, Authoritativeness, Trust).", value=[], unit="profiles",
         )
 
     if len(missing) >= len(SOCIAL_PLATFORMS) - 1:
@@ -56,12 +56,12 @@ def audit_social_links(soup, url=None, session=None) -> dict:
             f"Social media links are almost entirely missing. Only found: {', '.join(found) or 'none'}.",
             "Add links to your active social profiles in the header or footer. "
             "Social presence is an E-E-A-T trust signal for Google. "
-            f"Missing: {', '.join(missing)}",
+            f"Missing: {', '.join(missing)}", value=missing, unit="profiles",
         )
 
     return result_warn(
         f"Some social links missing: {', '.join(missing)}",
-        f"Add missing social profile links. Found: {', '.join(found)}",
+        f"Add missing social profile links. Found: {', '.join(found)}", value=missing, unit="profiles",
     )
 
 

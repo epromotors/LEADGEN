@@ -8,6 +8,7 @@
     {"id": "AUDIT-004", "rule": "Never silently convert unknown factors into scored factors."},
     {"id": "AUDIT-005", "rule": "Never treat audit uncertainty as PASS."},
     {"id": "AUDIT-006", "rule": "N/A factors must not reduce the score."},
+    {"id": "AUDIT-008", "rule": "ERROR and UNKNOWN must remain observable and must not silently become FAIL or PASS."},
     {"id": "AUDIT-007", "rule": "Audit evidence must come from the appropriate evidence provider."},
     {"id": "DATA-001", "rule": "Do not parse human-readable audit messages to recover numeric values."},
     {"id": "DATA-002", "rule": "Store structured factor values independently from display messages."},

@@ -117,11 +117,12 @@ async def trigger_audit(
 
     if existing:
         existing.status = AuditStatus.pending
+        existing.audit_lifecycle = "PENDING"
         existing.error_message = None
         await db.commit()
         audit = existing
     else:
-        audit = Audit(lead_id=lead_id, status=AuditStatus.pending)
+        audit = Audit(lead_id=lead_id, status=AuditStatus.pending, audit_lifecycle="PENDING")
         db.add(audit)
         await db.commit()
         await db.refresh(audit)
@@ -234,10 +235,11 @@ async def trigger_all_audits(
             continue  # already in progress
 
         if not existing:
-            new_audit = Audit(lead_id=lead.id, status=AuditStatus.pending)
+            new_audit = Audit(lead_id=lead.id, status=AuditStatus.pending, audit_lifecycle="PENDING")
             db.add(new_audit)
         else:
             existing.status = AuditStatus.pending
+            existing.audit_lifecycle = "PENDING"
             existing.error_message = None
 
         lead_ids_to_audit.append(str(lead.id))
@@ -302,6 +304,7 @@ async def trigger_skipped_audits(
         if audit.status == AuditStatus.running:
             continue
         audit.status = AuditStatus.pending
+        audit.audit_lifecycle = "PENDING"
         audit.error_message = None
         lead_ids_to_audit.append(str(audit.lead_id))
         triggered += 1

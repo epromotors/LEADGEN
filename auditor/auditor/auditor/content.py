@@ -33,15 +33,18 @@ def audit_word_count(soup) -> dict:
         return result_fail(
             f"Extremely thin content — only {count} words on the page.",
             "Add substantial content (aim for 500+ words). Google may exclude pages under 200 words from its index.",
-            f"Word count: {count}",
+            f"Word count: {count}", value=count, unit="words",
         )
     if count < 300:
         return result_warn(
             f"Thin content — only {count} words on the page.",
             "Expand to at least 300–500 words with service descriptions, benefits, FAQs.",
-            f"Word count: {count}",
+            f"Word count: {count}", value=count, unit="words",
         )
-    return result_pass(f"Content length looks good — {count} words.", detail=f"Word count: {count}")
+    return result_pass(
+        f"Content length looks good — {count} words.",
+        detail=f"Word count: {count}", value=count, unit="words",
+    )
 
 
 def audit_duplicate_meta(soup) -> dict:

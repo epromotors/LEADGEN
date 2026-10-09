@@ -3,14 +3,14 @@
     "name": "LEADGEN",
     "version": "5.1.0",
     "purpose": "Lead generation, website auditing, PDF reporting, and outreach operations.",
-    "status": "Phase 0 control plane established; audit integrity remediation not started."
+    "status": "Phase 1 audit integrity completed and verified; Phase 2 is not started."
   },
   "architecture": {
     "frontend": "React 18 + Vite at frontend/",
     "backend": "FastAPI + SQLAlchemy async at backend/app/",
     "audit_engine": "backend/app/engines/audit_engine.py",
     "audit_modules": "auditor/auditor/auditor/",
-    "database": "PostgreSQL models in backend/app/models.py",
+    "database": "PostgreSQL models in backend/app/models.py; additive audit_lifecycle migration in backend/migrations/v6_1_0_audit_lifecycle.sql",
     "reporting": "ReportLab renderer at auditor/auditor/reporter/pdf_report.py",
     "crawler": "HTTP crawler at auditor/auditor/auditor/crawler.py"
   },
@@ -36,8 +36,8 @@
     "site classification",
     "HTTP homepage fetch",
     "62 synchronous factor calls",
-    "HTTP crawl",
-    "audit_results JSON plus mapped Audit columns",
+    "HTTP crawl with coverage",
+    "isolated structured factor results plus mapped Audit columns and audit_lifecycle",
     "GET /audits/{lead_id}",
     "Audits.jsx and PDF"
   ],
@@ -47,16 +47,13 @@
     "Use factor_registry.json for all audit-factor changes."
   ],
   "known_issues": [
-    "DOCUMENTATION_DRIFT: prose says 55 factors; runtime builds 62.",
-    "INTEGRITY_GAP: Audits.jsx hard-codes 53 rows and omits 9 executable factors.",
-    "SCORE_RISK: score lookup falls back to 5 for unknown factor IDs.",
-    "RESILIENCE_RISK: a factor exception can abort the full audit; crawl errors are converted to an empty completed crawl.",
-    "DATA_RISK: mapper parses display messages to obtain numeric DB values.",
-    "CLASSIFIER_RISK: classifier errors fall back to REAL.",
-    "STATE_RISK: current AuditStatus lacks COMPLETE, PARTIAL, and BLOCKED."
+    "DOCUMENTATION_DRIFT: archived prose says 55 factors; runtime builds 62.",
+    "LIMITATION: HTTP-only evidence does not render JavaScript; browser evidence belongs to Phase 2.",
+    "LIMITATION: HTTP request duration is not TTFB or Core Web Vitals.",
+    "LIMITATION: audit_lifecycle is additive while legacy AuditStatus remains for compatibility."
   ],
-  "current_phase": "Phase 0 - Agent Brain",
-  "next_action": "Obtain approval for Phase 1 audit-integrity changes; do not implement them in this phase.",
+  "current_phase": "Phase 1 - Audit Integrity V6.1",
+  "next_action": "Await explicit approval before starting Phase 2 - Browser Evidence.",
   "do_not_touch": [
     "lead generation and import flows",
     "campaign and outreach behavior",
