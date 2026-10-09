@@ -7,7 +7,7 @@ def audit_alt_text(soup) -> dict:
     """Check all images for missing alt attributes."""
     images = soup.find_all("img")
     if not images:
-        return result_pass("No images found on this page.")
+        return result_pass("No images found on this page.", value=0, unit="images")
     
     missing_alt = [
         img.get("src", "unknown")[:80]
@@ -31,7 +31,7 @@ def audit_alt_text(soup) -> dict:
                 "Informational images need descriptive alt text for accessibility and Google Image search.",
                 f"Empty alt images: {len(empty_alt)} of {total}",
             )
-        return result_pass(f"All {total} images have alt attributes.")
+        return result_pass(f"All {total} images have alt attributes.", value=0, unit="images")
     
     pct = round(missing_count / total * 100)
     if missing_count >= total:
@@ -41,18 +41,18 @@ def audit_alt_text(soup) -> dict:
             "This is critical for: (1) Google Image search ranking, "
             "(2) Accessibility (screen readers), (3) Displaying text if image fails to load. "
             "Bad: <img src='photo.jpg'>  Good: <img src='photo.jpg' alt='Plumber fixing kitchen sink in London'>",
-            f"Sample missing: {', '.join(missing_alt[:3])}",
+            f"Sample missing: {', '.join(missing_alt[:3])}", value=missing_count, unit="images",
         )
     if pct > 40:
         return result_fail(
             f"{missing_count} of {total} images ({pct}%) missing alt text.",
             "Add descriptive alt text to all content images. Use keywords naturally.",
-            f"Sample missing: {', '.join(missing_alt[:3])}",
+            f"Sample missing: {', '.join(missing_alt[:3])}", value=missing_count, unit="images",
         )
     return result_warn(
         f"{missing_count} of {total} images ({pct}%) missing alt text.",
         "Add alt text to remaining images. Include your location and service where relevant.",
-        f"Sample missing: {', '.join(missing_alt[:3])}",
+        f"Sample missing: {', '.join(missing_alt[:3])}", value=missing_count, unit="images",
     )
 
 

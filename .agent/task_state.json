@@ -1,23 +1,31 @@
 {
-  "phase": "Phase 0",
+  "phase": "Phase 1",
   "status": "complete",
-  "active_task": "Agent Brain and audit integrity discovery",
+  "active_task": "Audit Integrity V6.1",
   "completed": [
     "Repository discovery",
     "Executable factor inventory",
     "Control-plane JSON files",
     "Factor registry and static parity validator",
-    "Historical documentation archived"
+    "Historical documentation archived",
+    "Canonical FactorResult adapter and per-factor exception isolation",
+    "Structured scoring, registry validation, lifecycle and crawl coverage",
+    "Registry/API-driven frontend parity",
+    "Backward-compatible audit_lifecycle persistence",
+    "Automated tests and controlled smoke audits"
   ],
   "in_progress": [],
-  "blocked": ["Phase 1 implementation requires explicit approval after the Phase 0 findings."],
-  "next": ["Review the Phase 0 report", "Approve a bounded Phase 1 audit-integrity change set if desired"],
-  "last_verified": "2026-10-07 (static control-plane validation, Python compilation, and frontend production build)",
-  "last_changed_files": [".agent/", "scripts/validate_agent_brain.py", "README.md", "docs/archive/"],
+  "blocked": [],
+  "next": ["Await explicit approval for Phase 2 - Browser Evidence"],
+  "last_verified": "2026-10-09 (database migration, static validation, compilation, unit tests, frontend build, and five controlled smoke audits)",
+  "last_changed_files": [".agent/", "backend/app/engines/factor_contract.py", "backend/app/engines/audit_engine.py", "backend/app/models.py", "backend/app/schemas.py", "backend/app/routers/audits.py", "backend/app/database.py", "backend/migrations/v6_1_0_audit_lifecycle.sql", "auditor/auditor/auditor/", "frontend/src/pages/Audits.jsx", "scripts/validate_agent_brain.py", "tests/"],
   "verification": {
-    "brain_validator": "pass with 9 documented frontend omissions; strict mode intentionally fails on the parity gap",
+    "brain_validator": "pass; strict mode pass with 62 code/registry/frontend factors",
     "python_compile": "pass",
+    "unit_tests": "pass: 17 unittest tests",
     "frontend_build": "pass",
+    "database_migration": "pass: audit_lifecycle exists as NOT NULL with PENDING default",
+    "smoke_tests": "pass: five isolated public-site runner executions",
     "diff_check": "pass"
   }
 }

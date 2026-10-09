@@ -95,6 +95,7 @@ class AuditResponse(UTCBase):
     suggested_name: Optional[str]
     pdf_path: Optional[str]
     status: AuditStatus
+    audit_lifecycle: Optional[str] = None
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

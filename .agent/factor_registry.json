@@ -5,6 +5,14 @@
     "statuses": ["PASS", "WARN", "FAIL", "N/A", "ERROR", "UNKNOWN"],
     "required_future_fields": ["id", "status", "value", "value_type", "score", "max_score", "severity", "confidence", "message", "evidence", "threshold", "engine", "checked_at", "duration_ms"]
   },
+  "state_semantics": {
+    "PASS": "Condition positively verified.",
+    "WARN": "Evidence is partially satisfactory.",
+    "FAIL": "Condition was verified and failed.",
+    "N/A": "Factor does not apply and is excluded from scoring.",
+    "ERROR": "Applicable factor encountered an execution error.",
+    "UNKNOWN": "Evidence was insufficient to determine a result."
+  },
   "record_defaults": {
     "applicable_to": ["website"],
     "status": "active",

@@ -290,7 +290,7 @@ def audit_nav_links(soup) -> dict:
         if count >= 3:
             return result_pass(
                 f"Navigation menu found with {count} links.",
-                fix="",
+                fix="", value=count, unit="links",
             )
         if count > 0:
             return result_warn(
@@ -298,7 +298,7 @@ def audit_nav_links(soup) -> dict:
                 fix=(
                     "Add at least 3-5 main navigation links (Home, Services, About, Contact). "
                     "Clear navigation reduces bounce rate and helps search engines understand site structure."
-                ),
+                ), value=count, unit="links",
             )
 
     # Fallback: check for header links
@@ -310,7 +310,7 @@ def audit_nav_links(soup) -> dict:
                 f"No <nav> element found, but {len(links)} header links detected. "
                 "Wrap them in a <nav> tag for accessibility and SEO.",
                 fix="Add a <nav> element wrapping your main menu links. "
-                    "This is required for WCAG 2.1 accessibility compliance.",
+                    "This is required for WCAG 2.1 accessibility compliance.", value=len(links), unit="links",
             )
 
     return result_fail(
@@ -319,7 +319,7 @@ def audit_nav_links(soup) -> dict:
             "Add a clear navigation menu with a <nav> element. Include links to your "
             "main pages: Home, Services, About Us, Contact. "
             "Missing navigation hurts both UX and internal link equity distribution."
-        ),
+        ), value=0, unit="links",
     )
 
 

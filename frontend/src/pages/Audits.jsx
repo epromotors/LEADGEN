@@ -281,6 +281,19 @@ function getRawResult(key, audit) {
   return audit.audit_results?.[path[0]]?.[path[1]] ?? null
 }
 
+function structuredGroups(audit) {
+  return Object.entries(audit?.audit_results || {}).map(([id, results]) => ({
+    id,
+    label: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    checks: Object.entries(results || {}).map(([key, result]) => ({
+      key,
+      label: (result?.id || `${id}.${key}`).split('.').pop().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      result,
+      priority: result?.severity?.toUpperCase(),
+    })),
+  })).filter(group => group.checks.length)
+}
+
 function computeScore(audit) {
   if (Number.isFinite(audit.seo_score)) return audit.seo_score
   const summaryScore = String(audit.audit_summary || '').match(/SEO Score:\s*(\d+)\/100/i)
@@ -400,13 +413,16 @@ const STATUS_STYLE = {
   PASS: { bg: '#052e16', border: '#16a34a55', color: '#4ade80', dot: '#22c55e', label: 'PASS' },
   WARN: { bg: '#1c1407', border: '#92400e55', color: '#fbbf24', dot: '#f59e0b', label: 'WARN' },
   FAIL: { bg: '#2d0b0b', border: '#991b1b55', color: '#f87171', dot: '#ef4444', label: 'FAIL' },
+  'N/A': { bg: '#172033', border: '#47556955', color: '#94a3b8', dot: '#64748b', label: 'N/A' },
+  ERROR: { bg: '#2d0b0b', border: '#dc262655', color: '#fca5a5', dot: '#dc2626', label: 'ERROR' },
+  UNKNOWN: { bg: '#172033', border: '#64748b55', color: '#cbd5e1', dot: '#94a3b8', label: 'UNKNOWN' },
 }
 
 function CheckCard({ check, audit }) {
-  const status = getCheckStatus(check.key, audit)
-  const raw = getRawResult(check.key, audit)
+  const raw = check.result || getRawResult(check.key, audit)
+  const status = raw?.status || getCheckStatus(check.key, audit)
   const s = STATUS_STYLE[status]
-  const message = raw?.message || check.why
+  const message = raw?.message || check.why || 'No structured message available for this legacy audit.'
   const fix = raw?.fix || check.fix
   const priority = check.priority || 'MEDIUM'
   const ps = PRIORITY_STYLE[priority] || PRIORITY_STYLE.MEDIUM
@@ -431,6 +447,9 @@ function CheckCard({ check, audit }) {
         }}>{s.label}</span>
       </div>
       <p style={{ color: '#94a3b8', fontSize: 12, margin: '3px 0', lineHeight: 1.5 }}>{message}</p>
+      {raw?.value !== null && raw?.value !== undefined && (
+        <p style={{ color: '#64748b', fontSize: 11, margin: '4px 0 0' }}>Value: {Array.isArray(raw.value) ? raw.value.join(', ') : String(raw.value)}{raw.unit ? ` ${raw.unit}` : ''}</p>
+      )}
       {raw?.detail && (
         <p style={{ color: '#64748b', fontSize: 11, margin: '4px 0 0', lineHeight: 1.45, fontStyle: 'italic' }}>{raw.detail}</p>
       )}
@@ -532,9 +551,9 @@ function AuditRow({ lead }) {
   const hasPdf = audit && audit.pdf_path
 
   // Count pass/warn/fail from all checks
-  const allChecks = AUDIT_GROUPS.flatMap(g => g.checks)
+  const allChecks = structuredGroups(audit).flatMap(g => g.checks)
   const counts = audit ? allChecks.reduce((acc, c) => {
-    const s = getCheckStatus(c.key, audit); acc[s] = (acc[s] || 0) + 1; return acc
+    const s = c.result?.status || getCheckStatus(c.key, audit); acc[s] = (acc[s] || 0) + 1; return acc
   }, {}) : {}
 
   return (
@@ -663,19 +682,19 @@ function AuditRow({ lead }) {
 
                   {/* 6 Group Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
-                    {AUDIT_GROUPS.map(group => (
+                    {structuredGroups(audit).map(group => (
                       <div key={group.id} style={{
                         background: '#131c2e',
-                        border: `1px solid ${group.color || '#1e2d44'}33`,
-                        borderTop: `3px solid ${group.color || '#334155'}`,
+                        border: '1px solid #1e2d44',
+                        borderTop: '3px solid #334155',
                         borderRadius: 14, padding: '16px 16px 8px',
                       }}>
                         <p style={{
                           fontWeight: 800, fontSize: 13, marginBottom: 12,
                           display: 'flex', alignItems: 'center', gap: 7,
-                          color: group.color || '#cbd5e1',
+                          color: '#cbd5e1',
                         }}>
-                          <span>{group.icon}</span> {group.label}
+                          {group.label}
                         </p>
                         {group.checks.map(check => (
                           <CheckCard key={check.key} check={check} audit={audit} />

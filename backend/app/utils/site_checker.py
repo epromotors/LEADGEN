@@ -69,10 +69,17 @@ STRUCTURAL_THRESHOLD = 2_000
 
 class SiteType(str, Enum):
     REAL        = "real"
+    UNKNOWN     = "unknown"
+    CLASSIFICATION_ERROR = "classification_error"
     PARKED      = "parked"
     DEMO        = "demo"
     NOT_FOUND   = "not_found"
     UNREACHABLE = "unreachable"
+
+
+def classification_error_result(error: Exception) -> tuple[SiteType, str]:
+    """Preserve classifier failure as uncertainty instead of classifying it as REAL."""
+    return SiteType.CLASSIFICATION_ERROR, f"classify_site error: {type(error).__name__}: {error}"
 
 
 # ─── PARKED SIGNALS ───────────────────────────────────────────────────────────

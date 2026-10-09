@@ -142,7 +142,7 @@ def audit_broken_links(soup, base_url: str, session: requests.Session) -> dict:
         detail = f"Checked {checked} links across homepage and nav pages. {len(redirect_chains)} redirects noted."
         if redirect_chains:
             detail += f" Redirects: {', '.join([r[0][:50] for r in redirect_chains[:2]])}"
-        return result_pass(f"No broken links found in {checked} links checked.", detail=detail)
+        return result_pass(f"No broken links found in {checked} links checked.", detail=detail, value=0, unit="links")
     
     broken_list = [f"{url[:60]} (HTTP {status or 'Timeout'})" for url, status in broken[:5]]
     
@@ -152,10 +152,10 @@ def audit_broken_links(soup, base_url: str, session: requests.Session) -> dict:
             "Fix or remove broken links. Broken links hurt user experience and crawl budget. "
             "Use Screaming Frog or Ahrefs to do a full site broken link audit. "
             "WordPress: install Broken Link Checker plugin.",
-            "\n".join(broken_list),
+            "\n".join(broken_list), value=broken_count, unit="links",
         )
     return result_warn(
         f"{broken_count} broken link(s) found out of {checked} checked.",
         "Fix or redirect the broken URLs. Even a few broken links signal poor maintenance to Google.",
-        "\n".join(broken_list),
+        "\n".join(broken_list), value=broken_count, unit="links",
     )

@@ -74,11 +74,17 @@ def check_url_status(url: str, session: requests.Session) -> int | None:
             return None
 
 
-def result_pass(message: str, fix: str = "", detail: str = "") -> dict:
-    return {"status": "PASS", "message": message, "fix": fix, "detail": detail}
+def _result(status: str, message: str, fix: str = "", detail: str = "", *, value=None,
+            unit: str | None = None, evidence: list | None = None, threshold: dict | None = None) -> dict:
+    return {"status": status, "message": message, "fix": fix, "detail": detail,
+            "value": value, "unit": unit, "evidence": evidence or [], "threshold": threshold or {}}
 
-def result_warn(message: str, fix: str = "", detail: str = "") -> dict:
-    return {"status": "WARN", "message": message, "fix": fix, "detail": detail}
 
-def result_fail(message: str, fix: str = "", detail: str = "") -> dict:
-    return {"status": "FAIL", "message": message, "fix": fix, "detail": detail}
+def result_pass(message: str, fix: str = "", detail: str = "", **structured) -> dict:
+    return _result("PASS", message, fix, detail, **structured)
+
+def result_warn(message: str, fix: str = "", detail: str = "", **structured) -> dict:
+    return _result("WARN", message, fix, detail, **structured)
+
+def result_fail(message: str, fix: str = "", detail: str = "", **structured) -> dict:
+    return _result("FAIL", message, fix, detail, **structured)

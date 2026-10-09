@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import re
 import sys
 from pathlib import Path
 from uuid import UUID
@@ -110,10 +109,18 @@ from app.database import AsyncSessionLocal
 from app.models import Audit, Lead, AuditStatus, LeadStatus, ActivityLog
 from app.utils.site_checker import (
     classify_site,
+    classification_error_result,
     resolve_live_url,
     SiteType,
     site_status_tag,
     detect_country,
+)
+from app.engines.factor_contract import (
+    FactorRegistryError,
+    compute_score as compute_structured_score,
+    determine_lifecycle,
+    safe_execute_factor,
+    validate_factor_registry,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,118 +231,137 @@ def _run_audit_sync(url: str) -> dict:
     soup = page["soup"]
     html = page["html"]
     response_content = html.encode("utf-8") if html else b""
+    registry = validate_factor_registry()
+
+    def execute(factor_id, callback):
+        factor = registry.get(factor_id)
+        if factor is None:
+            raise FactorRegistryError(f"unregistered executable factor: {factor_id}")
+        return safe_execute_factor(factor, callback, url)
 
     # ── Run all v5.0 checks ───────────────────────────────────────────────────
     audit_results = {
         # ── TECHNICAL (v4.5 + v5.0 new) ──────────────────────────────────────
         "technical": {
-            "ssl":                  audit_ssl(url, session),
-            "sitemap":              audit_sitemap(url, session),
-            "robots":               audit_robots(url, session),
-            "canonical":            audit_canonical(soup, url),
-            "favicon":              audit_favicon(soup, url, session),
-            "mobile":               audit_mobile(soup),
+            "ssl": execute("technical.ssl", lambda: audit_ssl(url, session)),
+            "sitemap": execute("technical.sitemap", lambda: audit_sitemap(url, session)),
+            "robots": execute("technical.robots", lambda: audit_robots(url, session)),
+            "canonical": execute("technical.canonical", lambda: audit_canonical(soup, url)),
+            "favicon": execute("technical.favicon", lambda: audit_favicon(soup, url, session)),
+            "mobile": execute("technical.mobile", lambda: audit_mobile(soup)),
             # B6-B9 new checks
-            "https_redirect":       audit_https_redirect(url, session),
-            "redirect_chain":       audit_redirect_chain(url, session),
-            "mixed_content":        audit_mixed_content(soup, url),
-            "www_canonicalization": audit_www_canonicalization(url, session),
+            "https_redirect": execute("technical.https_redirect", lambda: audit_https_redirect(url, session)),
+            "redirect_chain": execute("technical.redirect_chain", lambda: audit_redirect_chain(url, session)),
+            "mixed_content": execute("technical.mixed_content", lambda: audit_mixed_content(soup, url)),
+            "www_canonicalization": execute("technical.www_canonicalization", lambda: audit_www_canonicalization(url, session)),
         },
         # ── ONPAGE (v4.5 + v5.0 new) ─────────────────────────────────────────
         "onpage": {
-            "page_title":           audit_title(soup),
-            "meta_desc":            audit_meta_description(soup),
-            "h1":                   audit_h1(soup),
-            "og_tags":              audit_og_tags(soup, url),
-            "schema":               audit_schema(soup),
+            "page_title": execute("onpage.page_title", lambda: audit_title(soup)),
+            "meta_desc": execute("onpage.meta_desc", lambda: audit_meta_description(soup)),
+            "h1": execute("onpage.h1", lambda: audit_h1(soup)),
+            "og_tags": execute("onpage.og_tags", lambda: audit_og_tags(soup, url)),
+            "schema": execute("onpage.schema", lambda: audit_schema(soup)),
             # B1-B5 new checks
-            "noindex":              audit_noindex(soup),
-            "heading_hierarchy":    audit_heading_hierarchy(soup),
-            "internal_links":       audit_internal_links(soup, url),
-            "anchor_text_quality":  audit_anchor_text_quality(soup),
-            "image_filenames":      audit_image_filenames(soup),
+            "noindex": execute("onpage.noindex", lambda: audit_noindex(soup)),
+            "heading_hierarchy": execute("onpage.heading_hierarchy", lambda: audit_heading_hierarchy(soup)),
+            "internal_links": execute("onpage.internal_links", lambda: audit_internal_links(soup, url)),
+            "anchor_text_quality": execute("onpage.anchor_text_quality", lambda: audit_anchor_text_quality(soup)),
+            "image_filenames": execute("onpage.image_filenames", lambda: audit_image_filenames(soup)),
         },
         # ── IMAGES ────────────────────────────────────────────────────────────
         "images": {
-            "alt_text":  audit_alt_text(soup),
-            "webp":      audit_webp(soup, html),
-            "lazy_load": audit_lazy_loading(soup),
+            "alt_text": execute("images.alt_text", lambda: audit_alt_text(soup)),
+            "webp": execute("images.webp", lambda: audit_webp(soup, html)),
+            "lazy_load": execute("images.lazy_load", lambda: audit_lazy_loading(soup)),
         },
         # ── LINKS ─────────────────────────────────────────────────────────────
         "links": {
-            "broken_links": audit_broken_links(soup, url, session),
+            "broken_links": execute("links.broken_links", lambda: audit_broken_links(soup, url, session)),
         },
         # ── CONVERSION ────────────────────────────────────────────────────────
         "conversion": {
-            "social":   audit_social_links(soup, url, session),
-            "contact":  audit_contact_links(soup),
-            "whatsapp": audit_whatsapp(soup),
-            "trust":    audit_trust_pages(soup, url),
+            "social": execute("conversion.social", lambda: audit_social_links(soup, url, session)),
+            "contact": execute("conversion.contact", lambda: audit_contact_links(soup)),
+            "whatsapp": execute("conversion.whatsapp", lambda: audit_whatsapp(soup)),
+            "trust": execute("conversion.trust", lambda: audit_trust_pages(soup, url)),
         },
         # ── UX (v4.5 + v5.0 new) ─────────────────────────────────────────────
         "ux": {
-            "cta":              audit_cta(soup),
-            "cta_above_fold":   audit_cta_above_fold(soup, html),
-            "hero_headline":    audit_hero_headline(soup),
-            "font_size":        audit_font_size(soup, html),
-            "contrast":         audit_contrast(soup),
-            "nav_links":        audit_nav_links(soup),
-            "cookie_notice":    audit_cookie_notice(soup, html),
-            "live_chat":        audit_live_chat(soup, html),
+            "cta": execute("ux.cta", lambda: audit_cta(soup)),
+            "cta_above_fold": execute("ux.cta_above_fold", lambda: audit_cta_above_fold(soup, html)),
+            "hero_headline": execute("ux.hero_headline", lambda: audit_hero_headline(soup)),
+            "font_size": execute("ux.font_size", lambda: audit_font_size(soup, html)),
+            "contrast": execute("ux.contrast", lambda: audit_contrast(soup)),
+            "nav_links": execute("ux.nav_links", lambda: audit_nav_links(soup)),
+            "cookie_notice": execute("ux.cookie_notice", lambda: audit_cookie_notice(soup, html)),
+            "live_chat": execute("ux.live_chat", lambda: audit_live_chat(soup, html)),
             # B12-B13 new checks
-            "phone_number":     audit_phone_number(soup),
-            "address_presence": audit_address_presence(soup),
+            "phone_number": execute("ux.phone_number", lambda: audit_phone_number(soup)),
+            "address_presence": execute("ux.address_presence", lambda: audit_address_presence(soup)),
         },
         # ── INDEXABILITY (new v5.0 module) ────────────────────────────────────
         "indexability": {
-            "noindex":        audit_noindex_idx(soup),
-            "url_structure":  audit_url_structure(url),
-            "www_vs_nonwww": audit_www_vs_nonwww(url, session),
-            "soft_404":       audit_soft_404_content(soup, url),
+            "noindex": execute("indexability.noindex", lambda: audit_noindex_idx(soup)),
+            "url_structure": execute("indexability.url_structure", lambda: audit_url_structure(url)),
+            "www_vs_nonwww": execute("indexability.www_vs_nonwww", lambda: audit_www_vs_nonwww(url, session)),
+            "soft_404": execute("indexability.soft_404", lambda: audit_soft_404_content(soup, url)),
         },
         # ── CONTENT QUALITY (new v5.0 module) ────────────────────────────────
         "content": {
-            "word_count":      audit_word_count(soup),
-            "duplicate_meta":  audit_duplicate_meta(soup),
-            "keyword_in_title": audit_keyword_in_title(soup),
-            "reading_level":   audit_reading_level(soup),
+            "word_count": execute("content.word_count", lambda: audit_word_count(soup)),
+            "duplicate_meta": execute("content.duplicate_meta", lambda: audit_duplicate_meta(soup)),
+            "keyword_in_title": execute("content.keyword_in_title", lambda: audit_keyword_in_title(soup)),
+            "reading_level": execute("content.reading_level", lambda: audit_reading_level(soup)),
         },
         # ── LOCAL SEO (new v5.0 module) ───────────────────────────────────────
         "local_seo": {
-            "nap_consistency":       audit_nap_consistency(soup),
-            "local_business_schema": audit_local_business_schema(soup),
-            "google_maps_embed":     audit_google_maps_embed(soup),
-            "city_in_title":         audit_city_in_title(soup),
-            "business_hours":        audit_business_hours(soup),
+            "nap_consistency": execute("local_seo.nap_consistency", lambda: audit_nap_consistency(soup)),
+            "local_business_schema": execute("local_seo.local_business_schema", lambda: audit_local_business_schema(soup)),
+            "google_maps_embed": execute("local_seo.google_maps_embed", lambda: audit_google_maps_embed(soup)),
+            "city_in_title": execute("local_seo.city_in_title", lambda: audit_city_in_title(soup)),
+            "business_hours": execute("local_seo.business_hours", lambda: audit_business_hours(soup)),
         },
         # ── PERFORMANCE (new v5.0 module) ─────────────────────────────────────
         "performance": {
-            "response_time":    audit_response_time(url, session),
-            "page_size":        audit_page_size(r_content=response_content),
-            "render_blocking":  audit_render_blocking(soup),
-            "gzip_compression": audit_gzip_compression(url, session),
-            "webp_images":      audit_webp_images(soup),
-            "minification":     audit_minification(soup, html),
+            "response_time": execute("performance.response_time", lambda: audit_response_time(url, session)),
+            "page_size": execute("performance.page_size", lambda: audit_page_size(r_content=response_content)),
+            "render_blocking": execute("performance.render_blocking", lambda: audit_render_blocking(soup)),
+            "gzip_compression": execute("performance.gzip_compression", lambda: audit_gzip_compression(url, session)),
+            "webp_images": execute("performance.webp_images", lambda: audit_webp_images(soup)),
+            "minification": execute("performance.minification", lambda: audit_minification(soup, html)),
         },
         # ── SCHEMA ADVANCED (new v5.0 module) ────────────────────────────────
         "schema_advanced": {
-            "faq_schema":        audit_faq_schema(soup),
-            "product_schema":    audit_product_schema(soup),
-            "breadcrumb_schema": audit_breadcrumb_schema(soup),
-            "review_schema":     audit_review_schema(soup),
-            "graph_schema":      audit_graph_schema(soup),
+            "faq_schema": execute("schema_advanced.faq_schema", lambda: audit_faq_schema(soup)),
+            "product_schema": execute("schema_advanced.product_schema", lambda: audit_product_schema(soup)),
+            "breadcrumb_schema": execute("schema_advanced.breadcrumb_schema", lambda: audit_breadcrumb_schema(soup)),
+            "review_schema": execute("schema_advanced.review_schema", lambda: audit_review_schema(soup)),
+            "graph_schema": execute("schema_advanced.graph_schema", lambda: audit_graph_schema(soup)),
         },
     }
 
     # ── Multi-page crawl ─────────────────────────────────────────────────────
+    crawl_coverage = {"discovered": 0, "audited": 0, "skipped": 0, "blocked": 0, "errors": 0, "coverage_percent": 0, "status": "COMPLETE", "reasons": []}
     try:
         crawled      = crawl_site(url, session, max_pages=100)
         page_audits  = [audit_page_seo(p) for p in crawled]
         site_summary = aggregate_site_issues(page_audits)
+        failed_pages = [page for page in crawled if not page.get("ok")]
+        crawl_coverage.update({
+            "discovered": len(crawled),
+            "audited": len(page_audits) - len(failed_pages),
+            "errors": len(failed_pages),
+        })
+        crawl_coverage["coverage_percent"] = round(crawl_coverage["audited"] / crawl_coverage["discovered"] * 100) if crawl_coverage["discovered"] else 0
+        if failed_pages:
+            crawl_coverage["status"] = "PARTIAL"
+            crawl_coverage["reasons"] = [str(page.get("error") or page.get("status_code")) for page in failed_pages[:5]]
     except Exception as e:
-        logger.warning(f"[audit_engine] Crawl failed for {url}: {e}")
+        logger.exception("[audit_engine] Crawl failed for %s", url)
         page_audits  = []
-        site_summary = {}
+        site_summary = {"crawl_error": f"{type(e).__name__}: {e}"}
+        crawl_coverage.update({"status": "ERROR", "errors": 1, "reasons": [f"{type(e).__name__}: {e}"]})
 
     score = _compute_score(audit_results)
 
@@ -357,6 +383,8 @@ def _run_audit_sync(url: str) -> dict:
         "score": score,
         "site_summary": site_summary,
         "page_audits": page_audits,
+        "crawl_coverage": crawl_coverage,
+        "lifecycle": determine_lifecycle(homepage_ok=True, crawl_status=crawl_coverage["status"]),
         "html": html,
         "found_email":  found_email,
         "email_source": email_source,
@@ -374,28 +402,8 @@ def _compute_score(audit_results: dict) -> int:
     Groups defined in config.SCORE_WEIGHTS (must sum to 100).
     """
     if not _NEW_AUDITOR_AVAILABLE:
-        return 0
-
-    # Use all keys from SCORE_WEIGHTS so new groups auto-register
-    weight_map = dict(SCORE_WEIGHTS)
-    total_weight = sum(weight_map.values())
-    weighted_sum = 0.0
-
-    for group_key, tests in audit_results.items():
-        total_pts  = 0
-        earned_pts = 0.0
-        for test_id, result in tests.items():
-            max_pts = TEST_SCORES.get(test_id, 5)
-            total_pts += max_pts
-            status = result.get("status", "FAIL")
-            if status == "PASS":
-                earned_pts += max_pts
-            elif status == "WARN":
-                earned_pts += max_pts * 0.5
-        group_pct = (earned_pts / total_pts * 100) if total_pts else 100
-        weighted_sum += group_pct * weight_map.get(group_key, 0)
-
-    return round(weighted_sum / total_weight)
+        raise RuntimeError("Auditor package is not available")
+    return compute_structured_score(audit_results, dict(SCORE_WEIGHTS))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -405,13 +413,12 @@ def _compute_score(audit_results: dict) -> int:
 # ── UX Axis helpers ───────────────────────────────────────────────────────────
 
 def _extract_nav_count(ux_group: dict) -> int | None:
-    """Extract the integer nav link count from the nav_links audit message."""
+    """Read the structured nav-link count without parsing display text."""
     nav_result = ux_group.get("nav_links", {})
     if not nav_result:
         return None
-    msg = nav_result.get("message", "")
-    m = re.search(r"(\d+)\s+link", msg)
-    return int(m.group(1)) if m else (0 if nav_result.get("status") == "FAIL" else None)
+    value = nav_result.get("value")
+    return value if isinstance(value, int) else None
 
 
 def _compute_ux_score(ux_group: dict) -> int | None:
@@ -421,13 +428,9 @@ def _compute_ux_score(ux_group: dict) -> int | None:
     total_pts = 0
     earned = 0.0
     for test_id, result in ux_group.items():
-        max_pts = TEST_SCORES.get(test_id, 5)
+        max_pts = result.get("max_score", 0)
         total_pts += max_pts
-        s = result.get("status", "FAIL")
-        if s == "PASS":
-            earned += max_pts
-        elif s == "WARN":
-            earned += max_pts * 0.5
+        earned += result.get("score", 0)
     return round((earned / total_pts * 100)) if total_pts else 0
 
 
@@ -459,56 +462,16 @@ def _map_to_db_columns(audit_results: dict, score: int) -> dict:
         return group.get(key, {}).get("message", "")
 
     # ── Extract broken link count from message ────────────────────────────────
-    broken_count = 0
-    broken_msg = msg(lk, "broken_links")
-    if broken_msg:
-        m = re.search(r"^(\d+)\s+broken", broken_msg)
-        if m:
-            broken_count = int(m.group(1))
-        else:
-            # Try alternate format: "Found N broken"
-            m2 = re.search(r"(\d+)\s+broken", broken_msg)
-            if m2:
-                broken_count = int(m2.group(1))
+    broken_value = lk.get("broken_links", {}).get("value")
+    broken_count = broken_value if isinstance(broken_value, int) else 0
 
     # ── Extract missing alt count from message ────────────────────────────────
-    alt_count = 0
-    alt_msg = msg(im, "alt_text")
-    if alt_msg:
-        # Format: "8 of 14 images (57%) missing alt text"
-        m = re.search(r"^(\d+)\s+of\s+\d+", alt_msg)
-        if m:
-            alt_count = int(m.group(1))
-        else:
-            # Format: "ALL 8 images missing alt text"
-            m2 = re.search(r"ALL\s+(\d+)", alt_msg)
-            if m2:
-                alt_count = int(m2.group(1))
-            else:
-                # Format: "N images missing alt"
-                m3 = re.search(r"(\d+)\s+images?\s+missing", alt_msg)
-                if m3:
-                    alt_count = int(m3.group(1))
+    alt_value = im.get("alt_text", {}).get("value")
+    alt_count = alt_value if isinstance(alt_value, int) else 0
 
     # ── Extract missing social platforms ─────────────────────────────────────
-    missing_social: list[str] = []
-    social_result = cv.get("social", {})
-    social_text = " ".join(
-        str(social_result.get(k, ""))
-        for k in ("message", "fix", "detail")
-        if social_result.get(k)
-    )
-    if "missing" in social_text.lower():
-        # Formats:
-        #   "Some social links missing: LinkedIn, YouTube"
-        #   "... Missing: Facebook, Instagram, LinkedIn"
-        match = re.search(r"missing(?: social links)?\s*:\s*([^\n.]+)", social_text, re.IGNORECASE)
-        if match:
-            missing_social = [
-                s.strip()
-                for s in match.group(1).split(",")
-                if s.strip() and s.strip().lower() not in {"none", "no"}
-            ]
+    social_value = cv.get("social", {}).get("value")
+    missing_social = social_value if isinstance(social_value, list) else []
 
     # ── Build human-readable audit_summary ───────────────────────────────────
     # This is what outreach_engine.py uses to build the email body.
@@ -545,22 +508,17 @@ def _map_to_db_columns(audit_results: dict, score: int) -> dict:
     sa = audit_results.get("schema_advanced", {})
 
     def _perf_ms(pf_group: dict) -> int | None:
-        """Extract response_time_ms from performance audit message."""
-        perf = pf_group.get("response_time", {})
-        msg_text = perf.get("message", "")
-        m = re.search(r"([\d]+)ms", msg_text)
-        return int(m.group(1)) if m else None
+        """Read the structured HTTP request duration in milliseconds."""
+        value = pf_group.get("response_time", {}).get("value")
+        return value if isinstance(value, (int, float)) else None
 
     def _word_count_val(ct_group: dict) -> int | None:
-        """Extract word count from content audit message."""
-        wc = ct_group.get("word_count", {})
-        m = re.search(r"(\d+)\s+words?", wc.get("message", ""))
-        return int(m.group(1)) if m else None
+        value = ct_group.get("word_count", {}).get("value")
+        return value if isinstance(value, int) else None
 
     def _internal_links_count(op_group: dict) -> int | None:
-        il = op_group.get("internal_links", {})
-        m = re.search(r"(\d+)", il.get("message", ""))
-        return int(m.group(1)) if m else None
+        value = op_group.get("internal_links", {}).get("value")
+        return value if isinstance(value, int) else None
 
     return {
         # ── Existing boolean columns (v4.5 preserved) ─────────────────────────
@@ -725,6 +683,7 @@ async def run_audit(lead_id: str) -> None:
                 await db.flush()
 
             audit.status = AuditStatus.running
+            audit.audit_lifecycle = "RUNNING"
             if lead.status not in (LeadStatus.emailed, LeadStatus.replied, LeadStatus.converted):
                 lead.status = LeadStatus.auditing
 
@@ -755,9 +714,8 @@ async def run_audit(lead_id: str) -> None:
     try:
         site_type, site_reason = await classify_site(website)
     except Exception as e:
-        logger.error(f"[audit_engine] classify_site failed for {website}: {e}")
-        site_type   = SiteType.REAL
-        site_reason = f"classify_site error (fallback to REAL): {e}"
+        logger.exception("[audit_engine] classify_site failed for %s", website)
+        site_type, site_reason = classification_error_result(e)
 
     logger.info(f"[audit_engine] Site classification: {site_type} — {site_reason}")
 
@@ -768,6 +726,8 @@ async def run_audit(lead_id: str) -> None:
             SiteType.DEMO:        "demo / coming-soon / placeholder page",
             SiteType.NOT_FOUND:   "page not found (404 / deleted)",
             SiteType.UNREACHABLE: "unreachable / offline",
+            SiteType.UNKNOWN: "site classification is inconclusive",
+            SiteType.CLASSIFICATION_ERROR: "site classifier failed",
         }
         label = labels.get(site_type, str(site_type))
 
@@ -778,7 +738,9 @@ async def run_audit(lead_id: str) -> None:
                 if audit:
                     audit.error_message = site_status_tag(site_type)
                     audit.audit_summary = f"Website is a {label}. Full SEO audit skipped. {site_reason}"
-                    audit.status        = AuditStatus.done
+                    audit.status        = AuditStatus.failed if site_type == SiteType.CLASSIFICATION_ERROR else AuditStatus.done
+                    audit.audit_lifecycle = "BLOCKED"
+                    audit.audit_results = {"lifecycle": "BLOCKED", "classification": {"status": site_type.value, "reason": site_reason}}
                 if lead and lead.status not in (LeadStatus.emailed, LeadStatus.replied, LeadStatus.converted):
                     lead.status = LeadStatus.audited
                 log = ActivityLog(
@@ -818,6 +780,7 @@ async def run_audit(lead_id: str) -> None:
                 lead  = await db.get(Lead, lead_uuid)
                 if audit:
                     audit.status        = AuditStatus.failed
+                    audit.audit_lifecycle = "BLOCKED"
                     audit.error_message = str(e)
                 if lead and lead.status not in (LeadStatus.emailed, LeadStatus.replied, LeadStatus.converted):
                     lead.status = LeadStatus.new
@@ -836,6 +799,8 @@ async def run_audit(lead_id: str) -> None:
     score         = data["score"]
     site_summary  = data.get("site_summary", {})
     page_audits   = data.get("page_audits", [])
+    crawl_coverage = data.get("crawl_coverage", {})
+    lifecycle = data.get("lifecycle", "COMPLETE")
     homepage_html = data.get("html", "")
     found_email   = data.get("found_email")
     email_source  = data.get("email_source", "not_found")
@@ -954,9 +919,12 @@ async def run_audit(lead_id: str) -> None:
             audit.seo_score          = score
             audit.audited_url        = audit_url
             audit.audit_results      = audit_results
-            audit.site_summary       = site_summary
+            audit.site_summary       = {**site_summary, "crawl_coverage": crawl_coverage, "lifecycle": lifecycle}
+            audit.audit_lifecycle    = lifecycle
             audit.page_audits        = page_audits
             audit.audit_summary      = db_cols["audit_summary"]
+            # Keep legacy database status stable for existing consumers; the
+            # structured lifecycle records complete versus incomplete evidence.
             audit.status             = AuditStatus.done
             # Geo-smart currency detection
             audit.country_code    = geo.get("country_code")

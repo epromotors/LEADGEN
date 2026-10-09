@@ -268,18 +268,18 @@ def audit_internal_links(soup, base_url: str = "") -> dict:
         return result_fail(
             "No internal links found on the homepage.",
             "Add internal links to your key pages (Services, About, Contact). "
-            "Internal links help Googlebot discover and index all your pages.",
+            "Internal links help Googlebot discover and index all your pages.", value=count, unit="links",
         )
     if count < 5:
         return result_warn(
             f"Very few internal links found ({count}). Risk of orphan pages.",
             "Add more internal links to improve crawlability. A homepage should link to at least "
             "5–10 key internal pages so Googlebot can reach them all.",
-            f"Internal links found: {count}",
+            f"Internal links found: {count}", value=count, unit="links",
         )
     return result_pass(
         f"Internal links found: {count}.",
-        detail=f"Healthy internal link count detected on {base_url}",
+        detail=f"Healthy internal link count detected on {base_url}", value=count, unit="links",
     )
 
 

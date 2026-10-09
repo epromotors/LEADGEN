@@ -23,23 +23,23 @@ def audit_response_time(base_url: str, session: requests.Session) -> dict:
 
         if elapsed_ms < 800:
             return result_pass(
-                f"Server response time is excellent: {elapsed_ms:.0f}ms.",
-                detail=f"TTFB target: < 800ms | Measured: {elapsed_ms:.0f}ms",
+                f"HTTP request duration is excellent: {elapsed_ms:.0f}ms.",
+                detail=f"HTTP request duration target: < 800ms | Measured: {elapsed_ms:.0f}ms", value=round(elapsed_ms), unit="ms",
             )
         if elapsed_ms < 1800:
             return result_warn(
-                f"Server response time needs improvement: {elapsed_ms:.0f}ms.",
+                f"HTTP request duration needs improvement: {elapsed_ms:.0f}ms.",
                 "Aim for < 800ms TTFB. Optimise with: server-side caching (Redis/Varnish), "
                 "a CDN (Cloudflare), reduced database queries, or better hosting. "
                 "Slow TTFB is a Core Web Vitals ranking signal.",
-                f"TTFB: {elapsed_ms:.0f}ms (target: < 800ms)",
+                f"HTTP request duration: {elapsed_ms:.0f}ms (target: < 800ms)", value=round(elapsed_ms), unit="ms",
             )
         return result_fail(
-            f"Server response time is poor: {elapsed_ms:.0f}ms.",
+                f"HTTP request duration is poor: {elapsed_ms:.0f}ms.",
             "Critical: TTFB over 1800ms severely hurts Core Web Vitals LCP scores. "
             "Upgrade hosting, enable server-side caching, or use a CDN immediately. "
             "Google penalises slow servers in mobile-first indexing.",
-            f"TTFB: {elapsed_ms:.0f}ms (target: < 800ms)",
+            f"HTTP request duration: {elapsed_ms:.0f}ms (target: < 800ms)", value=round(elapsed_ms), unit="ms",
         )
     except Exception as e:
         return result_warn(
@@ -68,12 +68,12 @@ def audit_page_size(r_content: bytes = None, html: str = "") -> dict:
     if size_kb < 60:
         return result_pass(
             f"Page HTML size is optimal: {size_kb:.1f}KB.",
-            detail=f"Size: {size_kb:.1f}KB (target: < 100KB)",
+            detail=f"Size: {size_kb:.1f}KB (target: < 100KB)", value=size_bytes, unit="bytes",
         )
     if size_kb < 100:
         return result_pass(
             f"Page HTML size is acceptable: {size_kb:.1f}KB.",
-            detail=f"Size: {size_kb:.1f}KB (target: < 100KB)",
+            detail=f"Size: {size_kb:.1f}KB (target: < 100KB)", value=size_bytes, unit="bytes",
         )
     if size_kb < 200:
         return result_warn(
@@ -81,14 +81,14 @@ def audit_page_size(r_content: bytes = None, html: str = "") -> dict:
             "Reduce HTML page size below 100KB by removing comments, whitespace, and inline scripts. "
             "Enable gzip/brotli compression on your server. "
             "Large pages take longer to parse — hurting First Contentful Paint.",
-            f"Size: {size_kb:.1f}KB",
+            f"Size: {size_kb:.1f}KB", value=size_bytes, unit="bytes",
         )
     return result_fail(
         f"Page HTML is very large: {size_kb:.1f}KB.",
         "Critically large page size. Minify HTML, remove unused code, "
         "enable server compression (gzip/brotli). "
         "Pages over 200KB waste significant crawl budget.",
-        f"Size: {size_kb:.1f}KB (target: < 100KB)",
+        f"Size: {size_kb:.1f}KB (target: < 100KB)", value=size_bytes, unit="bytes",
     )
 
 

@@ -1,0 +1,30 @@
+{
+  "phase": "Phase 1 - Audit Integrity V6.1",
+  "status": "complete",
+  "baseline_commit": "217eb67",
+  "factor_count": 62,
+  "structured_results": true,
+  "factor_isolation": true,
+  "lifecycle": ["PENDING", "RUNNING", "COMPLETE", "PARTIAL", "BLOCKED", "FAILED"],
+  "states": ["PASS", "WARN", "FAIL", "N/A", "ERROR", "UNKNOWN"],
+  "registry_validation": true,
+  "frontend_registry_driven": true,
+  "database_changes": ["Added audits.audit_lifecycle as a backward-compatible NOT NULL VARCHAR(20) with PENDING default."],
+  "tests": {
+    "python_compile": "pass",
+    "unittest": "pass: 17 tests",
+    "registry_validation_strict": "pass: 62 code/registry/frontend factors",
+    "frontend_build": "pass",
+    "pdf_contract": "pass",
+    "diff_check": "pass"
+  },
+  "smoke_tests": [
+    {"site": "https://example.com", "kind": "static HTML", "lifecycle": "COMPLETE", "factor_count": 62, "errors": 0, "warnings": 21, "coverage_percent": 100, "score": 48, "runtime_seconds": 2.77},
+    {"site": "https://todomvc.com/examples/react/dist/", "kind": "JavaScript-heavy React", "lifecycle": "COMPLETE", "factor_count": 62, "errors": 0, "warnings": 23, "coverage_percent": 100, "score": 54, "runtime_seconds": 16.01},
+    {"site": "http://example.com", "kind": "HTTP redirect target", "lifecycle": "COMPLETE", "factor_count": 62, "errors": 0, "warnings": 21, "coverage_percent": 100, "score": 45, "runtime_seconds": 1.74},
+    {"site": "https://httpbin.org/html", "kind": "minimal test page with SEO gaps", "lifecycle": "COMPLETE", "factor_count": 62, "errors": 0, "warnings": 19, "coverage_percent": 100, "score": 52, "runtime_seconds": 11.45},
+    {"site": "https://www.iana.org/help/example-domains", "kind": "maintained informational site", "lifecycle": "COMPLETE", "factor_count": 62, "errors": 0, "warnings": 22, "coverage_percent": 100, "score": 56, "runtime_seconds": 68.15, "note": "Crawl reached configured 100-page cap; coverage is of crawled pages, not a full-site claim."}
+  ],
+  "known_limitations": ["HTTP-only engine cannot verify rendered JavaScript content.", "HTTP request duration is not TTFB or Core Web Vitals.", "No AI, Playwright, Lighthouse, or PageSpeed integration was added."],
+  "next_phase": "Phase 2 - Browser Evidence, only with explicit approval"
+}
