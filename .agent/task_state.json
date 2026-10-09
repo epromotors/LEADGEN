@@ -1,8 +1,68 @@
 {
-  "phase": "Phase 1",
-  "status": "complete",
-  "active_task": "Audit Integrity V6.1",
+  "phase": "Phase 2",
+  "status": "IN_PROGRESS",
+  "active_task": "Browser Evidence Provider",
+  "last_known_commit": "b6427e8",
+  "uncommitted_changes_at_snapshot": false,
+  "last_updated": "2026-10-09T12:10:00+05:30",
   "completed": [
+    "Step 2.0: Baseline and control-plane readiness — preflight passed, 18 tests pass, brain validator strict_valid=true, 62 factors, Playwright 1.58.0 available, browser launch confirmed"
+  ],
+  "in_progress": [
+    "Step 2.1: Provider interface and configuration"
+  ],
+  "blocked": [],
+  "next": [
+    "Step 2.1: Define browser evidence contract, provider interface, and disabled-by-default configuration"
+  ],
+  "last_verified": "2026-10-09 (18 unittest/pytest tests pass; brain validator strict mode pass with 62 factors; baseline commit b6427e8; Playwright 1.58.0 installed; browser launch OK)",
+  "last_checkpoint": "Step 2.0 COMPLETE — baseline verified",
+  "steps": {
+    "2.0": {
+      "name": "Baseline and control-plane readiness",
+      "status": "COMPLETE",
+      "verification": {
+        "git_commit": "b6427e8",
+        "uncommitted_changes": false,
+        "tests": "pass: 18 pytest tests",
+        "brain_validator": "pass: valid=true, strict_valid=true, 62 code/registry/frontend factors",
+        "python_compile": "pass",
+        "playwright": "1.58.0 installed, browser launch OK"
+      }
+    },
+    "2.1": {
+      "name": "Provider interface and configuration",
+      "status": "IN_PROGRESS",
+      "files_to_create": [
+        "auditor/auditor/browser/provider.py",
+        "auditor/auditor/browser/__init__.py",
+        "auditor/auditor/browser/security.py"
+      ],
+      "files_to_modify": [
+        "auditor/auditor/config.py"
+      ]
+    },
+    "2.2": {"name": "Browser capture implementation", "status": "NOT_STARTED"},
+    "2.3": {"name": "Audit orchestration and evidence comparison", "status": "NOT_STARTED"},
+    "2.4": {"name": "API, frontend, and PDF compatibility", "status": "NOT_STARTED"},
+    "2.5": {"name": "Regression and security tests", "status": "NOT_STARTED"},
+    "2.6": {"name": "Controlled smoke test and final checkpoint", "status": "NOT_STARTED"}
+  },
+  "verification": {
+    "brain_validator": "pass; strict mode pass with 62 code/registry/frontend factors",
+    "python_compile": "pass",
+    "unit_tests": "pass: 18 pytest tests",
+    "frontend_build": "not yet verified in phase 2 (was pass in phase 1 baseline)",
+    "diff_check": "pass (clean tree)"
+  },
+  "deferred_features": [
+    "Lighthouse integration",
+    "PageSpeed Insights integration",
+    "Real Core Web Vitals measurement",
+    "AI-based website analysis or report generation",
+    "Multi-page browser crawl (Phase 2 captures homepage only)"
+  ],
+  "phase_1_completed": [
     "Repository discovery",
     "Executable factor inventory",
     "Control-plane JSON files",
@@ -13,19 +73,5 @@
     "Registry/API-driven frontend parity",
     "Backward-compatible audit_lifecycle persistence",
     "Automated tests and controlled smoke audits"
-  ],
-  "in_progress": [],
-  "blocked": [],
-  "next": ["Await explicit approval for Phase 2 - Browser Evidence"],
-  "last_verified": "2026-10-09 (database migration, static validation, compilation, unit tests, frontend build, and five controlled smoke audits)",
-  "last_changed_files": [".agent/", "backend/app/engines/factor_contract.py", "backend/app/engines/audit_engine.py", "backend/app/models.py", "backend/app/schemas.py", "backend/app/routers/audits.py", "backend/app/database.py", "backend/migrations/v6_1_0_audit_lifecycle.sql", "auditor/auditor/auditor/", "frontend/src/pages/Audits.jsx", "scripts/validate_agent_brain.py", "tests/"],
-  "verification": {
-    "brain_validator": "pass; strict mode pass with 62 code/registry/frontend factors",
-    "python_compile": "pass",
-    "unit_tests": "pass: 17 unittest tests",
-    "frontend_build": "pass",
-    "database_migration": "pass: audit_lifecycle exists as NOT NULL with PENDING default",
-    "smoke_tests": "pass: five isolated public-site runner executions",
-    "diff_check": "pass"
-  }
+  ]
 }

@@ -345,4 +345,19 @@ async def get_audit(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     audit = result.scalar_one_or_none()
     if not audit:
         raise HTTPException(status_code=404, detail="No audit found for this lead.")
-    return audit
+
+    # ── Phase 2: Expose browser evidence from site_summary as top-level fields ─
+    # site_summary is a JSON column; browser fields are stored there and surfaced
+    # as convenience fields on AuditResponse for API consumers.
+    site_summary = audit.site_summary or {}
+    browser_evidence = site_summary.get("browser_evidence") or None
+    browser_status   = site_summary.get("browser_status") or None
+
+    # Build response dict from ORM model attributes, then inject browser fields
+    audit_data = AuditResponse.model_validate(audit)
+    if browser_evidence is not None:
+        audit_data.browser_evidence = browser_evidence
+    if browser_status is not None:
+        audit_data.browser_status = browser_status
+
+    return audit_data
