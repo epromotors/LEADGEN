@@ -1,9 +1,9 @@
 {
   "project": {
     "name": "LEADGEN",
-    "version": "5.1.0",
+    "version": "5.1.1",
     "purpose": "Lead generation, website auditing, PDF reporting, and outreach operations.",
-    "status": "Phase 1 audit integrity verified; Phase 2 isolated browser provider verified and hardened."
+    "status": "Phase 2 Final complete: DNS rebinding TOCTOU mitigated via embedded policy proxy (PolicyProxy)."
   },
   "architecture": {
     "frontend": "React 18 + Vite at frontend/",
@@ -12,6 +12,7 @@
     "audit_modules": "auditor/auditor/auditor/",
     "browser_provider": "auditor/auditor/browser/provider.py",
     "browser_security": "auditor/auditor/browser/security.py",
+    "browser_proxy": "auditor/auditor/browser/proxy.py — lifecycle-bound HTTP/CONNECT policy proxy; enforces IP policy at TCP-connection time; started/stopped inside BrowserProvider._capture_with_playwright(); no new dependencies",
     "database": "PostgreSQL models in backend/app/models.py; additive audit_lifecycle migration in backend/migrations/v6_1_0_audit_lifecycle.sql",
     "reporting": "ReportLab renderer at auditor/auditor/reporter/pdf_report.py",
     "crawler": "HTTP crawler at auditor/auditor/auditor/crawler.py"

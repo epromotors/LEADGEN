@@ -11,12 +11,37 @@ point to a private IP (DNS rebinding) or a redirect can lead into the internal
 network.  All callers must invoke validate_url() before every navigation and
 revalidate after each redirect.
 
+Known architectural limitation — DNS rebinding TOCTOU gap
+──────────────────────────────────────────────────────────
+This module uses Python's socket.getaddrinfo() to resolve hostnames at check
+time.  Chromium resolves hostnames independently at connection time.  If an
+attacker controls a DNS server with a very short TTL, they can serve a public
+IP during our check and then switch the DNS record to a private IP before
+Chromium connects.  The route-handler validates URL strings (scheme + hostname)
+but cannot intercept the TCP connection after Chromium resolves the hostname.
+
+Severity: HIGH (architectural).  Practical prerequisite: attacker-controlled
+DNS with TTL short enough to expire between our check and Chromium's resolution.
+
+Mitigation options (not implemented — require infrastructure changes):
+  1. Egress proxy that enforces destination-IP policy at the TCP layer.
+  2. Custom DNS resolver shared between our check and Chromium (via --proxy-server
+     pointing to a local policy-aware resolver).
+  3. Network namespace or iptables rules that block RFC-1918/loopback at the OS
+     level, removing the dependency on application-layer DNS validation.
+
+Until one of the above mitigations is deployed, this property is NOT VERIFIED
+for the DNS-rebinding TOCTOU scenario.  All other SSRF vectors (direct IP
+literals, alternative numeric formats, pre-navigation hostname blocking, and
+redirect-destination validation) are enforced at the application layer.
+
 Residual limitations are documented in the function docstrings and in the
 Phase 2 snapshot.  No claim of perfect SSRF prevention is made.
 
 Design note: this module uses only Python stdlib to avoid a hard dependency on
 third-party libraries for the security path.
 """
+
 from __future__ import annotations
 
 import ipaddress
