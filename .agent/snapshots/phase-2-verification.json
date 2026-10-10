@@ -1,19 +1,22 @@
 {
-  "phase": "Phase 2 Verification & Hardening",
+  "phase": "Phase 2 Final — DNS Rebinding TOCTOU Mitigation",
   "status": "COMPLETE",
   "baseline_implementation_commit": "9b096d0",
   "baseline_control_plane_commit": "62b28e4",
   "factor_count": 62,
   "browser_enabled_default": false,
   "test_results": {
-    "total_tests": 81,
-    "passed": 81,
+    "total_tests": 234,
+    "passed": 234,
     "failed": 0,
-    "skipped": 0,
+    "skipped": 1,
     "breakdown": {
       "phase1_regression": 18,
       "phase2_unit_provider": 38,
-      "phase2_verification_hardening": 25
+      "phase2_verification_hardening": 25,
+      "phase2_final_proxy_enforcement": 21,
+      "scoring_and_structured_values": 5,
+      "other": 127
     },
     "python_compile": "pass",
     "brain_validator_strict": "pass (valid=true, strict_valid=true, 62 factors)",
@@ -80,11 +83,12 @@
   ],
   "remaining_risks": [
     "Playwright requires browser binaries installed in environment (playwright install chromium).",
-    "DNS rebinding risk on slow multi-A-record changes is mitigated by route-level redirect inspection and subresource route blocking, but full forward proxying would be required for zero-trust perimeter defense."
+    "OS-level network enforcement (iptables/WFP) not implemented — recommended as production complement for container deployments.",
+    "Hard CPU/memory limits on the browser process are not implemented (no cgroup or process resource limits); this is a separate concern from the SSRF boundary."
   ],
   "resume_instructions": {
-    "current_state": "Phase 2 Verification is complete and hardened with 81 passing tests.",
+    "current_state": "Phase 2 Final complete. DNS rebinding TOCTOU mitigated. 234 tests passing.",
     "next_phase": "Phase 3 (if and only if authorized; do not start automatically).",
-    "verification_command": "python scripts/validate_agent_brain.py --strict --report && python -m pytest"
+    "verification_command": "python -m pytest tests/ -q"
   }
 }

@@ -12,31 +12,26 @@ Playwright.  It is designed to:
   - Never crash or raise through to the caller — failures are captured in the
     evidence contract.
 
-Security note
-─────────────
-URL safety is checked before navigation and again against the final URL after
-page load.  Playwright itself may follow HTTP redirects transparently; we
-validate the final URL to detect redirect-based SSRF.  See security.py for the
-list of blocked address ranges and known limitations.
+Security note — DNS rebinding TOCTOU mitigation (Phase 2 Final)
+────────────────────────────────────────────────────────────────
+A policy-aware HTTP/CONNECT proxy (browser.proxy.PolicyProxy) is started
+before each browser capture.  Chromium is directed to use this proxy via
+--proxy-server and cannot bypass it via --proxy-bypass-list=<-loopback>.
 
-Configuration
-─────────────
-The provider reads configuration from environment variables or a BrowserConfig
-instance.  All settings have safe defaults suitable for a local Windows
-development environment.
+The proxy resolves each destination hostname itself and rejects connections
+where any resolved address is in a blocked IP range BEFORE opening the
+upstream socket.  Because the same addr_info entry that was validated is used
+for socket.connect(), there is no TOCTOU gap between validation and the
+actual TCP connection.  Chromium never resolves hostnames independently.
 
-Environment variables (all optional):
-    BROWSER_ENABLED            "true"/"false"  — default "false"
-    BROWSER_HEADLESS           "true"/"false"  — default "true"
-    BROWSER_NAV_TIMEOUT_MS     int             — default 25000 (25 s)
-    BROWSER_OP_TIMEOUT_MS      int             — default 15000 (15 s)
-    BROWSER_MAX_CONCURRENCY    int             — default 2
-    BROWSER_BUDGET_SECONDS     int             — default 60
-    BROWSER_SCREENSHOT         "true"/"false"  — default "false"
-    BROWSER_SCREENSHOT_DIR     path            — default "" (tempdir)
-    BROWSER_SCREENSHOT_MAX_KB  int             — default 512
-    BROWSER_EXECUTABLE         path            — default "" (Playwright default)
+URL-level validation (validate_url() in security.py) continues to run as a
+defence-in-depth layer before navigation and at the route-handler boundary.
+
+See browser/proxy.py for the proxy implementation and security invariants.
+See security.py for the blocked IP ranges and remaining limitations.
+
 """
+
 from __future__ import annotations
 
 import logging
@@ -397,25 +392,58 @@ class BrowserProvider:
             sem.release()
 
     def _capture_with_playwright(self, url: str) -> BrowserEvidence:
-        """Internal: run Playwright capture with full cleanup guarantee."""
+        """Internal: run Playwright capture with full cleanup guarantee.
+
+        DNS-rebinding TOCTOU mitigation
+        --------------------------------
+        A PolicyProxy is started before the browser launches.  Chromium is
+        directed to this proxy via --proxy-server and is prevented from making
+        any direct connection via --proxy-bypass-list=<-loopback>.  The proxy
+        resolves each destination itself and rejects connections where any
+        resolved address is in a blocked IP range BEFORE opening the upstream
+        socket.  Because the same addr_info entry that was validated is used
+        for socket.connect(), there is no TOCTOU gap between validation and
+        connection.  If the proxy fails to start, the capture is aborted.
+        """
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout, Error as PWError
+        from browser.proxy import PolicyProxy
 
         cfg = self._config
         started = time.perf_counter()
         evidence = BrowserEvidence(requested_url=url)
 
+        proxy: PolicyProxy | None = None
         playwright_ctx = None
         browser = None
         context = None
         page = None
 
         try:
+            # Start the policy proxy before the browser so the proxy_url is
+            # available when building launch_kwargs.
+            proxy = PolicyProxy(allow_test_loopback=cfg.allow_test_loopback)
+            try:
+                proxy.start()
+            except Exception as exc:
+                evidence.provider_status = BrowserStatus.FAILED
+                evidence.provider_error = f"Policy proxy failed to start: {exc}"
+                evidence.elapsed_ms = _elapsed_ms(started)
+                return evidence
+
+            proxy_url = f"http://127.0.0.1:{proxy.port}"
+
             playwright_ctx = sync_playwright().start()
 
             # Launch options
+            # --proxy-server: all Chromium connections go through the policy proxy.
+            # --proxy-bypass-list=<-loopback>: disables the default loopback bypass
+            #   so Chromium cannot make direct (non-proxied) connections, including
+            #   to 127.0.0.1, localhost, or any other address.
             launch_kwargs: dict[str, Any] = {
                 "headless": cfg.headless,
                 "timeout": cfg.nav_timeout_ms,
+                "proxy": {"server": proxy_url},
+                "args": ["--proxy-bypass-list=<-loopback>"],
             }
             if cfg.executable:
                 launch_kwargs["executable_path"] = cfg.executable
@@ -507,7 +535,21 @@ class BrowserProvider:
                         route.fulfill(response=resp)
                         return
                     except Exception as _fetch_err:
-                        logger.debug("route.fetch exception: %s", _fetch_err)
+                        # Fail-closed: if route.fetch() itself fails for a navigation
+                        # request, we cannot inspect redirect destinations, so we abort
+                        # rather than fall through to route.continue_() which would let
+                        # Chromium follow redirects without our hop-by-hop validation.
+                        logger.warning(
+                            "[browser_security] route.fetch() failed for navigation request to %s;"
+                            " aborting to prevent unvalidated redirect-following: %s",
+                            req_url,
+                            _fetch_err,
+                        )
+                        _security_blocked_reasons.append(
+                            f"route.fetch failed (fail-closed abort): {req_url}"
+                        )
+                        route.abort()
+                        return
 
                 route.continue_()
             page.route("**/*", _route_handler)
@@ -692,6 +734,13 @@ class BrowserProvider:
             # Guaranteed cleanup regardless of success or exception
             evidence.elapsed_ms = _elapsed_ms(started)
             _cleanup(page, context, browser, playwright_ctx)
+            # Stop the policy proxy after the browser is closed so no
+            # in-flight connection can slip through during teardown.
+            if proxy is not None:
+                try:
+                    proxy.stop()
+                except Exception as _proxy_stop_err:
+                    logger.debug("Policy proxy stop error: %s", _proxy_stop_err)
 
         return evidence
 
