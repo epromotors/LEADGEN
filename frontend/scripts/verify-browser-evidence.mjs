@@ -24,6 +24,7 @@ try {
       has_nav: true, has_form: false, internal_link_count: 4,
       headings: [{ level: 'h1', text: 'Rendered H1' }],
       console_errors: ['[error] example'], failed_requests: ['https://example.test/app.js'],
+      lab_lcp_ms: 1250, lab_cls: 0.0, lab_ttfb_ms: 180, lab_metrics_available: true,
     },
     auditResults: {
       onpage: {
@@ -37,6 +38,11 @@ try {
   assert.match(complete, /Rendered H1/)
   assert.match(complete, /Console errors/)
   assert.match(complete, /Failed requests/)
+  assert.match(complete, /Lab Web Vitals/)
+  assert.match(complete, /1250 ms/)
+  assert.match(complete, /0\.000/)
+  assert.match(complete, /180 ms/)
+  assert.match(complete, /Synthetic Lab Data/)
 
   const partial = render({
     status: 'PARTIAL',
