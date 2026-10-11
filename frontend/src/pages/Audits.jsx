@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getLeads, getAudit, getPdfUrl } from '../api/client'
+import BrowserEvidence from '../components/BrowserEvidence'
 
 // ── Audit check definitions: label, explanation, fix hint ─────────────────
 const AXIS_COLORS = {
@@ -679,6 +680,12 @@ function AuditRow({ lead }) {
                       })()}
                     </div>
                   </div>
+
+                  <BrowserEvidence
+                    evidence={audit.browser_evidence}
+                    status={audit.browser_status}
+                    auditResults={audit.audit_results}
+                  />
 
                   {/* 6 Group Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
