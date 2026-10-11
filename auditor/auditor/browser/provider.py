@@ -122,6 +122,13 @@ class BrowserEvidence:
     js_rendered_title: str | None = None
     js_rendered_headings: list[dict[str, str]] | None = None
 
+    # Lab performance metrics (Phase 3 WS-B — score-neutral synthetic measurements)
+    # Note: These are lab/synthetic values, not real-user field data.
+    lab_lcp_ms: int | None = None
+    lab_cls: float | None = None
+    lab_ttfb_ms: int | None = None
+    lab_metrics_available: bool = False
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict compatible with the factor evidence list."""
         return {
@@ -150,6 +157,10 @@ class BrowserEvidence:
             "screenshot_size_kb": self.screenshot_size_kb,
             "js_rendered_title": self.js_rendered_title,
             "js_rendered_headings": self.js_rendered_headings,
+            "lab_lcp_ms": self.lab_lcp_ms,
+            "lab_cls": self.lab_cls,
+            "lab_ttfb_ms": self.lab_ttfb_ms,
+            "lab_metrics_available": self.lab_metrics_available,
         }
 
     @staticmethod
@@ -472,6 +483,59 @@ class BrowserProvider:
 
             page = context.new_page()
 
+            # Install Web Vitals observers before navigation (Phase 3 WS-B)
+            # Buffers LCP and layout-shift events emitted during initial parse and render.
+            _WEB_VITALS_INIT_SCRIPT = """
+            window.__leadgen_vitals = {
+                lcp: null,
+                lcp_observed: false,
+                lcp_error: null,
+                cls_entries: [],
+                cls_observer_initialized: false,
+                cls_error: null
+            };
+            try {
+                if (typeof PerformanceObserver !== 'undefined') {
+                    // 1. Largest Contentful Paint (LCP)
+                    try {
+                        const poLcp = new PerformanceObserver((entryList) => {
+                            const entries = entryList.getEntries();
+                            if (entries && entries.length > 0) {
+                                window.__leadgen_vitals.lcp = entries[entries.length - 1].startTime;
+                                window.__leadgen_vitals.lcp_observed = true;
+                            }
+                        });
+                        poLcp.observe({ type: 'largest-contentful-paint', buffered: true });
+                    } catch (lcpErr) {
+                        window.__leadgen_vitals.lcp_error = String(lcpErr);
+                    }
+
+                    // 2. Cumulative Layout Shift (CLS)
+                    try {
+                        const poCls = new PerformanceObserver((entryList) => {
+                            for (const entry of entryList.getEntries()) {
+                                window.__leadgen_vitals.cls_entries.push({
+                                    startTime: entry.startTime,
+                                    value: entry.value,
+                                    hadRecentInput: Boolean(entry.hadRecentInput)
+                                });
+                            }
+                        });
+                        poCls.observe({ type: 'layout-shift', buffered: true });
+                        window.__leadgen_vitals.cls_observer_initialized = true;
+                    } catch (clsErr) {
+                        window.__leadgen_vitals.cls_error = String(clsErr);
+                    }
+                }
+            } catch (err) {
+                // Top-level observer setup fallback
+            }
+            """
+            try:
+                page.add_init_script(_WEB_VITALS_INIT_SCRIPT)
+            except Exception as _init_err:
+                logger.debug("add_init_script failed: %s", _init_err)
+
             # Capture console errors (bounded)
             _console_errors: list[str] = []
             def _on_console(msg):  # type: ignore[no-untyped-def]
@@ -714,6 +778,86 @@ class BrowserProvider:
             # JS-rendered comparison fields (populated from extracted data)
             evidence.js_rendered_title = evidence.page_title or None
             evidence.js_rendered_headings = evidence.headings or None
+
+            # ── Lab Web Vitals Extraction (Phase 3 WS-B) ──────────────────────
+            # Synthetic / lab measurements from Performance APIs.
+            # Evaluated after settle; networkidle timeout does not invalidate measurements.
+            _EXTRACT_METRICS_JS = """
+            (() => {
+                const result = {
+                    lcp_ms: null,
+                    cls: null,
+                    ttfb_ms: null,
+                    available: false
+                };
+                try {
+                    const vitals = window.__leadgen_vitals || {};
+
+                    // 1. TTFB (Time to First Byte)
+                    if (typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function') {
+                        const navEntries = performance.getEntriesByType('navigation');
+                        if (navEntries && navEntries.length > 0) {
+                            const nav = navEntries[0];
+                            if (typeof nav.responseStart === 'number' && Number.isFinite(nav.responseStart) && nav.responseStart > 0) {
+                                result.ttfb_ms = Math.round(nav.responseStart);
+                            }
+                        }
+                    }
+
+                    // 2. LCP (Largest Contentful Paint)
+                    if (vitals.lcp_observed && typeof vitals.lcp === 'number' && Number.isFinite(vitals.lcp) && vitals.lcp > 0) {
+                        result.lcp_ms = Math.round(vitals.lcp);
+                    }
+
+                    // 3. CLS (Cumulative Layout Shift) with Session Windowing
+                    // Report 0.0 only when CLS observer initialized successfully and
+                    // completed without qualifying shifts. Observer failure yields null.
+                    if (vitals.cls_observer_initialized && !vitals.cls_error) {
+                        const entries = vitals.cls_entries || [];
+                        let maxSessionScore = 0.0;
+                        let currentSessionScore = 0.0;
+                        let sessionWindowStart = -Infinity;
+                        let prevShiftTime = -Infinity;
+
+                        for (const entry of entries) {
+                            // Exclude layout shifts with recent user input
+                            if (entry.hadRecentInput) continue;
+
+                            // Session window rules: gap < 1000ms AND total window duration < 5000ms
+                            if (entry.startTime - prevShiftTime < 1000 && entry.startTime - sessionWindowStart < 5000) {
+                                currentSessionScore += entry.value;
+                            } else {
+                                sessionWindowStart = entry.startTime;
+                                currentSessionScore = entry.value;
+                            }
+                            prevShiftTime = entry.startTime;
+
+                            if (currentSessionScore > maxSessionScore) {
+                                maxSessionScore = currentSessionScore;
+                            }
+                        }
+                        result.cls = Number(maxSessionScore.toFixed(4));
+                    } else {
+                        result.cls = null;
+                    }
+
+                    result.available = true;
+                } catch (e) {
+                    result.available = false;
+                }
+                return result;
+            })()
+            """
+            try:
+                metrics_res = page.evaluate(_EXTRACT_METRICS_JS)
+                if isinstance(metrics_res, dict):
+                    evidence.lab_lcp_ms = metrics_res.get("lcp_ms")
+                    evidence.lab_cls = metrics_res.get("cls")
+                    evidence.lab_ttfb_ms = metrics_res.get("ttfb_ms")
+                    evidence.lab_metrics_available = bool(metrics_res.get("available"))
+            except (PWError, Exception) as _eval_err:
+                logger.debug("Lab vitals extraction failed: %s", _eval_err)
+                evidence.lab_metrics_available = False
 
             evidence.provider_status = BrowserStatus.SUCCESS
             evidence.navigation_timeout_ms = cfg.nav_timeout_ms

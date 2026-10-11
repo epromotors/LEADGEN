@@ -62,8 +62,8 @@
     "FINDING F1 (low severity): proxy relay (_relay in browser/proxy.py) has only a 30-second idle timeout; no absolute wall-clock cap or byte limit on relay sessions. Blast radius is zero when BROWSER_ENABLED=false.",
     "FINDING F2 (low severity): _handle_plain_http in browser/proxy.py uses rpartition(':') to split host:port; a bare IPv6 literal without brackets would be mis-parsed. Chromium sends well-formed requests so not exploitable in practice, but parse failure is silent."
   ],
-  "current_phase": "Phase 3 — Workstream A complete and verification-gated; Workstream B remains pending.",
-  "next_action": "Implement WS-B local Core Web Vitals only after Workstream A report; preserve the 62-factor score and existing browser security boundary.",
+  "current_phase": "Phase 3 — Workstream B complete and verification-gated; Workstream C remains pending.",
+  "next_action": "Await explicit user direction and approval before Phase 3 Workstream C (multi-page crawl); preserve 62-factor score, zero schema changes, and browser security boundary.",
   "do_not_touch": [
     "lead generation and import flows",
     "campaign and outreach behavior",

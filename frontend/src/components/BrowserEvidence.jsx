@@ -88,6 +88,38 @@ export default function BrowserEvidence({ evidence, status, auditResults }) {
           <Indicator label="Console errors" value={consoleErrorCount} />
           <Indicator label="Failed requests" value={failedRequestCount} />
         </div>
+
+        {/* Phase 3 WS-B: Lab Performance Metrics (Synthetic / Lab Data) */}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e2d44' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Lab Web Vitals <span style={{ color: '#64748b', fontSize: 10, fontWeight: 500, textTransform: 'none' }}>(Synthetic Lab Data)</span>
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+            <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+              <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Lab LCP</p>
+              <p style={{ color: typeof evidence.lab_lcp_ms === 'number' ? (evidence.lab_lcp_ms <= 2500 ? '#4ade80' : evidence.lab_lcp_ms <= 4000 ? '#fbbf24' : '#f87171') : '#64748b', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                {typeof evidence.lab_lcp_ms === 'number' ? `${evidence.lab_lcp_ms} ms` : 'Unavailable'}
+              </p>
+            </div>
+            <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+              <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Lab CLS</p>
+              <p style={{ color: (evidence.lab_cls !== null && evidence.lab_cls !== undefined) ? (evidence.lab_cls <= 0.1 ? '#4ade80' : evidence.lab_cls <= 0.25 ? '#fbbf24' : '#f87171') : '#64748b', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                {(evidence.lab_cls !== null && evidence.lab_cls !== undefined) ? evidence.lab_cls.toFixed(3) : 'Unavailable'}
+              </p>
+            </div>
+            <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+              <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Lab TTFB</p>
+              <p style={{ color: typeof evidence.lab_ttfb_ms === 'number' ? (evidence.lab_ttfb_ms <= 800 ? '#4ade80' : evidence.lab_ttfb_ms <= 1800 ? '#fbbf24' : '#f87171') : '#64748b', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                {typeof evidence.lab_ttfb_ms === 'number' ? `${evidence.lab_ttfb_ms} ms` : 'Unavailable'}
+              </p>
+            </div>
+          </div>
+          <p style={{ color: '#64748b', fontSize: 10, margin: '8px 0 0', lineHeight: 1.4 }}>
+            Lab measurements captured in headless browser under lab conditions. Not real-user field data (CrUX).
+          </p>
+        </div>
       </div>
     </details>
   )

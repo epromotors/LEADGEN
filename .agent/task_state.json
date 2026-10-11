@@ -1,10 +1,10 @@
 {
-  "phase": "Phase 3 Workstream A",
+  "phase": "Phase 3 Workstream B",
   "status": "COMPLETE",
   "active_task": null,
-  "last_known_commit": "17cffe5",
+  "last_known_commit": "91cae45",
   "uncommitted_changes_at_snapshot": true,
-  "last_updated": "2026-10-10T21:41:58+05:30",
+  "last_updated": "2026-10-11T14:26:00+05:30",
   "verification_items": {
     "P2_VERIFY_01_RUNTIME": {
       "name": "Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF)",
@@ -213,6 +213,29 @@
         "frontend_build": "pass: Vite production build completed",
         "diff_check": "pass",
         "visual_browser": "not run: local browser automation session lacked the required sandbox policy"
+      }
+    },
+    "3.B": {
+      "name": "Phase 3 Workstream B — Local Lab Web Vitals (LCP, CLS, TTFB)",
+      "status": "COMPLETE",
+      "files_created": [
+        "tests/test_phase3_workstream_b.py"
+      ],
+      "files_modified": [
+        "auditor/auditor/browser/provider.py",
+        "frontend/src/components/BrowserEvidence.jsx",
+        "frontend/scripts/verify-browser-evidence.mjs",
+        ".agent/brain.json",
+        ".agent/task_state.json"
+      ],
+      "acceptance_criteria": "Optional score-neutral lab measurements (LCP, CLS, TTFB); CLS uses session windowing; genuine 0.0 distinguished from null; finite TTFB/LCP; score neutrality and canonical 62 factors strictly preserved; zero schema changes.",
+      "verification": {
+        "targeted_tests": "pass: 13 passed in test_phase3_workstream_b.py",
+        "tests": "pass: full suite passes",
+        "brain_validator": "pass: valid=true, strict_valid=true, 62 factors",
+        "frontend_build": "pass: Vite production build completed",
+        "ssr_scenarios": "pass: verify-browser-evidence.mjs",
+        "diff_check": "pass"
       }
     }
   },
