@@ -53,6 +53,20 @@ try {
   assert.match(partial, /Budget exceeded/)
   assert.match(partial, /Unknown/)
 
+  const multiPage = render({
+    status: 'SUCCESS',
+    evidence: { provider_status: 'SUCCESS', page_title: 'Homepage title', has_cta: true },
+    pages: [
+      { provider_status: 'SUCCESS', requested_url: 'https://example.com/', page_title: 'Homepage title', has_cta: true },
+      { provider_status: 'SUCCESS', requested_url: 'https://example.com/about', page_title: 'About us', has_cta: false },
+    ],
+    auditResults: {},
+  })
+  assert.match(multiPage, /Browser Evidence/)
+  assert.match(multiPage, /2 pages captured/)
+  assert.match(multiPage, /Homepage/)
+  assert.match(multiPage, /\/about/)
+
   assert.equal(render({ status: 'SUCCESS', evidence: null, auditResults: {} }), '')
   assert.equal(render({ status: 'DISABLED', evidence: { provider_status: 'DISABLED' }, auditResults: {} }), '')
   assert.equal(render({ status: 'UNAVAILABLE', evidence: { provider_status: 'UNAVAILABLE' }, auditResults: {} }), '')
@@ -60,4 +74,4 @@ try {
   await vite.close()
 }
 
-console.log('BrowserEvidence SSR scenarios passed: complete, partial, null, disabled, unavailable.')
+console.log('BrowserEvidence SSR scenarios passed: complete, partial, multiPage, null, disabled, unavailable.')

@@ -188,6 +188,7 @@ class AuditResponse(UTCBase):
     # A non-SUCCESS status must NOT be interpreted as a website audit finding.
     browser_status: Optional[str] = None
     browser_evidence: Optional[dict] = None
+    browser_pages: Optional[List[dict]] = None
 
 
 # ─── Campaigns ────────────────────────────────────────────────────────────────

@@ -685,6 +685,7 @@ function AuditRow({ lead }) {
                     evidence={audit.browser_evidence}
                     status={audit.browser_status}
                     auditResults={audit.audit_results}
+                    pages={audit.browser_pages}
                   />
 
                   {/* 6 Group Cards */}
