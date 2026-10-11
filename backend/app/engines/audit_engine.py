@@ -353,6 +353,7 @@ def _run_audit_sync(url: str) -> dict:
 
     # ── Multi-page crawl ─────────────────────────────────────────────────────
     crawl_coverage = {"discovered": 0, "audited": 0, "skipped": 0, "blocked": 0, "errors": 0, "coverage_percent": 0, "status": "COMPLETE", "reasons": []}
+    crawled: list = []
     try:
         crawled      = crawl_site(url, session, max_pages=100)
         page_audits  = [audit_page_seo(p) for p in crawled]
@@ -389,22 +390,43 @@ def _run_audit_sync(url: str) -> dict:
         logger.warning(f"[audit_engine] email_finder failed for {url}: {_ee}")
 
 
-    # ── Phase 2: browser evidence capture ─────────────────────────────────────
+    # ── Phase 2/3: browser evidence capture ───────────────────────────────────
     # Runs only when BROWSER_ENABLED=true.  A browser failure NEVER aborts the
     # HTTP audit or changes any factor status or score.
     browser_evidence: dict = {}
     browser_status: str = "DISABLED"
+    browser_pages: list[dict] = []
     try:
         if _BROWSER_MODULE_AVAILABLE:
             _bcfg = BrowserConfig.from_env()
             if _bcfg.enabled:
                 _provider = BrowserProvider(_bcfg)
-                _bev = _provider.capture(url)
-                browser_evidence = _bev.to_dict()
-                browser_status   = _bev.provider_status
+                from browser.provider import select_target_pages
+                _target_urls, _inbound_counts = select_target_pages(
+                    base_url=url,
+                    crawled_pages=crawled,
+                    homepage_soup=soup,
+                    max_pages=_bcfg.max_pages,
+                    return_counts=True,
+                )
+                _page_evidences = _provider.capture_pages(
+                    urls=_target_urls,
+                    base_url=url,
+                    inbound_counts=_inbound_counts,
+                )
+                if _page_evidences:
+                    _bev = _page_evidences[0]
+                    browser_evidence = _bev.to_dict()
+                    browser_status   = _bev.provider_status
+                    browser_pages    = [p.to_dict() for p in _page_evidences]
+                else:
+                    _bev = _provider.capture(url)
+                    browser_evidence = _bev.to_dict()
+                    browser_status   = _bev.provider_status
+                    browser_pages    = [browser_evidence]
                 logger.info(
-                    "[audit_engine] Browser evidence status=%s elapsed=%d ms for %s",
-                    browser_status, _bev.elapsed_ms, url,
+                    "[audit_engine] Browser evidence status=%s elapsed=%d ms pages=%d for %s",
+                    browser_status, _bev.elapsed_ms, len(browser_pages), url,
                 )
                 _annotate_browser_comparisons(audit_results, _bev)
             else:
@@ -414,6 +436,7 @@ def _run_audit_sync(url: str) -> dict:
     except Exception as _bexc:
         browser_status   = "ERROR"
         browser_evidence = {"provider_status": "ERROR", "provider_error": str(_bexc)}
+        browser_pages    = [browser_evidence]
         logger.exception("[audit_engine] Browser evidence capture failed for %s", url)
 
     return {
@@ -428,6 +451,7 @@ def _run_audit_sync(url: str) -> dict:
         "email_source": email_source,
         "browser_evidence": browser_evidence,
         "browser_status":   browser_status,
+        "browser_pages":    browser_pages,
     }
 
 
@@ -855,6 +879,7 @@ async def run_audit(lead_id: str) -> None:
     email_source  = data.get("email_source", "not_found")
     browser_evidence = data.get("browser_evidence", {})
     browser_status   = data.get("browser_status", "DISABLED")
+    browser_pages    = data.get("browser_pages", [])
 
     # ── PHASE 4: Extract business name (pure CPU, no DB) ─────────────────────
     suggested_name = None
@@ -976,6 +1001,7 @@ async def run_audit(lead_id: str) -> None:
                 "lifecycle": lifecycle,
                 "browser_evidence": browser_evidence,
                 "browser_status": browser_status,
+                "browser_pages": browser_pages,
             }
             audit.audit_lifecycle    = lifecycle
             audit.page_audits        = page_audits

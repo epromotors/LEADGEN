@@ -18,6 +18,10 @@ from browser.provider import (
     BrowserConfig,
     BrowserStatus,
     is_browser_enabled,
+    get_effective_port,
+    is_same_origin_boundary,
+    normalize_page_url,
+    select_target_pages,
 )
 
 __all__ = [
@@ -26,4 +30,8 @@ __all__ = [
     "BrowserConfig",
     "BrowserStatus",
     "is_browser_enabled",
+    "get_effective_port",
+    "is_same_origin_boundary",
+    "normalize_page_url",
+    "select_target_pages",
 ]

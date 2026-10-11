@@ -352,6 +352,7 @@ async def get_audit(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     site_summary = audit.site_summary or {}
     browser_evidence = site_summary.get("browser_evidence") or None
     browser_status   = site_summary.get("browser_status") or None
+    browser_pages    = site_summary.get("browser_pages") or None
 
     # Build response dict from ORM model attributes, then inject browser fields
     audit_data = AuditResponse.model_validate(audit)
@@ -359,5 +360,7 @@ async def get_audit(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         audit_data.browser_evidence = browser_evidence
     if browser_status is not None:
         audit_data.browser_status = browser_status
+    if browser_pages is not None:
+        audit_data.browser_pages = browser_pages
 
     return audit_data

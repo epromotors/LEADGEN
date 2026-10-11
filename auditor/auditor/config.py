@@ -168,6 +168,7 @@ BROWSER_DEFAULTS = {
     "screenshot_max_kb":   512,      # discard screenshots above this size
     "executable":          "",       # "" = Playwright bundled Chromium
     "dom_snippet_max_chars": 16_384, # cap rendered DOM stored in evidence
+    "max_pages":           5,        # max browser pages to audit (homepage + up to 4 internal)
     # Resource types blocked in the browser to reduce bandwidth/risk.
     # "script" is intentionally NOT blocked — JS execution is needed for
     # rendered evidence.

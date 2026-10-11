@@ -36,9 +36,11 @@ from __future__ import annotations
 
 import logging
 import os
+import posixpath
 import tempfile
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -129,6 +131,10 @@ class BrowserEvidence:
     lab_ttfb_ms: int | None = None
     lab_metrics_available: bool = False
 
+    # Multi-page selection signals (Phase 3 WS-C)
+    selection_rank: int = 0
+    inbound_links_count: int = 0
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict compatible with the factor evidence list."""
         return {
@@ -161,6 +167,8 @@ class BrowserEvidence:
             "lab_cls": self.lab_cls,
             "lab_ttfb_ms": self.lab_ttfb_ms,
             "lab_metrics_available": self.lab_metrics_available,
+            "selection_rank": self.selection_rank,
+            "inbound_links_count": self.inbound_links_count,
         }
 
     @staticmethod
@@ -235,6 +243,9 @@ class BrowserConfig:
     # in explicit local fixture tests.
     allow_test_loopback: bool = False
 
+    # Multi-page limit: max pages to capture (homepage + internal pages)
+    max_pages: int = 5
+
     @classmethod
     def from_env(cls) -> "BrowserConfig":
         """Build a config from environment variables with safe defaults."""
@@ -264,6 +275,7 @@ class BrowserConfig:
             screenshot_max_kb=_int("BROWSER_SCREENSHOT_MAX_KB", 512),
             executable=os.environ.get("BROWSER_EXECUTABLE", ""),
             allow_test_loopback=_bool("ALLOW_TEST_LOOPBACK", False),
+            max_pages=max(1, _int("BROWSER_MAX_PAGES", 5)),
         )
 
 
@@ -311,6 +323,254 @@ _CTA_KEYWORDS = frozenset({
 })
 
 
+# ── Multi-page URL normalization and ranking (Phase 3 WS-C) ───────────────────
+
+_TRACKING_QUERY_PARAMS = frozenset({
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "gclid", "fbclid", "msclkid", "mc_cid", "mc_eid",
+    "sessionid", "phpsessid", "jsessionid", "token", "ref", "affiliate",
+})
+
+
+def get_effective_port(parsed: urllib.parse.ParseResult) -> int:
+    """Return the effective port for a parsed URL (80 for http, 443 for https)."""
+    if parsed.port is not None:
+        return parsed.port
+    scheme = (parsed.scheme or "").lower()
+    if scheme == "https":
+        return 443
+    if scheme == "http":
+        return 80
+    return -1
+
+
+def is_same_origin_boundary(target_url: str, base_url: str) -> bool:
+    """Check if target_url belongs to the same origin boundary as base_url.
+
+    Enforces:
+      1. Both schemes must be http or https.
+      2. Both schemes must match (no http vs https mixing).
+      3. Exact hostname match (case-insensitive, no subdomains).
+      4. Exact effective port match (e.g. 80 vs 80, 443 vs 443, 8080 vs 8080).
+    """
+    if not target_url or not base_url:
+        return False
+    try:
+        t_parsed = urllib.parse.urlparse(target_url.strip())
+        b_parsed = urllib.parse.urlparse(base_url.strip())
+    except Exception:
+        return False
+
+    t_scheme = (t_parsed.scheme or "").lower()
+    b_scheme = (b_parsed.scheme or "").lower()
+    if t_scheme not in ("http", "https") or b_scheme not in ("http", "https"):
+        return False
+    if t_scheme != b_scheme:
+        return False
+
+    t_host = (t_parsed.hostname or "").lower()
+    b_host = (b_parsed.hostname or "").lower()
+    if not t_host or not b_host or t_host != b_host:
+        return False
+
+    t_port = get_effective_port(t_parsed)
+    b_port = get_effective_port(b_parsed)
+    return t_port == b_port
+
+
+def normalize_page_url(url: str, base_url: str = "") -> str | None:
+    """Deterministically normalize an auditable HTML page URL.
+
+    Rules:
+      1. Scheme and host lowercased.
+      2. If base_url is provided, resolves relative URLs against base_url.
+      3. Scheme must be http or https.
+      4. Fragments (#...) unconditionally removed.
+      5. Standard ports removed (80 for http, 443 for https); non-standard retained.
+      6. Path dot segments resolved, duplicate slashes collapsed.
+      7. Trailing slashes stripped on non-root paths (e.g. /about/ -> /about; / stays /).
+      8. Tracking parameters removed, remaining query parameters sorted alphabetically.
+      9. Non-HTML auditable resources filtered via is_auditable_page_url.
+    """
+    if not url or not isinstance(url, str):
+        return None
+    try:
+        resolved = urllib.parse.urljoin(base_url, url.strip()) if base_url else url.strip()
+        parsed = urllib.parse.urlparse(resolved)
+    except Exception:
+        return None
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in ("http", "https"):
+        return None
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return None
+
+    port = parsed.port
+    # Effective port check for netloc representation
+    if (scheme == "http" and port == 80) or (scheme == "https" and port == 443) or port is None:
+        netloc = hostname
+    else:
+        netloc = f"{hostname}:{port}"
+
+    # Path normalization
+    raw_path = parsed.path or "/"
+    normalized_path = posixpath.normpath(raw_path)
+    if not normalized_path.startswith("/"):
+        normalized_path = "/" + normalized_path
+    if normalized_path != "/" and normalized_path.endswith("/"):
+        normalized_path = normalized_path.rstrip("/")
+
+    # Query normalization
+    query_params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    filtered_params = [
+        (k, v) for k, v in query_params
+        if k.lower() not in _TRACKING_QUERY_PARAMS and not k.lower().startswith("utm_")
+    ]
+    if filtered_params:
+        filtered_params.sort(key=lambda kv: (kv[0], kv[1]))
+        cleaned_query = urllib.parse.urlencode(filtered_params)
+    else:
+        cleaned_query = ""
+
+    normalized_url = urllib.parse.urlunparse((
+        scheme,
+        netloc,
+        normalized_path,
+        "",  # params
+        cleaned_query,
+        "",  # fragment stripped
+    ))
+
+    # Reject non-auditable assets (media, pdfs, low-value paths)
+    try:
+        from auditor.crawler import is_auditable_page_url
+        if not is_auditable_page_url(normalized_url):
+            return None
+    except Exception:
+        try:
+            from crawler import is_auditable_page_url
+            if not is_auditable_page_url(normalized_url):
+                return None
+        except Exception:
+            path_lower = normalized_path.lower()
+            skip_ext = (
+                ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
+                ".mp4", ".mp3", ".zip", ".css", ".js", ".ico", ".xml",
+                ".txt", ".json", ".woff", ".woff2",
+            )
+            if any(path_lower.endswith(e) for e in skip_ext):
+                return None
+
+    return normalized_url
+
+
+def select_target_pages(
+    base_url: str,
+    crawled_pages: list[dict] | None = None,
+    homepage_soup: Any = None,
+    max_pages: int = 5,
+    return_counts: bool = False,
+) -> list[str] | tuple[list[str], dict[str, int]]:
+    """Select up to max_pages target URLs for browser capture.
+
+    Ranking:
+      1. Homepage is always selected first at index 0.
+      2. Up to max_pages - 1 internal pages are ranked by:
+         - Descending count of UNIQUE referring source pages (excluding self-links).
+         - Tie-break: Ascending normalized URL string.
+      3. Candidate pages are strictly limited to same origin boundary and auditable HTML.
+    """
+    if max_pages <= 0:
+        max_pages = 1
+
+    norm_base = normalize_page_url(base_url, base_url)
+    if not norm_base:
+        norm_base = base_url.strip()
+
+    source_docs: list[tuple[str, Any]] = []
+    candidate_pool: set[str] = set()
+    inbound_sources: dict[str, set[str]] = {}
+
+    if homepage_soup is not None:
+        source_docs.append((norm_base, homepage_soup))
+
+    if crawled_pages:
+        for p in crawled_pages:
+            if not isinstance(p, dict):
+                continue
+            p_url = p.get("final_url") or p.get("url") or ""
+            norm_p = normalize_page_url(p_url, norm_base)
+            p_soup = p.get("soup")
+            if not p_soup and p.get("html"):
+                try:
+                    from bs4 import BeautifulSoup
+                    p_soup = BeautifulSoup(p["html"], "html.parser")
+                except Exception:
+                    p_soup = None
+
+            if norm_p and is_same_origin_boundary(norm_p, norm_base):
+                if norm_p != norm_base:
+                    candidate_pool.add(norm_p)
+                if p_soup is not None:
+                    source_docs.append((norm_p, p_soup))
+
+    # Discover links from all source documents
+    for source_url, soup in source_docs:
+        if soup is None:
+            continue
+        try:
+            anchors = soup.find_all("a", href=True)
+        except Exception:
+            continue
+
+        for a in anchors:
+            raw_href = (a.get("href") or "").strip()
+            if not raw_href or raw_href.startswith(("javascript:", "mailto:", "tel:", "#", "data:")):
+                continue
+            try:
+                target_raw = urllib.parse.urljoin(source_url, raw_href)
+            except Exception:
+                continue
+            target_norm = normalize_page_url(target_raw, norm_base)
+            if not target_norm:
+                continue
+            if not is_same_origin_boundary(target_norm, norm_base):
+                continue
+            if target_norm == norm_base:
+                continue
+
+            candidate_pool.add(target_norm)
+
+            # Self-links do not increase inbound count
+            if target_norm == source_url:
+                continue
+
+            if target_norm not in inbound_sources:
+                inbound_sources[target_norm] = set()
+            inbound_sources[target_norm].add(source_url)
+
+    # Sort candidates by (-unique_inbound_count, normalized_url)
+    sorted_candidates = sorted(
+        candidate_pool,
+        key=lambda cand: (-len(inbound_sources.get(cand, set())), cand)
+    )
+
+    limit = max(0, max_pages - 1)
+    selected_internal = sorted_candidates[:limit]
+    final_urls = [norm_base] + selected_internal
+
+    counts = {norm_base: 0}
+    for cand in selected_internal:
+        counts[cand] = len(inbound_sources.get(cand, set()))
+
+    if return_counts:
+        return final_urls, counts
+    return final_urls
+
+
 # ── Browser provider ──────────────────────────────────────────────────────────
 
 class BrowserProvider:
@@ -340,7 +600,7 @@ class BrowserProvider:
     def __init__(self, config: BrowserConfig | None = None) -> None:
         self._config = config or BrowserConfig.from_env()
 
-    def capture(self, url: str) -> BrowserEvidence:
+    def capture(self, url: str, deadline: float | None = None) -> BrowserEvidence:
         """Capture browser-rendered evidence for *url*.
 
         Returns a BrowserEvidence record in all cases; never raises.
@@ -362,6 +622,13 @@ class BrowserProvider:
                      "Run: pip install playwright && python -m playwright install chromium"
             )
 
+        if deadline is not None and time.perf_counter() >= deadline - 1.0:
+            return BrowserEvidence(
+                requested_url=url,
+                provider_status=BrowserStatus.TIMEOUT,
+                provider_error="Site audit budget exhausted before page execution",
+            )
+
         # Pre-navigation security check
         from browser.security import validate_url
         pre_check = validate_url(
@@ -372,13 +639,39 @@ class BrowserProvider:
         if not pre_check.allowed:
             return BrowserEvidence.security_blocked(url, pre_check.reason)
 
-        # Acquire concurrency slot
+        # Acquire concurrency slot bounded by deadline
         sem = _get_semaphore(self._config.max_concurrency)
-        acquired = sem.acquire(timeout=30)
+        if deadline is not None:
+            rem_budget = deadline - time.perf_counter()
+            if rem_budget <= 0.0:
+                return BrowserEvidence(
+                    requested_url=url,
+                    provider_status=BrowserStatus.TIMEOUT,
+                    provider_error="Site audit budget exhausted before page execution",
+                )
+            sem_timeout = min(30, rem_budget)
+            acquired = sem.acquire(timeout=sem_timeout)
+        else:
+            sem_timeout = 30
+            acquired = sem.acquire(timeout=30)
+
         if not acquired:
-            return BrowserEvidence.failed(url, "Concurrency limit: could not acquire browser slot within 30 s")
+            if deadline is not None and time.perf_counter() >= deadline:
+                return BrowserEvidence(
+                    requested_url=url,
+                    provider_status=BrowserStatus.TIMEOUT,
+                    provider_error="Site audit budget exhausted while waiting for concurrency slot",
+                )
+            return BrowserEvidence.failed(url, f"Concurrency limit: could not acquire browser slot within {round(sem_timeout, 1)} s")
 
         try:
+            if deadline is not None and time.perf_counter() >= deadline - 0.5:
+                return BrowserEvidence(
+                    requested_url=url,
+                    provider_status=BrowserStatus.TIMEOUT,
+                    provider_error="Site audit budget exhausted before page execution",
+                )
+
             # If current thread has an active asyncio event loop (e.g. pytest-anyio or async route),
             # Playwright sync API raises Error. Isolate in a clean worker thread.
             has_loop = False
@@ -392,17 +685,159 @@ class BrowserProvider:
             if has_loop:
                 ev_holder: list[BrowserEvidence] = []
                 def _worker() -> None:
-                    ev_holder.append(self._capture_with_playwright(url))
+                    ev_holder.append(self._capture_with_playwright(url, deadline=deadline))
                 t = threading.Thread(target=_worker)
                 t.start()
                 t.join()
                 return ev_holder[0] if ev_holder else BrowserEvidence.failed(url, "Worker thread returned no evidence")
             else:
-                return self._capture_with_playwright(url)
+                return self._capture_with_playwright(url, deadline=deadline)
         finally:
             sem.release()
 
-    def _capture_with_playwright(self, url: str) -> BrowserEvidence:
+    def capture_pages(
+        self,
+        urls: list[str],
+        base_url: str = "",
+        inbound_counts: dict[str, int] | None = None,
+    ) -> list[BrowserEvidence]:
+        """Capture browser evidence for a list of URLs within an aggregate budget.
+
+        The first URL is the homepage and is captured first. Remaining internal
+        pages are captured respecting the aggregate time budget and concurrency limit.
+        """
+        if not urls:
+            return []
+
+        if not self._config.enabled:
+            return [BrowserEvidence.disabled(u) for u in urls]
+
+        if not _playwright_available():
+            return [
+                BrowserEvidence.unavailable(
+                    u,
+                    "Playwright package is not installed. "
+                    "Run: pip install playwright && python -m playwright install chromium"
+                )
+                for u in urls
+            ]
+
+        # Overall site deadline
+        start_time = time.perf_counter()
+        site_deadline = start_time + self._config.budget_seconds
+
+        effective_base = base_url or urls[0]
+        evidences: list[BrowserEvidence] = []
+
+        # 1. Capture homepage (urls[0])
+        now = time.perf_counter()
+        if now >= site_deadline - 1.0:
+            ev0 = BrowserEvidence(
+                requested_url=urls[0],
+                provider_status=BrowserStatus.TIMEOUT,
+                provider_error="Site audit budget exhausted before page execution",
+                selection_rank=0,
+                inbound_links_count=inbound_counts.get(urls[0], 0) if inbound_counts else 0,
+            )
+            return [ev0] + [
+                BrowserEvidence(
+                    requested_url=u,
+                    provider_status=BrowserStatus.TIMEOUT,
+                    provider_error="Site audit budget exhausted before page execution",
+                    selection_rank=idx,
+                    inbound_links_count=inbound_counts.get(u, 0) if inbound_counts else 0,
+                )
+                for idx, u in enumerate(urls[1:], start=1)
+            ]
+
+        # Origin boundary check on homepage
+        if effective_base and not is_same_origin_boundary(urls[0], effective_base):
+            ev0 = BrowserEvidence.security_blocked(
+                urls[0],
+                f"URL {urls[0]} exceeds origin boundary for {effective_base}",
+            )
+        else:
+            ev0 = self.capture(urls[0], deadline=site_deadline)
+
+        ev0.selection_rank = 0
+        if inbound_counts:
+            ev0.inbound_links_count = inbound_counts.get(urls[0], 0)
+        evidences.append(ev0)
+
+        if len(urls) == 1:
+            return evidences
+
+        # 2. Capture remaining internal pages (urls[1:])
+        concurrency = min(2, max(1, self._config.max_concurrency))
+
+        def _capture_page_worker(idx: int, target_url: str) -> BrowserEvidence:
+            now_w = time.perf_counter()
+            if now_w >= site_deadline - 1.0:
+                return BrowserEvidence(
+                    requested_url=target_url,
+                    provider_status=BrowserStatus.TIMEOUT,
+                    provider_error="Site audit budget exhausted before page execution",
+                    selection_rank=idx,
+                    inbound_links_count=inbound_counts.get(target_url, 0) if inbound_counts else 0,
+                )
+
+            if effective_base and not is_same_origin_boundary(target_url, effective_base):
+                ev_w = BrowserEvidence.security_blocked(
+                    target_url,
+                    f"URL {target_url} exceeds origin boundary for {effective_base}",
+                )
+            else:
+                ev_w = self.capture(target_url, deadline=site_deadline)
+
+            ev_w.selection_rank = idx
+            if inbound_counts:
+                ev_w.inbound_links_count = inbound_counts.get(target_url, 0)
+            return ev_w
+
+        remaining_urls = list(enumerate(urls[1:], start=1))
+
+        if concurrency == 1:
+            for idx, target_url in remaining_urls:
+                ev_p = _capture_page_worker(idx, target_url)
+                evidences.append(ev_p)
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+            results_dict: dict[int, BrowserEvidence] = {}
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                futures = {}
+                for idx, target_url in remaining_urls:
+                    if time.perf_counter() >= site_deadline - 1.0:
+                        results_dict[idx] = BrowserEvidence(
+                            requested_url=target_url,
+                            provider_status=BrowserStatus.TIMEOUT,
+                            provider_error="Site audit budget exhausted before page execution",
+                            selection_rank=idx,
+                            inbound_links_count=inbound_counts.get(target_url, 0) if inbound_counts else 0,
+                        )
+                    else:
+                        fut = executor.submit(_capture_page_worker, idx, target_url)
+                        futures[fut] = idx
+
+                for fut, idx in futures.items():
+                    remaining_wait = max(0.1, site_deadline - time.perf_counter() + 2.0)
+                    try:
+                        results_dict[idx] = fut.result(timeout=remaining_wait)
+                    except Exception as exc:
+                        u = urls[idx]
+                        results_dict[idx] = BrowserEvidence(
+                            requested_url=u,
+                            provider_status=BrowserStatus.TIMEOUT,
+                            provider_error=f"Page execution timed out or failed: {exc}",
+                            selection_rank=idx,
+                            inbound_links_count=inbound_counts.get(u, 0) if inbound_counts else 0,
+                        )
+
+            for idx, _ in remaining_urls:
+                evidences.append(results_dict.get(idx, BrowserEvidence.failed(urls[idx], "No evidence recorded")))
+
+        return evidences
+
+    def _capture_with_playwright(self, url: str, deadline: float | None = None) -> BrowserEvidence:
         """Internal: run Playwright capture with full cleanup guarantee.
 
         DNS-rebinding TOCTOU mitigation
@@ -620,18 +1055,29 @@ class BrowserProvider:
 
             # Budget check helper
             def _over_budget() -> bool:
+                if deadline is not None:
+                    return time.perf_counter() > deadline
                 return (time.perf_counter() - started) > cfg.budget_seconds
 
             # Navigate
             http_status: int | None = None
+            effective_nav_timeout_ms = cfg.nav_timeout_ms
+            if deadline is not None:
+                rem_ms = int((deadline - time.perf_counter()) * 1000)
+                if rem_ms <= 0:
+                    evidence.provider_status = BrowserStatus.TIMEOUT
+                    evidence.provider_error = "Site audit budget exhausted before navigation"
+                    evidence.elapsed_ms = _elapsed_ms(started)
+                    return evidence
+                effective_nav_timeout_ms = max(1, min(cfg.nav_timeout_ms, rem_ms))
             try:
-                resp = page.goto(url, wait_until="domcontentloaded", timeout=cfg.nav_timeout_ms)
+                resp = page.goto(url, wait_until="domcontentloaded", timeout=effective_nav_timeout_ms)
                 if resp is not None:
                     http_status = resp.status
                 evidence.navigation_ok = True
             except PWTimeout:
                 evidence.provider_status = BrowserStatus.TIMEOUT
-                evidence.provider_error = f"Navigation timed out after {cfg.nav_timeout_ms} ms"
+                evidence.provider_error = f"Navigation timed out after {effective_nav_timeout_ms} ms"
                 evidence.elapsed_ms = _elapsed_ms(started)
                 evidence.console_errors = _console_errors
                 evidence.failed_requests = _failed_reqs
@@ -675,11 +1121,30 @@ class BrowserProvider:
                 evidence.failed_requests = _failed_reqs
                 return evidence
 
-            # Wait briefly for dynamic content
-            try:
-                page.wait_for_load_state("networkidle", timeout=min(5_000, cfg.op_timeout_ms))
-            except (PWTimeout, PWError):
-                pass  # non-fatal; continue with whatever DOM we have
+            # Helper to calculate remaining budget for post-navigation operations
+            def _remaining_op_ms(cap_ms: int) -> int:
+                max_allowed = min(cap_ms, cfg.op_timeout_ms)
+                if deadline is not None:
+                    rem_ms = int((deadline - time.perf_counter()) * 1000)
+                    return max(0, min(max_allowed, rem_ms))
+                rem_budget_ms = int((cfg.budget_seconds - (time.perf_counter() - started)) * 1000)
+                return max(0, min(max_allowed, rem_budget_ms))
+
+            # Wait briefly for dynamic content if budget remains
+            networkidle_timeout = _remaining_op_ms(5_000)
+            if networkidle_timeout > 50:
+                try:
+                    page.wait_for_load_state("networkidle", timeout=networkidle_timeout)
+                except (PWTimeout, PWError):
+                    pass  # non-fatal; continue with whatever DOM we have
+
+            if _over_budget():
+                evidence.provider_status = BrowserStatus.PARTIAL
+                evidence.provider_error = "Budget exceeded during post-navigation wait"
+                evidence.elapsed_ms = _elapsed_ms(started)
+                evidence.console_errors = _console_errors
+                evidence.failed_requests = _failed_reqs
+                return evidence
 
             # ── Evidence extraction ───────────────────────────────────────────
 
@@ -691,7 +1156,8 @@ class BrowserProvider:
 
             # Meta description
             try:
-                desc = page.get_attribute('meta[name="description"]', "content", timeout=3_000)
+                desc_to = max(1, _remaining_op_ms(3_000))
+                desc = page.get_attribute('meta[name="description"]', "content", timeout=desc_to)
                 evidence.meta_description = (desc or "")[:500]
             except (PWError, PWTimeout):
                 pass
@@ -859,8 +1325,14 @@ class BrowserProvider:
                 logger.debug("Lab vitals extraction failed: %s", _eval_err)
                 evidence.lab_metrics_available = False
 
+            if _over_budget():
+                evidence.provider_status = BrowserStatus.PARTIAL
+                evidence.provider_error = "Budget exceeded before evidence extraction completed"
+                evidence.navigation_timeout_ms = effective_nav_timeout_ms
+                return evidence
+
             evidence.provider_status = BrowserStatus.SUCCESS
-            evidence.navigation_timeout_ms = cfg.nav_timeout_ms
+            evidence.navigation_timeout_ms = effective_nav_timeout_ms
 
         except PWError as exc:
             # Playwright crash or unexpected protocol error
