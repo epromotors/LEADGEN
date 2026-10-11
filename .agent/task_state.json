@@ -1,10 +1,10 @@
 {
-  "phase": "Phase 2 Verification",
+  "phase": "Phase 3 Workstream A",
   "status": "COMPLETE",
   "active_task": null,
-  "last_known_commit": "62b28e4",
-  "uncommitted_changes_at_snapshot": false,
-  "last_updated": "2026-10-09T13:28:00+05:30",
+  "last_known_commit": "17cffe5",
+  "uncommitted_changes_at_snapshot": true,
+  "last_updated": "2026-10-10T21:41:58+05:30",
   "verification_items": {
     "P2_VERIFY_01_RUNTIME": {
       "name": "Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF)",
@@ -35,13 +35,38 @@
     "Step 2.6: Final checkpoint — committed 9b096d0, brain validator strict_valid=true, 62 factors, zero uncommitted changes",
     "P2_VERIFY_01_RUNTIME: Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF) complete — 25 verification tests, 81 total tests pass",
     "P2_VERIFY_02_SECURITY: Browser security audit and hardening (SSRF, URL/IP classes, redirects, DNS, resource limits) complete — literal IP formats, IPv4-mapped IPv6, and route redirect boundary enforcement added",
-    "P2_VERIFY_03_CONTROL_PLANE: Agent Brain consistency, validator strictness, and snapshots generated — strict validation passes, phase-2-verification.json created"
+    "P2_VERIFY_03_CONTROL_PLANE: Agent Brain consistency, validator strictness, and snapshots generated — strict validation passes, phase-2-verification.json created",
+    "P3_WS_A: Browser Evidence UI — reusable null-safe collapsible evidence panel, SSR scenarios and full regression gate complete; no API, score, or factor changes"
   ],
   "in_progress": [],
   "blocked": [],
-  "next": [],
-  "last_verified": "2026-10-09 (81 pytest tests pass; brain validator strict mode pass with 62 factors; python_compile pass; frontend build pass)",
-  "last_checkpoint": "Phase 2 Verification COMPLETE — 81 tests pass, strict control-plane valid",
+  "next": [
+    "Implement WS-B: local Core Web Vitals via the existing browser provider; preserve the 62-factor score.",
+    "Implement WS-C: multi-page browser crawl only after WS-B verification passes.",
+    "Keep WS-D Lighthouse blocked until an enforceable egress policy is demonstrated.",
+    "Keep WS-F Gemini and WS-E PageSpeed Insights deferred pending reviewed prerequisites."
+  ],
+  "phase2_audit_findings": {
+    "verdict": "CONDITIONAL GO",
+    "audited_commit": "17cffe50a2a95ba861e67dbe3310cff6f475996f",
+    "test_results": "234 passed, 1 skipped, 0 failed",
+    "F1": {
+      "severity": "LOW",
+      "component": "auditor/auditor/browser/proxy.py: _relay()",
+      "description": "Relay loop has only a 30-second idle timeout (_SELECT_TIMEOUT). No absolute wall-clock cap or per-session byte counter. A slow-drip upstream can hold a relay thread alive indefinitely.",
+      "blast_radius": "Zero when BROWSER_ENABLED=false (default). Defence-in-depth gap only when browser is explicitly enabled.",
+      "status": "OPEN — no fix required before Phase 3; may be addressed in a dedicated hardening pass."
+    },
+    "F2": {
+      "severity": "LOW",
+      "component": "auditor/auditor/browser/proxy.py: _handle_plain_http() L245-254",
+      "description": "Uses rpartition(':') to split host_port. A bare unbracketed IPv6 literal would be mis-parsed. Chromium always sends well-formed proxy requests so not exploitable in practice. Parse failure is silent.",
+      "blast_radius": "Negligible under normal Chromium operation; only relevant if a non-Chromium HTTP client is pointed at the proxy.",
+      "status": "OPEN — no fix required before Phase 3; may be addressed in a dedicated hardening pass."
+    }
+  },
+  "last_verified": "2026-10-10 (P3 WS-A: 234 pytest tests pass, 1 skipped; BrowserEvidence SSR scenarios pass; strict validator and frontend build pass; 62 factors)",
+  "last_checkpoint": "Phase 3 Workstream A COMPLETE locally — no commit or push; snapshot phase-3-workstream-a.json",
   "steps": {
     "2.0": {
       "name": "Baseline and control-plane readiness",
@@ -165,6 +190,30 @@
         "frontend_build": "pass: Vite production build succeeded",
         "diff_check": "clean"
       }
+    },
+    "3.A": {
+      "name": "Phase 3 Workstream A — Browser Evidence UI",
+      "status": "COMPLETE",
+      "files_created": [
+        "frontend/src/components/BrowserEvidence.jsx",
+        "frontend/scripts/verify-browser-evidence.mjs",
+        ".agent/snapshots/phase-3-workstream-a.json"
+      ],
+      "files_modified": [
+        "frontend/src/pages/Audits.jsx",
+        ".agent/brain.json",
+        ".agent/task_state.json"
+      ],
+      "acceptance_criteria": "Collapsible panel is hidden for absent, DISABLED, and UNAVAILABLE evidence; complete and partial evidence renders safely; status, comparisons, indicators, and error counts are displayed when available; no API or score changes.",
+      "verification": {
+        "targeted_ui": "pass: dependency-free SSR scenarios for complete, partial, null, DISABLED, and UNAVAILABLE evidence",
+        "tests": "pass: 234 passed, 1 skipped, 14 warnings",
+        "brain_validator": "pass: valid=true, strict_valid=true, 62 factors",
+        "python_compile": "pass",
+        "frontend_build": "pass: Vite production build completed",
+        "diff_check": "pass",
+        "visual_browser": "not run: local browser automation session lacked the required sandbox policy"
+      }
     }
   },
   "verification": {
@@ -179,8 +228,7 @@
     "PageSpeed Insights integration",
     "Real Core Web Vitals measurement",
     "AI-based website analysis or report generation",
-    "Multi-page browser crawl (Phase 2 captures homepage only)",
-    "Frontend UI to display browser_diff and browser_status"
+    "Multi-page browser crawl (Phase 2 captures homepage only)"
   ],
   "phase_1_completed": [
     "Repository discovery",

@@ -3,7 +3,7 @@
     "name": "LEADGEN",
     "version": "5.1.1",
     "purpose": "Lead generation, website auditing, PDF reporting, and outreach operations.",
-    "status": "Phase 2 Final complete: DNS rebinding TOCTOU mitigated via embedded policy proxy (PolicyProxy)."
+    "status": "Phase 2 CLOSED — CONDITIONAL GO (commit 17cffe5). Phase 3 Workstream A complete locally; Workstream B is next."
   },
   "architecture": {
     "frontend": "React 18 + Vite at frontend/",
@@ -58,10 +58,12 @@
     "DOCUMENTATION_DRIFT: archived prose says 55 factors; runtime builds 62.",
     "LIMITATION: Browser evidence is disabled by default; enabled only when BROWSER_ENABLED=true.",
     "LIMITATION: HTTP request duration is not TTFB or Core Web Vitals.",
-    "LIMITATION: Multi-page browser crawl and full Core Web Vitals are deferred."
+    "LIMITATION: Multi-page browser crawl and full Core Web Vitals are deferred to Phase 3.",
+    "FINDING F1 (low severity): proxy relay (_relay in browser/proxy.py) has only a 30-second idle timeout; no absolute wall-clock cap or byte limit on relay sessions. Blast radius is zero when BROWSER_ENABLED=false.",
+    "FINDING F2 (low severity): _handle_plain_http in browser/proxy.py uses rpartition(':') to split host:port; a bare IPv6 literal without brackets would be mis-parsed. Chromium sends well-formed requests so not exploitable in practice, but parse failure is silent."
   ],
-  "current_phase": "Phase 2 - Browser Evidence Verification & Hardening",
-  "next_action": "Complete control-plane checkpoint; await explicit approval before Phase 3.",
+  "current_phase": "Phase 3 — Workstream A complete and verification-gated; Workstream B remains pending.",
+  "next_action": "Implement WS-B local Core Web Vitals only after Workstream A report; preserve the 62-factor score and existing browser security boundary.",
   "do_not_touch": [
     "lead generation and import flows",
     "campaign and outreach behavior",
