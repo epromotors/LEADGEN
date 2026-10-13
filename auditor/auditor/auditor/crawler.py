@@ -2,12 +2,16 @@
 # Discovers all internal pages via sitemap + recursive link following
 # Then runs per-page SEO checks and aggregates findings site-wide
 
+import logging
+import time
 import urllib.parse
 import xml.etree.ElementTree as ET
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from auditor.core import fetch_page, get_domain, result_pass, result_warn, result_fail
 from config import TIMEOUT, REQUEST_HEADERS
+
+logger = logging.getLogger(__name__)
 
 MAX_PAGES   = 100   # hard cap to avoid runaway crawls
 CRAWL_WORKERS = 5   # parallel page fetches
@@ -166,6 +170,8 @@ def crawl_site(base_url: str, session, max_pages: int = MAX_PAGES,
     Returns list of page dicts: {url, status_code, soup, html, error}
     """
     base_url = base_url.rstrip("/")
+    t_start = time.perf_counter()
+    logger.info("[crawler] Starting crawl for %s (max_pages=%d)", base_url, max_pages)
     domain = get_domain(base_url)
     visited = set()
     queue   = [base_url]
@@ -255,6 +261,8 @@ def crawl_site(base_url: str, session, max_pages: int = MAX_PAGES,
                 if len(pages) >= max_pages:
                     break
 
+    elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+    logger.info("[crawler] Completed crawl for %s in %d ms (pages_fetched=%d)", base_url, elapsed_ms, len(pages))
     return pages
 
 

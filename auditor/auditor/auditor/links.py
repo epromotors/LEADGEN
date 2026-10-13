@@ -1,10 +1,14 @@
 # auditor/links.py — Broken link checker (parallel)
 
+import logging
+import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from auditor.core import result_pass, result_warn, result_fail, check_url_status, fetch_page, get_domain
 from config import MAX_LINKS_TO_CHECK, LINK_CHECK_WORKERS, TIMEOUT
+
+logger = logging.getLogger(__name__)
 
 
 def get_nav_links(soup, base_url: str) -> list[str]:
@@ -74,6 +78,9 @@ def collect_links(soup, base_url: str) -> list[str]:
 
 def audit_broken_links(soup, base_url: str, session: requests.Session) -> dict:
     """Check up to MAX_LINKS_TO_CHECK links for 4xx/5xx errors."""
+    t_start = time.perf_counter()
+    logger.info("[broken_links] Starting broken link check for %s", base_url)
+
     # 1. Start with links from the homepage
     all_links = collect_links(soup, base_url)
     seen_links = set(all_links)
@@ -105,6 +112,8 @@ def audit_broken_links(soup, base_url: str, session: requests.Session) -> dict:
     sample = all_links[:MAX_LINKS_TO_CHECK]
     
     if not sample:
+        elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+        logger.info("[broken_links] Completed broken link check for %s in %d ms (no links to check)", base_url, elapsed_ms)
         return result_warn(
             "No outbound/internal links found on the page to check.",
             "Ensure your homepage links to key internal pages.",
@@ -137,6 +146,11 @@ def audit_broken_links(soup, base_url: str, session: requests.Session) -> dict:
     
     checked = len(sample)
     broken_count = len(broken)
+    elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+    logger.info(
+        "[broken_links] Completed broken link check for %s in %d ms (checked=%d, broken=%d, redirects=%d)",
+        base_url, elapsed_ms, checked, broken_count, len(redirect_chains)
+    )
     
     if broken_count == 0:
         detail = f"Checked {checked} links across homepage and nav pages. {len(redirect_chains)} redirects noted."

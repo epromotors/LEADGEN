@@ -152,18 +152,23 @@ def normalise_legacy_result(raw: dict[str, Any], factor: dict[str, Any], page_ur
 
 def safe_execute_factor(factor: dict[str, Any], callback: Callable[[], dict[str, Any]], page_url: str | None) -> dict[str, Any]:
     """Execute one factor without letting an exception abort sibling factors."""
+    factor_name = factor.get("name") or factor.get("id") or "unknown_factor"
+    logger.info("Executing audit factor: %s (%s)", factor_name, factor.get("id"))
     started = perf_counter()
     try:
         raw = callback()
-        result = normalise_legacy_result(raw, factor, page_url, round((perf_counter() - started) * 1000))
+        duration_ms = round((perf_counter() - started) * 1000)
+        logger.info("Completed audit factor: %s (%s) in %d ms", factor_name, factor.get("id"), duration_ms)
+        result = normalise_legacy_result(raw, factor, page_url, duration_ms)
     except Exception as exc:  # isolated and observable by design
-        logger.exception("Audit factor %s failed for %s", factor["id"], page_url)
+        duration_ms = round((perf_counter() - started) * 1000)
+        logger.exception("Audit factor %s (%s) failed after %d ms for %s", factor_name, factor["id"], duration_ms, page_url)
         result = FactorResult(
             id=factor["id"], status="ERROR", value_type=factor["value_type"],
             max_score=factor["score_weight"], severity=factor.get("severity", "unclassified"),
             confidence=0.0, message=f"Factor execution failed: {factor['id']}.",
             engine=factor.get("engine", "http_raw_dom"), page_url=page_url,
-            duration_ms=round((perf_counter() - started) * 1000), error=f"{type(exc).__name__}: {exc}",
+            duration_ms=duration_ms, error=f"{type(exc).__name__}: {exc}",
         )
     if result.status == "PASS":
         result.score = result.max_score
