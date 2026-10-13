@@ -20,6 +20,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -116,6 +117,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
+from app.config import sanitize_crawl_max_pages
 from app.models import Audit, Lead, AuditStatus, LeadStatus, ActivityLog
 from app.utils.site_checker import (
     classify_site,
@@ -212,7 +214,22 @@ def extract_business_name(html: str, url: str = "") -> tuple[str | None, str | N
 # Called via run_in_executor so it doesn't block the async event loop.
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _run_audit_sync(url: str) -> dict:
+def _get_crawl_max_pages() -> int:
+    """Resolve configured CRAWL_MAX_PAGES following config conventions with env fallback."""
+    env_val = os.getenv("CRAWL_MAX_PAGES")
+    if env_val is not None:
+        try:
+            return sanitize_crawl_max_pages(env_val)
+        except Exception:
+            pass
+    try:
+        from app.config import settings
+        return sanitize_crawl_max_pages(getattr(settings, "CRAWL_MAX_PAGES", 10))
+    except Exception:
+        return 10
+
+
+def _run_audit_sync(url: str, max_pages: int | None = None) -> dict:
     """
     Run all 55+ SEO checks + multi-page crawl synchronously.
     Must be called via asyncio.get_event_loop().run_in_executor().
@@ -234,20 +251,43 @@ def _run_audit_sync(url: str) -> dict:
     session = make_session()
 
     # Fetch homepage
+    logger.info("[audit_engine] Fetching homepage: %s", url)
+    t_home_start = time.perf_counter()
     page = fetch_page(url, session)
+    home_elapsed_ms = round((time.perf_counter() - t_home_start) * 1000)
     if not page["ok"]:
+        logger.warning(
+            "[audit_engine] Failed to fetch homepage %s in %d ms: %s",
+            url, home_elapsed_ms, page.get("error", "unknown error")
+        )
         raise ConnectionError(f"Cannot fetch {url}: {page.get('error', 'unknown error')}")
+    logger.info(
+        "[audit_engine] Homepage fetched successfully for %s in %d ms (status=%s)",
+        url, home_elapsed_ms, page.get("status_code")
+    )
 
     soup = page["soup"]
     html = page["html"]
     response_content = html.encode("utf-8") if html else b""
     registry = validate_factor_registry()
 
+    logger.info("[audit_engine] Starting factor execution (%d factors) for %s", len(registry), url)
+    t_factors_start = time.perf_counter()
+
     def execute(factor_id, callback):
         factor = registry.get(factor_id)
         if factor is None:
             raise FactorRegistryError(f"unregistered executable factor: {factor_id}")
-        return safe_execute_factor(factor, callback, url)
+        factor_name = factor.get("name") or factor_id
+        logger.info("[audit_engine] Starting factor: %s (%s)", factor_name, factor_id)
+        t_factor_start = time.perf_counter()
+        result = safe_execute_factor(factor, callback, url)
+        factor_duration_ms = round((time.perf_counter() - t_factor_start) * 1000)
+        logger.info(
+            "[audit_engine] Completed factor: %s (%s) in %d ms (status=%s)",
+            factor_name, factor_id, factor_duration_ms, result.get("status")
+        )
+        return result
 
     # ── Run all v5.0 checks ───────────────────────────────────────────────────
     audit_results = {
@@ -351,11 +391,18 @@ def _run_audit_sync(url: str) -> dict:
         },
     }
 
+    factors_duration_ms = round((time.perf_counter() - t_factors_start) * 1000)
+    logger.info("[audit_engine] Completed factor execution for %s in %d ms", url, factors_duration_ms)
+
     # ── Multi-page crawl ─────────────────────────────────────────────────────
     crawl_coverage = {"discovered": 0, "audited": 0, "skipped": 0, "blocked": 0, "errors": 0, "coverage_percent": 0, "status": "COMPLETE", "reasons": []}
     crawled: list = []
+    raw_pages = max_pages if max_pages is not None else _get_crawl_max_pages()
+    crawl_max_pages = sanitize_crawl_max_pages(raw_pages)
+    logger.info("[audit_engine] Starting multi-page crawl for %s (max_pages=%d)", url, crawl_max_pages)
+    t_crawl_start = time.perf_counter()
     try:
-        crawled      = crawl_site(url, session, max_pages=100)
+        crawled      = crawl_site(url, session, max_pages=crawl_max_pages)
         page_audits  = [audit_page_seo(p) for p in crawled]
         site_summary = aggregate_site_issues(page_audits)
         failed_pages = [page for page in crawled if not page.get("ok")]
@@ -368,8 +415,14 @@ def _run_audit_sync(url: str) -> dict:
         if failed_pages:
             crawl_coverage["status"] = "PARTIAL"
             crawl_coverage["reasons"] = [str(page.get("error") or page.get("status_code")) for page in failed_pages[:5]]
+        crawl_duration_ms = round((time.perf_counter() - t_crawl_start) * 1000)
+        logger.info(
+            "[audit_engine] Completed multi-page crawl for %s in %d ms (crawled=%d, audited=%d, errors=%d)",
+            url, crawl_duration_ms, len(crawled), crawl_coverage["audited"], len(failed_pages)
+        )
     except Exception as e:
-        logger.exception("[audit_engine] Crawl failed for %s", url)
+        crawl_duration_ms = round((time.perf_counter() - t_crawl_start) * 1000)
+        logger.exception("[audit_engine] Crawl failed for %s after %d ms: %s", url, crawl_duration_ms, e)
         page_audits  = []
         site_summary = {"crawl_error": f"{type(e).__name__}: {e}"}
         crawl_coverage.update({"status": "ERROR", "errors": 1, "reasons": [f"{type(e).__name__}: {e}"]})
@@ -379,6 +432,8 @@ def _run_audit_sync(url: str) -> dict:
     # ── Domain email detection ──────────────────────────────────────────────
     found_email  = None
     email_source = "not_found"
+    logger.info("[audit_engine] Starting domain email discovery for %s", url)
+    t_email_start = time.perf_counter()
     try:
         found_email, email_source = find_domain_email(
             website_url=url,
@@ -386,8 +441,17 @@ def _run_audit_sync(url: str) -> dict:
             homepage_html=html,
             session=session,
         )
+        email_duration_ms = round((time.perf_counter() - t_email_start) * 1000)
+        logger.info(
+            "[audit_engine] Completed domain email discovery for %s in %d ms (email=%s, source=%s)",
+            url, email_duration_ms, found_email, email_source
+        )
     except Exception as _ee:
-        logger.warning(f"[audit_engine] email_finder failed for {url}: {_ee}")
+        email_duration_ms = round((time.perf_counter() - t_email_start) * 1000)
+        logger.warning(
+            "[audit_engine] email_finder failed for %s after %d ms: %s",
+            url, email_duration_ms, _ee
+        )
 
 
     # ── Phase 2/3: browser evidence capture ───────────────────────────────────

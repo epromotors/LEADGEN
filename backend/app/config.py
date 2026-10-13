@@ -1,7 +1,34 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from pydantic import field_validator
+from typing import Any, List
 import json
 import os
+
+DEFAULT_CRAWL_MAX_PAGES: int = 10
+MIN_CRAWL_PAGES: int = 1
+HARD_MAX_CRAWL_PAGES: int = 25
+
+
+def sanitize_crawl_max_pages(val: Any) -> int:
+    """
+    Sanitize crawl max pages configuration:
+    - Default: 10 pages
+    - Minimum accepted value: 1
+    - Hard maximum: 25 pages
+    - For empty, malformed, non-integer, zero, or negative values: safely fall back to 10
+    - Clamp values above 25 to 25
+    """
+    if val is None or val == "":
+        return DEFAULT_CRAWL_MAX_PAGES
+    try:
+        parsed = int(val)
+        if parsed < MIN_CRAWL_PAGES:
+            return DEFAULT_CRAWL_MAX_PAGES
+        if parsed > HARD_MAX_CRAWL_PAGES:
+            return HARD_MAX_CRAWL_PAGES
+        return parsed
+    except (ValueError, TypeError):
+        return DEFAULT_CRAWL_MAX_PAGES
 
 
 class Settings(BaseSettings):
@@ -22,6 +49,14 @@ class Settings(BaseSettings):
     # Admin credentials (single-user v1)
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "changeme123"
+
+    # Audit / Crawler
+    CRAWL_MAX_PAGES: int = DEFAULT_CRAWL_MAX_PAGES
+
+    @field_validator("CRAWL_MAX_PAGES", mode="before")
+    @classmethod
+    def _validate_crawl_max_pages(cls, v: Any) -> int:
+        return sanitize_crawl_max_pages(v)
 
     # SMTP Senders — JSON array stored in .env
     # Each entry: {email, smtp_host, smtp_port, password, daily_limit}

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import logging
+import time
 from urllib.parse import urlparse, urljoin
 
 logger = logging.getLogger(__name__)
@@ -158,22 +159,29 @@ def find_domain_email(
     """
     from auditor.core import fetch_page  # import inside to avoid circular
 
+    t_start = time.perf_counter()
+    logger.info(f"[email_finder] Starting email discovery for {website_url}")
+
     site_domain = _get_site_domain(website_url)
     if not site_domain:
+        elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+        logger.info(f"[email_finder] Completed email discovery for {website_url} in {elapsed_ms} ms (no domain)")
         return None, "not_found"
 
     # ── Priority 1: mailto: links on homepage ─────────────────────────────────
     mailto_emails = _extract_mailto_emails(homepage_soup, site_domain)
     if mailto_emails:
         best = _rank_emails(mailto_emails)
-        logger.info(f"[email_finder] Found via homepage mailto: {best}")
+        elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+        logger.info(f"[email_finder] Found via homepage mailto in {elapsed_ms} ms: {best}")
         return best, "homepage_mailto"
 
     # ── Priority 2: plain email addresses in homepage HTML ────────────────────
     text_emails = _extract_emails_from_html(homepage_html, site_domain)
     if text_emails:
         best = _rank_emails(text_emails)
-        logger.info(f"[email_finder] Found via homepage text: {best}")
+        elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+        logger.info(f"[email_finder] Found via homepage text in {elapsed_ms} ms: {best}")
         return best, "homepage_text"
 
     # ── Priority 3 & 4: Try the contact page ─────────────────────────────────
@@ -189,19 +197,22 @@ def find_domain_email(
                 contact_mailto = _extract_mailto_emails(contact_soup, site_domain)
                 if contact_mailto:
                     best = _rank_emails(contact_mailto)
-                    logger.info(f"[email_finder] Found via contact page mailto: {best}")
+                    elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+                    logger.info(f"[email_finder] Found via contact page mailto in {elapsed_ms} ms: {best}")
                     return best, "contact_mailto"
 
                 # 3b: plain text on contact page
                 contact_text = _extract_emails_from_html(contact_html, site_domain)
                 if contact_text:
                     best = _rank_emails(contact_text)
-                    logger.info(f"[email_finder] Found via contact page text: {best}")
+                    elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+                    logger.info(f"[email_finder] Found via contact page text in {elapsed_ms} ms: {best}")
                     return best, "contact_text"
         except Exception as exc:
             logger.debug(f"[email_finder] Contact page fetch failed for {contact_url}: {exc}")
 
-    logger.info(f"[email_finder] No domain-matched email found for {site_domain}")
+    elapsed_ms = round((time.perf_counter() - t_start) * 1000)
+    logger.info(f"[email_finder] No domain-matched email found for {site_domain} (elapsed {elapsed_ms} ms)")
     return None, "not_found"
 
 
