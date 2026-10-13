@@ -28,11 +28,11 @@ class AuditStatus(str, enum.Enum):
 
 
 class CampaignStatus(str, enum.Enum):
-    draft    = "draft"
+    draft     = "draft"
     scheduled = "scheduled"
-    sending  = "sending"
-    paused   = "paused"
-    done     = "done"
+    sending   = "sending"
+    done      = "done"
+    paused    = "paused"
 
 
 # ─── Models ───────────────────────────────────────────────────────────────────
