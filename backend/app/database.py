@@ -1,7 +1,10 @@
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -39,6 +42,10 @@ async def get_db():
 
 async def create_tables():
     """Called at startup to create tables and apply small idempotent schema updates."""
+    if not settings.INIT_SCHEMA:
+        logger.info("Schema initialization skipped (INIT_SCHEMA=False).")
+        return
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("ALTER TABLE audits ADD COLUMN IF NOT EXISTS has_canonical BOOLEAN"))

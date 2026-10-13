@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str
+    INIT_SCHEMA: bool = False
 
     # Security
     JWT_SECRET: str
