@@ -4,7 +4,7 @@ import ssl
 import socket
 import datetime
 import requests
-from auditor.core import result_pass, result_warn, result_fail, check_url_status
+from auditor.core import result_pass, result_warn, result_fail, check_url_status, read_response_text, read_response_bytes
 from config import TIMEOUT
 
 
@@ -22,10 +22,16 @@ def audit_ssl(url: str, session: requests.Session) -> dict:
     
     try:
         ctx = ssl.create_default_context()
-        with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
-            s.settimeout(TIMEOUT)
-            s.connect((hostname, 443))
-            cert = s.getpeercert()
+        # NOTE (Windows DNS limitation):
+        # socket.create_connection enforces socket connection and read/write timeouts,
+        # but the preceding OS DNS resolution (getaddrinfo / WSAGetAddrInfoW on Windows)
+        # is synchronous and cannot be bounded by socket timeouts without an external
+        # DNS resolver dependency (e.g. dnspython/aiodns). Once connected, the TLS
+        # handshake and certificate reads are strictly bounded by TIMEOUT.
+        with socket.create_connection((hostname, 443), timeout=TIMEOUT) as sock:
+            with ctx.wrap_socket(sock, server_hostname=hostname) as s:
+                s.settimeout(TIMEOUT)
+                cert = s.getpeercert()
         
         # Expiry check
         expire_str = cert.get("notAfter", "")
@@ -86,38 +92,50 @@ def audit_sitemap(base_url: str, session: requests.Session) -> dict:
     found_urls:   list[str] = []
     missing_urls: list[str] = []
 
+    sitemap_probe_timeout = min(TIMEOUT, 6)
     for url, label in candidates:
         try:
-            r = session.get(url, timeout=TIMEOUT)
-            if r.status_code == 200 and (
-                "xml" in r.headers.get("Content-Type", "")
-                or "<sitemap" in r.text.lower()
-                or "<urlset" in r.text.lower()
-                or "<?xml" in r.text[:100].lower()
-            ):
-                # A1 fix: count both <url> entries AND child <sitemap> refs
-                count_urls = r.text.lower().count("<url>")
-                count_sitemaps = r.text.lower().count("<sitemap>")
-                total_entries = count_urls + count_sitemaps
-                if total_entries:
-                    count_str = f"{count_urls} URLs" + (f", {count_sitemaps} sub-sitemaps" if count_sitemaps else "")
+            with session.get(url, timeout=sitemap_probe_timeout, stream=True) as r:
+                if r.status_code == 200:
+                    text = read_response_text(r, max_bytes=2 * 1024 * 1024, max_elapsed=sitemap_probe_timeout)
+                    is_trunc = getattr(text, "is_truncated", False)
+                    text_lower = text.lower()
+                    if (
+                        "xml" in r.headers.get("Content-Type", "")
+                        or "<sitemap" in text_lower
+                        or "<urlset" in text_lower
+                        or "<?xml" in text_lower[:100]
+                    ):
+                        # A1 fix: count both <url> entries AND child <sitemap> refs
+                        count_urls = text_lower.count("<url>")
+                        count_sitemaps = text_lower.count("<sitemap>")
+                        total_entries = count_urls + count_sitemaps
+                        trunc_note = " (truncated at byte limit)" if is_trunc else ""
+                        if total_entries:
+                            count_str = f"{count_urls} URLs" + (f", {count_sitemaps} sub-sitemaps" if count_sitemaps else "") + trunc_note
+                        else:
+                            count_str = f"found (no <url>/<sitemap> entries counted){trunc_note}"
+                        found_urls.append(f"✅ {label}: {count_str}")
+                    else:
+                        missing_urls.append(f"❌ {label}: not a valid sitemap")
                 else:
-                    count_str = "found (no <url>/<sitemap> entries counted)"
-                found_urls.append(f"✅ {label}: {count_str}")
-            else:
-                missing_urls.append(f"❌ {label}: not found ({r.status_code})")
+                    missing_urls.append(f"❌ {label}: not found ({r.status_code})")
+        except requests.exceptions.Timeout:
+            missing_urls.append(f"❌ {label}: timed out")
+            break
         except Exception:
             missing_urls.append(f"❌ {label}: unreachable")
 
     # ── Check robots.txt for a Sitemap: declaration ────────────────────────
     sitemap_in_robots: str | None = None
     try:
-        r = session.get(f"{base_url}/robots.txt", timeout=TIMEOUT)
-        if r.status_code == 200:
-            for line in r.text.splitlines():
-                if line.strip().lower().startswith("sitemap:"):
-                    sitemap_in_robots = line.strip()
-                    break
+        with session.get(f"{base_url}/robots.txt", timeout=min(TIMEOUT, 5), stream=True) as r:
+            if r.status_code == 200:
+                robots_txt = read_response_text(r, max_bytes=512 * 1024, max_elapsed=min(TIMEOUT, 5))
+                for line in robots_txt.splitlines():
+                    if line.strip().lower().startswith("sitemap:"):
+                        sitemap_in_robots = line.strip()
+                        break
     except Exception:
         pass
 
@@ -189,110 +207,114 @@ def audit_robots(base_url: str, session: requests.Session) -> dict:
     }
 
     url = f"{base_url}/robots.txt"
+    robots_timeout = min(TIMEOUT, 5)
     try:
-        r = session.get(url, timeout=TIMEOUT)
-        if r.status_code == 200:
-            lines = [ln.strip() for ln in r.text.splitlines()]
+        with session.get(url, timeout=robots_timeout, stream=True) as r:
+            if r.status_code == 200:
+                robots_txt = read_response_text(r, max_bytes=512 * 1024, max_elapsed=robots_timeout)
+                is_trunc = getattr(robots_txt, "is_truncated", False)
+                lines = [ln.strip() for ln in robots_txt.splitlines()]
 
             # ── Parse into blocks: {user_agent: [rules]} ──────────────────
-            # Each rule is ("disallow"|"allow", path)
-            blocks: dict[str, list[tuple[str, str]]] = {}
-            current_agents: list[str] = []
+                # Each rule is ("disallow"|"allow", path)
+                blocks: dict[str, list[tuple[str, str]]] = {}
+                current_agents: list[str] = []
 
-            for line in lines:
-                if not line or line.startswith("#"):
-                    # Blank line separates blocks
-                    current_agents = []
-                    continue
-                lower = line.lower()
-                if lower.startswith("user-agent:"):
-                    ua = line.split(":", 1)[1].strip().lower()
-                    current_agents.append(ua)
-                    if ua not in blocks:
-                        blocks[ua] = []
-                elif lower.startswith("disallow:"):
-                    path = line.split(":", 1)[1].strip()
-                    for ua in current_agents:
-                        blocks.setdefault(ua, []).append(("disallow", path))
-                elif lower.startswith("allow:"):
-                    path = line.split(":", 1)[1].strip()
-                    for ua in current_agents:
-                        blocks.setdefault(ua, []).append(("allow", path))
+                for line in lines:
+                    if not line or line.startswith("#"):
+                        # Blank line separates blocks
+                        current_agents = []
+                        continue
+                    lower = line.lower()
+                    if lower.startswith("user-agent:"):
+                        ua = line.split(":", 1)[1].strip().lower()
+                        current_agents.append(ua)
+                        if ua not in blocks:
+                            blocks[ua] = []
+                    elif lower.startswith("disallow:"):
+                        path = line.split(":", 1)[1].strip()
+                        for ua in current_agents:
+                            blocks.setdefault(ua, []).append(("disallow", path))
+                    elif lower.startswith("allow:"):
+                        path = line.split(":", 1)[1].strip()
+                        for ua in current_agents:
+                            blocks.setdefault(ua, []).append(("allow", path))
 
-            # ── Collect all rules that apply to * (merge multiple * blocks) ─
-            wildcard_rules = blocks.get("*", [])
+                # ── Collect all rules that apply to * (merge multiple * blocks) ─
+                wildcard_rules = blocks.get("*", [])
 
-            # ── Check if root is effectively blocked for * ─────────────────
-            # CRITICAL RULE: We only flag as blocked when there is a LITERAL
-            # "Disallow: /" (path exactly equals "/") under User-agent: *.
-            #
-            # "Disallow: /wp-admin/" — a specific path — is NOT a root block.
-            # "Disallow:" (empty path) — means "allow everything" per RFC — NOT a block.
-            # Only "Disallow: /" with no "Allow: /" override is catastrophic.
-            disallow_root = any(
-                directive == "disallow" and path == "/"
-                for directive, path in wildcard_rules
-            )
-            allow_root = any(
-                directive == "allow" and path in ("/", "")
-                for directive, path in wildcard_rules
-            )
-
-            if disallow_root and not allow_root:
-                return result_fail(
-                    "robots.txt is BLOCKING all search engines from crawling the site!",
-                    "Remove 'Disallow: /' under 'User-agent: *' immediately. "
-                    "This is the #1 reason for disappearing from Google overnight.",
+                # ── Check if root is effectively blocked for * ─────────────────
+                # CRITICAL RULE: We only flag as blocked when there is a LITERAL
+                # "Disallow: /" (path exactly equals "/") under User-agent: *.
+                #
+                # "Disallow: /wp-admin/" — a specific path — is NOT a root block.
+                # "Disallow:" (empty path) — means "allow everything" per RFC — NOT a block.
+                # Only "Disallow: /" with no "Allow: /" override is catastrophic.
+                disallow_root = any(
+                    directive == "disallow" and path == "/"
+                    for directive, path in wildcard_rules
+                )
+                allow_root = any(
+                    directive == "allow" and path in ("/", "")
+                    for directive, path in wildcard_rules
                 )
 
-            # ── Check if Googlebot is explicitly blocked ──────────────────
-            googlebot_rules = blocks.get("googlebot", [])
-            gb_disallow_root = any(
-                directive == "disallow" and path == "/"
-                for directive, path in googlebot_rules
-            )
-            gb_allow_root = any(
-                directive == "allow" and path in ("/", "")
-                for directive, path in googlebot_rules
-            )
-            if gb_disallow_root and not gb_allow_root:
-                return result_fail(
-                    "robots.txt explicitly blocks Googlebot from crawling the entire site!",
-                    "Remove 'Disallow: /' under 'User-agent: Googlebot' immediately.",
-                )
+                if disallow_root and not allow_root:
+                    return result_fail(
+                        "robots.txt is BLOCKING all search engines from crawling the site!",
+                        "Remove 'Disallow: /' under 'User-agent: *' immediately. "
+                        "This is the #1 reason for disappearing from Google overnight.",
+                    )
 
-            # ── Multiple wildcard blocks? Warn (malformed but not critical) ─
-            star_block_count = sum(
-                1 for line in lines
-                if line.lower() == "user-agent: *"
-            )
-            if star_block_count > 1:
+                # ── Check if Googlebot is explicitly blocked ──────────────────
+                googlebot_rules = blocks.get("googlebot", [])
+                gb_disallow_root = any(
+                    directive == "disallow" and path == "/"
+                    for directive, path in googlebot_rules
+                )
+                gb_allow_root = any(
+                    directive == "allow" and path in ("/", "")
+                    for directive, path in googlebot_rules
+                )
+                if gb_disallow_root and not gb_allow_root:
+                    return result_fail(
+                        "robots.txt explicitly blocks Googlebot from crawling the entire site!",
+                        "Remove 'Disallow: /' under 'User-agent: Googlebot' immediately.",
+                    )
+
+                # ── Multiple wildcard blocks? Warn (malformed but not critical) ─
+                star_block_count = sum(
+                    1 for line in lines
+                    if line.lower() == "user-agent: *"
+                )
+                if star_block_count > 1:
+                    return result_pass(
+                        "robots.txt found and allows crawling (multiple User-agent: * blocks detected).",
+                        detail=(
+                            f"URL: {url} — "
+                            f"{star_block_count} separate User-agent: * blocks found. "
+                            "Consolidate into one block for cleaner robots.txt. "
+                            "Search engines merge them, but audit tools may misread this."
+                        ),
+                    )
+
+                detail_str = f"URL: {url}" + (" (truncated at byte limit)" if is_trunc else "")
                 return result_pass(
-                    "robots.txt found and allows crawling (multiple User-agent: * blocks detected).",
-                    detail=(
-                        f"URL: {url} — "
-                        f"{star_block_count} separate User-agent: * blocks found. "
-                        "Consolidate into one block for cleaner robots.txt. "
-                        "Search engines merge them, but audit tools may misread this."
-                    ),
+                    "robots.txt found and allows crawling.",
+                    detail=detail_str,
                 )
 
-            return result_pass(
-                "robots.txt found and allows crawling.",
-                detail=f"URL: {url}",
-            )
-
-        elif r.status_code == 404:
-            return result_fail(
-                "robots.txt not found (404).",
-                "Create a robots.txt at your domain root. Minimum content:\n"
-                "User-agent: *\nDisallow:\nSitemap: https://yourdomain.com/sitemap.xml",
-            )
-        else:
-            return result_warn(
-                f"robots.txt returned status {r.status_code}.",
-                "Verify the file is accessible.",
-            )
+            elif r.status_code == 404:
+                return result_fail(
+                    "robots.txt not found (404).",
+                    "Create a robots.txt at your domain root. Minimum content:\n"
+                    "User-agent: *\nDisallow:\nSitemap: https://yourdomain.com/sitemap.xml",
+                )
+            else:
+                return result_warn(
+                    f"robots.txt returned status {r.status_code}.",
+                    "Verify the file is accessible.",
+                )
     except Exception as e:
         return result_warn(
             f"Could not fetch robots.txt: {e}",
@@ -366,29 +388,38 @@ def audit_favicon(soup, base_url: str, session: requests.Session) -> dict:
             continue
 
     # ── Layer 4: Check /favicon.ico via HTTP ──────────────────────────────────
+    favicon_probe_timeout = min(TIMEOUT, 5)
+    timed_out = False
     try:
-        r = session.get(f"{base_url}/favicon.ico", timeout=TIMEOUT)
-        if r.status_code == 200 and len(r.content) > 0:
-            return result_warn(
-                "Favicon served at /favicon.ico but not declared in <head>.",
-                "Add <link rel='icon' href='/favicon.ico'> to your <head> for maximum browser/SERP compatibility.",
-                detail=f"{base_url}/favicon.ico (HTTP 200, {len(r.content)} bytes)",
-            )
+        with session.get(f"{base_url}/favicon.ico", timeout=favicon_probe_timeout, stream=True) as r:
+            if r.status_code == 200:
+                content = read_response_bytes(r, max_bytes=256 * 1024, max_elapsed=favicon_probe_timeout)
+                if len(content) > 0:
+                    return result_warn(
+                        "Favicon served at /favicon.ico but not declared in <head>.",
+                        "Add <link rel='icon' href='/favicon.ico'> to your <head> for maximum browser/SERP compatibility.",
+                        detail=f"{base_url}/favicon.ico (HTTP 200, {len(content)} bytes)",
+                    )
+    except requests.exceptions.Timeout:
+        timed_out = True
     except Exception:
         pass
 
     # ── Layer 5: Check /apple-touch-icon.png (common WordPress / modern sites) ─
-    for path in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
-        try:
-            r = session.get(f"{base_url}{path}", timeout=TIMEOUT)
-            if r.status_code == 200 and len(r.content) > 0:
-                return result_warn(
-                    f"Apple touch icon found at {path} but not declared in <head>.",
-                    "Add <link rel='apple-touch-icon' href='{path}'> to your <head>.",
-                    detail=f"{base_url}{path} (HTTP 200)",
-                )
-        except Exception:
-            continue
+    if not timed_out:
+        for path in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
+            try:
+                with session.get(f"{base_url}{path}", timeout=favicon_probe_timeout, stream=True) as r:
+                    if r.status_code == 200:
+                        content = read_response_bytes(r, max_bytes=256 * 1024, max_elapsed=favicon_probe_timeout)
+                        if len(content) > 0:
+                            return result_warn(
+                                f"Apple touch icon found at {path} but not declared in <head>.",
+                                f"Add <link rel='apple-touch-icon' href='{path}'> to your <head>.",
+                                detail=f"{base_url}{path} (HTTP 200)",
+                            )
+            except Exception:
+                continue
 
     return result_warn(
         "No favicon found.",

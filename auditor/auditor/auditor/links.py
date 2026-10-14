@@ -123,14 +123,20 @@ def audit_broken_links(soup, base_url: str, session: requests.Session) -> dict:
     redirect_chains = []
     results_map = {}
     
+    LINK_TIMEOUT = min(TIMEOUT, 5)
+
     def check(url):
         try:
-            r = session.head(url, timeout=TIMEOUT, allow_redirects=True, verify=False)
-            return url, r.status_code, r.url
+            r = session.head(url, timeout=LINK_TIMEOUT, allow_redirects=True, verify=False)
+            try:
+                status_code, final_url = r.status_code, r.url
+            finally:
+                r.close()
+            return url, status_code, final_url
         except Exception:
             try:
-                r = session.get(url, timeout=TIMEOUT, allow_redirects=True, verify=False, stream=True)
-                return url, r.status_code, r.url
+                with session.get(url, timeout=LINK_TIMEOUT, allow_redirects=True, verify=False, stream=True) as r:
+                    return url, r.status_code, r.url
             except Exception:
                 return url, None, url
     

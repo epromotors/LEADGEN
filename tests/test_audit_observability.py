@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 from bs4 import BeautifulSoup
@@ -18,8 +19,11 @@ from app.config import Settings, sanitize_crawl_max_pages
 from app.engines.audit_engine import _run_audit_sync, _get_crawl_max_pages
 from app.engines.factor_contract import load_factor_registry, safe_execute_factor
 from auditor.links import audit_broken_links
-from auditor.crawler import crawl_site
+from auditor.crawler import crawl_site, discover_via_sitemap, HARD_MAX_PAGES, DEFAULT_MAX_PAGES
 from auditor.email_finder import find_domain_email
+from auditor.technical import audit_ssl
+from auditor.core import fetch_page, read_response_text, read_response_bytes
+from config import TIMEOUT
 
 
 SAMPLE_HTML = """<!DOCTYPE html>
@@ -362,3 +366,223 @@ class AuditObservabilityTests(unittest.TestCase):
         logs = captured.output
         self.assertTrue(any("Starting email discovery for https://mock-test.example" in m for m in logs))
         self.assertTrue(any("Found via homepage mailto in" in m and "ms" in m for m in logs))
+
+    @patch("socket.create_connection")
+    def test_audit_ssl_uses_socket_timeout_on_stall(self, mock_connect):
+        """audit_ssl enforces explicit timeout on socket connect and recovers cleanly when stalled."""
+        mock_connect.side_effect = TimeoutError("Connection timed out")
+        session = _build_mock_session()
+        res = audit_ssl("https://stalled-host.example", session)
+        self.assertEqual(res["status"], "WARN")
+        self.assertIn("Could not verify SSL", res["message"])
+        mock_connect.assert_called_once_with(("stalled-host.example", 443), timeout=TIMEOUT)
+
+    def test_audit_broken_links_bounds_timeout_and_closes_stream(self):
+        """audit_broken_links uses bounded LINK_TIMEOUT (<= 5s) and closes response streams."""
+        soup = BeautifulSoup("<html><body><a href='https://link1.example'>L1</a></body></html>", "lxml")
+        session = MagicMock()
+        session.head.side_effect = TimeoutError("HEAD timed out")
+
+        mock_get_resp = MagicMock()
+        mock_get_resp.status_code = 200
+        mock_get_resp.url = "https://link1.example"
+        mock_get_resp.__enter__.return_value = mock_get_resp
+        mock_get_resp.__exit__.return_value = False
+        session.get.return_value = mock_get_resp
+
+        res = audit_broken_links(soup, "https://mock-test.example", session)
+        self.assertIn("status", res)
+
+        # Verify head check used bounded timeout <= 5
+        session.head.assert_called_once()
+        head_call_kwargs = session.head.call_args.kwargs
+        self.assertLessEqual(head_call_kwargs.get("timeout"), 5)
+
+        # Verify get fallback check used bounded timeout <= 5 and closed context
+        session.get.assert_called_once()
+        get_call_kwargs = session.get.call_args.kwargs
+        self.assertLessEqual(get_call_kwargs.get("timeout"), 5)
+        mock_get_resp.__enter__.assert_called_once()
+        mock_get_resp.__exit__.assert_called_once()
+
+    def test_sitemap_discovery_bounds_recursion_on_wide_index(self):
+        """discover_via_sitemap stops child sitemap fetching after MAX_SITEMAPS_TO_FETCH (5)."""
+        session = MagicMock()
+        robots_resp = MagicMock(status_code=404, text="")
+
+        # Build sitemapindex with 25 child sitemaps
+        child_locs = "".join(f"<sitemap><loc>https://mock-test.example/child-{i}.xml</loc></sitemap>" for i in range(25))
+        index_xml = f'<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{child_locs}</sitemapindex>'
+        index_resp = MagicMock(status_code=200, text=index_xml)
+
+        child_xml = '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://mock-test.example/page-1</loc></url></urlset>'
+        child_resp = MagicMock(status_code=200, text=child_xml)
+
+        for m in (robots_resp, index_resp, child_resp):
+            m.__enter__.return_value = m
+            m.__exit__.return_value = False
+
+        def get_mock(url, timeout=None, stream=False):
+            if "robots.txt" in url:
+                return robots_resp
+            if "sitemap.xml" in url or "sitemap_index.xml" in url:
+                return index_resp
+            return child_resp
+
+        session.get.side_effect = get_mock
+
+        urls = discover_via_sitemap("https://mock-test.example", session)
+        self.assertGreater(len(urls), 0)
+        # Verify total sitemap calls is bounded to <= 5 children
+        child_fetches = [call for call in session.get.call_args_list if "child-" in call.args[0]]
+        self.assertLessEqual(len(child_fetches), 5)
+
+    @patch("auditor.crawler.discover_via_sitemap", return_value=[])
+    @patch("auditor.crawler.fetch_page")
+    def test_crawler_enforces_hard_max_pages_and_bounds_batch(self, mock_fetch, mock_sitemap):
+        """crawl_site enforces HARD_MAX_PAGES cap of 25 even when fixture has >25 unique internal pages."""
+        def dynamic_fetch(url, session):
+            # Provide >25 unique eligible internal links across crawled pages
+            links = "".join(f'<a href="/page-{i}">Page {i}</a>' for i in range(1, 55))
+            html = f"<html><body>{links}</body></html>"
+            soup = BeautifulSoup(html, "lxml")
+            return {
+                "ok": True,
+                "url": url,
+                "final_url": url,
+                "status_code": 200,
+                "html": html,
+                "soup": soup,
+                "headers": {"content-type": "text/html; charset=utf-8"},
+                "error": None,
+            }
+
+        mock_fetch.side_effect = dynamic_fetch
+        session = _build_mock_session()
+
+        pages = crawl_site("https://mock-test.example", session, max_pages=100)
+        self.assertEqual(len(pages), HARD_MAX_PAGES)
+        self.assertLessEqual(len(pages), 25)
+
+    @patch("app.engines.audit_engine.make_session")
+    @patch("app.engines.audit_engine.crawl_site")
+    @patch("app.engines.audit_engine.fetch_page")
+    def test_factor_timeout_error_isolation_preserves_contract(self, mock_fetch, mock_crawl, mock_make_session):
+        """A timeout error in an individual factor does not abort sibling factors or break 62-factor contract."""
+        dummy_page = _build_dummy_page()
+        mock_fetch.return_value = dummy_page
+        mock_crawl.return_value = [dummy_page]
+        mock_make_session.return_value = _build_mock_session()
+
+        with patch("app.engines.audit_engine.audit_ssl", side_effect=TimeoutError("socket timed out")):
+            results = _run_audit_sync("https://mock-test.example")
+
+        # Verify SSL factor isolated as ERROR
+        ssl_res = results["audit_results"]["technical"]["ssl"]
+        self.assertEqual(ssl_res["status"], "ERROR")
+        self.assertEqual(ssl_res["score"], 0)
+        self.assertIn("TimeoutError", ssl_res["error"])
+
+        # Verify all 62 factors remain present and lifecycle is COMPLETE
+        total_factors = sum(len(group) for group in results["audit_results"].values())
+        self.assertEqual(total_factors, 62)
+        self.assertIsInstance(results["score"], int)
+        self.assertEqual(results["lifecycle"], "COMPLETE")
+
+    def test_read_response_text_bounds_oversized_stream(self):
+        """read_response_text stops reading and strictly slices when accumulated bytes reach max_bytes."""
+        mock_resp = MagicMock()
+        mock_resp.iter_content.return_value = [b"A" * 102400 for _ in range(10)]
+        mock_resp.encoding = "utf-8"
+        res = read_response_text(mock_resp, max_bytes=250000)
+        self.assertEqual(len(res), 250000)
+        self.assertTrue(getattr(res, "is_truncated", False))
+        self.assertTrue(getattr(mock_resp, "is_truncated", False))
+
+    def test_read_response_bytes_bounds_oversized_stream(self):
+        """read_response_bytes strictly bounds accumulated bytes to max_bytes before retaining."""
+        mock_resp = MagicMock()
+        mock_resp.iter_content.return_value = [b"B" * 10000 for _ in range(5)]
+        res = read_response_bytes(mock_resp, max_bytes=25000)
+        self.assertEqual(len(res), 25000)
+        self.assertTrue(getattr(res, "is_truncated", False))
+
+    def test_read_response_text_bounds_elapsed_time_on_trickle(self):
+        """read_response_text breaks out of consumption loop when max_elapsed budget is reached."""
+        mock_resp = MagicMock()
+        def slow_generator():
+            for _ in range(10):
+                time.sleep(0.04)
+                yield b"chunk"
+        mock_resp.iter_content.return_value = slow_generator()
+        mock_resp.encoding = "utf-8"
+        start = time.perf_counter()
+        res = read_response_text(mock_resp, max_bytes=1000000, max_elapsed=0.08)
+        elapsed = time.perf_counter() - start
+        self.assertLess(elapsed, 0.35)
+        self.assertLess(len(res), 50)
+        self.assertTrue(getattr(res, "is_timed_out", False))
+
+    def test_fetch_page_uses_streaming_context_and_closes_stream(self):
+        """fetch_page consumes response via stream context manager and guarantees close."""
+        session = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "https://mock-test.example"
+        mock_resp.iter_content.return_value = [b"<html><body><h1>Title</h1></body></html>"]
+        mock_resp.headers = {"Content-Type": "text/html"}
+        mock_resp.encoding = "utf-8"
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = False
+        session.get.return_value = mock_resp
+
+        result = fetch_page("https://mock-test.example", session)
+        self.assertTrue(result["ok"])
+        self.assertIn("Title", result["html"])
+        session.get.assert_called_once_with(
+            "https://mock-test.example",
+            timeout=TIMEOUT,
+            allow_redirects=True,
+            verify=False,
+            stream=True,
+        )
+        mock_resp.__enter__.assert_called_once()
+        mock_resp.__exit__.assert_called_once()
+
+    def test_fetch_page_closes_stream_on_read_exception(self):
+        """fetch_page guarantees response stream closure even when reading raises an exception."""
+        session = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "https://mock-test.example"
+        import requests.exceptions
+        mock_resp.iter_content.side_effect = requests.exceptions.ChunkedEncodingError("Stream broken")
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = False
+        session.get.return_value = mock_resp
+
+        result = fetch_page("https://mock-test.example", session)
+        mock_resp.__enter__.assert_called_once()
+        mock_resp.__exit__.assert_called_once()
+
+    def test_audit_robots_streams_and_bounds_response(self):
+        """audit_robots streams robots.txt with finite timeout and closes stream context."""
+        session = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content.return_value = [b"User-agent: *\nDisallow: /admin\n"]
+        mock_resp.headers = {"Content-Type": "text/plain"}
+        mock_resp.encoding = "utf-8"
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = False
+        session.get.return_value = mock_resp
+
+        from auditor.technical import audit_robots
+        res = audit_robots("https://mock-test.example", session)
+        self.assertEqual(res["status"], "PASS")
+        session.get.assert_called_once()
+        call_kwargs = session.get.call_args.kwargs
+        self.assertTrue(call_kwargs.get("stream"))
+        self.assertLessEqual(call_kwargs.get("timeout"), 5)
+        mock_resp.__enter__.assert_called_once()
+        mock_resp.__exit__.assert_called_once()
