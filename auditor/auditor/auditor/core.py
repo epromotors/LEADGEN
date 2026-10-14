@@ -7,10 +7,226 @@ import warnings
 import requests
 import urllib3
 from bs4 import BeautifulSoup
+import time
 from config import REQUEST_HEADERS, TIMEOUT
 
 # Suppress SSL warnings globally — we handle SSL errors explicitly
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+MAX_BODY_BYTES = 5 * 1024 * 1024       # 5 MB reasonable limit for HTML/XML documents
+MAX_READ_TIME = min(TIMEOUT, 10.0)      # 10s cumulative elapsed time budget for consuming response body
+
+
+class BoundedText(str):
+    """
+    String subclass holding response text with explicit boundedness metadata:
+    - is_truncated: True if stream exceeded max_bytes
+    - is_timed_out: True if stream consumption hit max_elapsed
+    - bytes_read: total byte count consumed from the network stream
+    """
+    is_truncated: bool
+    is_timed_out: bool
+    bytes_read: int
+
+    def __new__(
+        cls,
+        content: str,
+        is_truncated: bool = False,
+        is_timed_out: bool = False,
+        bytes_read: int = 0,
+    ):
+        obj = super().__new__(cls, content)
+        obj.is_truncated = is_truncated
+        obj.is_timed_out = is_timed_out
+        obj.bytes_read = bytes_read
+        return obj
+
+
+class BoundedBytes(bytes):
+    """
+    Bytes subclass holding response bytes with explicit boundedness metadata:
+    - is_truncated: True if stream exceeded max_bytes
+    - is_timed_out: True if stream consumption hit max_elapsed
+    - bytes_read: total byte count consumed from the network stream
+    """
+    is_truncated: bool
+    is_timed_out: bool
+    bytes_read: int
+
+    def __new__(
+        cls,
+        content: bytes,
+        is_truncated: bool = False,
+        is_timed_out: bool = False,
+        bytes_read: int = 0,
+    ):
+        obj = super().__new__(cls, content)
+        obj.is_truncated = is_truncated
+        obj.is_timed_out = is_timed_out
+        obj.bytes_read = bytes_read
+        return obj
+
+
+def read_response_text(
+    resp: requests.Response,
+    max_bytes: int = MAX_BODY_BYTES,
+    max_elapsed: float = MAX_READ_TIME,
+) -> BoundedText:
+    """
+    Safely stream and consume response body strictly up to max_bytes or max_elapsed.
+    Enforces a strict byte limit before retaining chunks (retaining only the permitted
+    portion if a chunk exceeds the remaining budget).
+    Returns BoundedText with .is_truncated and .is_timed_out metadata.
+    """
+    if not hasattr(resp, "iter_content"):
+        raw_text = getattr(resp, "text", "")
+        raw_encoded = raw_text.encode("utf-8", errors="replace")
+        if len(raw_encoded) > max_bytes:
+            sliced = raw_encoded[:max_bytes].decode("utf-8", errors="replace")
+            return BoundedText(sliced, is_truncated=True, bytes_read=max_bytes)
+        return BoundedText(raw_text, is_truncated=False, bytes_read=len(raw_encoded))
+
+    is_truncated = False
+    is_timed_out = False
+    chunks = []
+    total_bytes = 0
+    start = time.perf_counter()
+
+    try:
+        iterator = resp.iter_content(chunk_size=65536)
+        if hasattr(iterator, "__iter__"):
+            for chunk in iterator:
+                if not chunk:
+                    continue
+                if not isinstance(chunk, (bytes, bytearray)):
+                    break
+
+                remaining = max_bytes - total_bytes
+                if remaining <= 0:
+                    is_truncated = True
+                    break
+
+                if len(chunk) > remaining:
+                    chunks.append(chunk[:remaining])
+                    total_bytes += remaining
+                    is_truncated = True
+                    break
+
+                chunks.append(chunk)
+                total_bytes += len(chunk)
+
+                if total_bytes >= max_bytes:
+                    is_truncated = True
+                    break
+
+                if (time.perf_counter() - start) >= max_elapsed:
+                    is_timed_out = True
+                    break
+
+        try:
+            resp.is_truncated = is_truncated
+            resp.is_timed_out = is_timed_out
+            resp.bytes_read = total_bytes
+        except Exception:
+            pass
+
+        if chunks:
+            raw = b"".join(chunks)
+            encoding = getattr(resp, "encoding", None) or "utf-8"
+            try:
+                decoded = raw.decode(encoding, errors="replace")
+            except Exception:
+                decoded = raw.decode("utf-8", errors="replace")
+            return BoundedText(decoded, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
+    except Exception:
+        pass
+
+    if chunks:
+        raw = b"".join(chunks)
+        encoding = getattr(resp, "encoding", None) or "utf-8"
+        try:
+            decoded = raw.decode(encoding, errors="replace")
+        except Exception:
+            decoded = raw.decode("utf-8", errors="replace")
+        return BoundedText(decoded, is_truncated=True, is_timed_out=is_timed_out, bytes_read=total_bytes)
+
+    fallback_text = getattr(resp, "text", "")
+    return BoundedText(fallback_text, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
+
+
+def read_response_bytes(
+    resp: requests.Response,
+    max_bytes: int = 512 * 1024,
+    max_elapsed: float = 5.0,
+) -> BoundedBytes:
+    """
+    Safely stream and consume binary response body strictly up to max_bytes or max_elapsed.
+    Enforces a strict byte limit before retaining chunks (retaining only the permitted
+    portion if a chunk exceeds the remaining budget).
+    Returns BoundedBytes with .is_truncated and .is_timed_out metadata.
+    """
+    if not hasattr(resp, "iter_content"):
+        raw_bytes = getattr(resp, "content", b"")
+        if len(raw_bytes) > max_bytes:
+            return BoundedBytes(raw_bytes[:max_bytes], is_truncated=True, bytes_read=max_bytes)
+        return BoundedBytes(raw_bytes, is_truncated=False, bytes_read=len(raw_bytes))
+
+    is_truncated = False
+    is_timed_out = False
+    chunks = []
+    total_bytes = 0
+    start = time.perf_counter()
+
+    try:
+        iterator = resp.iter_content(chunk_size=16384)
+        if hasattr(iterator, "__iter__"):
+            for chunk in iterator:
+                if not chunk:
+                    continue
+                if not isinstance(chunk, (bytes, bytearray)):
+                    break
+
+                remaining = max_bytes - total_bytes
+                if remaining <= 0:
+                    is_truncated = True
+                    break
+
+                if len(chunk) > remaining:
+                    chunks.append(chunk[:remaining])
+                    total_bytes += remaining
+                    is_truncated = True
+                    break
+
+                chunks.append(chunk)
+                total_bytes += len(chunk)
+
+                if total_bytes >= max_bytes:
+                    is_truncated = True
+                    break
+
+                if (time.perf_counter() - start) >= max_elapsed:
+                    is_timed_out = True
+                    break
+
+        try:
+            resp.is_truncated = is_truncated
+            resp.is_timed_out = is_timed_out
+            resp.bytes_read = total_bytes
+        except Exception:
+            pass
+
+        if chunks:
+            return BoundedBytes(b"".join(chunks), is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
+    except Exception:
+        pass
+
+    if chunks:
+        return BoundedBytes(b"".join(chunks), is_truncated=True, is_timed_out=is_timed_out, bytes_read=total_bytes)
+
+    fallback_bytes = getattr(resp, "content", b"")
+    if len(fallback_bytes) > max_bytes:
+        return BoundedBytes(fallback_bytes[:max_bytes], is_truncated=True, bytes_read=max_bytes)
+    return BoundedBytes(fallback_bytes, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=len(fallback_bytes))
 
 
 def make_session() -> requests.Session:
@@ -35,21 +251,25 @@ def fetch_page(url: str, session: requests.Session) -> dict:
     """
     Fetch a URL and return rich response metadata.
     Returns dict with keys: ok, url, final_url, status_code,
-                            html, soup, headers, error
+                            html, soup, headers, error, truncated
     """
     result = {
         "ok": False, "url": url, "final_url": url,
         "status_code": None, "html": "", "soup": None,
-        "headers": {}, "error": None,
+        "headers": {}, "error": None, "truncated": False,
     }
     try:
-        resp = session.get(url, timeout=TIMEOUT, allow_redirects=True, verify=False)
-        result["ok"] = True
-        result["final_url"] = resp.url
-        result["status_code"] = resp.status_code
-        result["html"] = resp.text
-        result["headers"] = dict(resp.headers)
-        result["soup"] = BeautifulSoup(resp.text, "lxml")
+        with session.get(url, timeout=TIMEOUT, allow_redirects=True, verify=False, stream=True) as resp:
+            result["ok"] = True
+            result["final_url"] = resp.url
+            result["status_code"] = resp.status_code
+            html_text = read_response_text(resp, max_bytes=MAX_BODY_BYTES, max_elapsed=MAX_READ_TIME)
+            result["html"] = html_text
+            result["headers"] = dict(resp.headers)
+            result["truncated"] = getattr(html_text, "is_truncated", False)
+            if result["truncated"]:
+                result["headers"]["x-content-truncated"] = "true"
+            result["soup"] = BeautifulSoup(html_text, "lxml")
     except requests.exceptions.SSLError as e:
         result["error"] = f"SSL Error: {e}"
     except requests.exceptions.ConnectionError as e:
@@ -65,11 +285,15 @@ def check_url_status(url: str, session: requests.Session) -> int | None:
     """Lightweight HEAD check; returns status code or None on error."""
     try:
         r = session.head(url, timeout=TIMEOUT, allow_redirects=True, verify=False)
-        return r.status_code
+        try:
+            code = r.status_code
+        finally:
+            r.close()
+        return code
     except Exception:
         try:
-            r = session.get(url, timeout=TIMEOUT, allow_redirects=True, verify=False, stream=True)
-            return r.status_code
+            with session.get(url, timeout=TIMEOUT, allow_redirects=True, verify=False, stream=True) as r:
+                return r.status_code
         except Exception:
             return None
 

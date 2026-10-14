@@ -8,14 +8,18 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from auditor.core import fetch_page, get_domain, result_pass, result_warn, result_fail
+from auditor.core import fetch_page, get_domain, result_pass, result_warn, result_fail, read_response_text
 from config import TIMEOUT, REQUEST_HEADERS
 
 logger = logging.getLogger(__name__)
 
-MAX_PAGES   = 100   # hard cap to avoid runaway crawls
+DEFAULT_MAX_PAGES = 10
+HARD_MAX_PAGES = 25
+MAX_PAGES   = DEFAULT_MAX_PAGES   # default cap to avoid runaway crawls
 CRAWL_WORKERS = 5   # parallel page fetches
 SITEMAP_DEPTH_LIMIT = 3
+MAX_SITEMAPS_TO_FETCH = 5
+MAX_SITEMAP_URLS = 100
 
 LOW_VALUE_PATH_RE = re.compile(
     r"/(?:wp-content|wp-json|feed|tag|author|photo|attachment|portfolio-category)/"
@@ -113,18 +117,28 @@ def discover_via_sitemap(base_url: str, session) -> list[str]:
     def crawl_sitemap(sm_url: str, depth: int = 0) -> bool:
         if depth > SITEMAP_DEPTH_LIMIT or sm_url in seen_sitemaps:
             return False
+        if len(seen_sitemaps) >= MAX_SITEMAPS_TO_FETCH or len(all_urls) >= MAX_SITEMAP_URLS:
+            return bool(all_urls)
         seen_sitemaps.add(sm_url)
         try:
-            r = session.get(sm_url, timeout=TIMEOUT)
-            if r.status_code != 200:
-                return False
-            urls, child_sitemaps = _parse_sitemap_xml(r.text, base_url)
+            with session.get(sm_url, timeout=min(TIMEOUT, 6), stream=True) as r:
+                if r.status_code != 200:
+                    return False
+                xml_text = read_response_text(r, max_bytes=2 * 1024 * 1024, max_elapsed=min(TIMEOUT, 6))
+            if getattr(xml_text, "is_truncated", False):
+                logger.warning("[crawler] Sitemap %s truncated at byte limit; ignoring partial entries", sm_url)
+                return bool(all_urls)
+            urls, child_sitemaps = _parse_sitemap_xml(xml_text, base_url)
             if urls:
                 for u in urls:
                     norm = normalise(u, root_base)
                     if norm and is_internal(norm, domain):
                         all_urls.append(norm)
+                        if len(all_urls) >= MAX_SITEMAP_URLS:
+                            break
             for child in child_sitemaps:
+                if len(seen_sitemaps) >= MAX_SITEMAPS_TO_FETCH or len(all_urls) >= MAX_SITEMAP_URLS:
+                    break
                 if is_internal(child, domain):
                     crawl_sitemap(child, depth + 1)
             return bool(urls or child_sitemaps)
@@ -170,6 +184,7 @@ def crawl_site(base_url: str, session, max_pages: int = MAX_PAGES,
     Returns list of page dicts: {url, status_code, soup, html, error}
     """
     base_url = base_url.rstrip("/")
+    max_pages = min(max_pages, HARD_MAX_PAGES)
     t_start = time.perf_counter()
     logger.info("[crawler] Starting crawl for %s (max_pages=%d)", base_url, max_pages)
     domain = get_domain(base_url)
@@ -189,9 +204,10 @@ def crawl_site(base_url: str, session, max_pages: int = MAX_PAGES,
     # Single executor for the full crawl (not recreated per batch)
     with ThreadPoolExecutor(max_workers=CRAWL_WORKERS) as executor:
         while queue and len(pages) < max_pages:
-            # Take a batch
+            # Take a batch bounded by remaining pages needed
             batch = []
-            while queue and len(batch) < CRAWL_WORKERS:
+            batch_limit = min(CRAWL_WORKERS, max_pages - len(pages))
+            while queue and len(batch) < batch_limit:
                 url = queue.pop(0)
                 if url in visited:
                     continue
