@@ -121,10 +121,10 @@ def audit_og_tags(soup, page_url: str) -> dict:
 
 def audit_schema(soup) -> dict:
     """Check for JSON-LD structured data (Schema.org)."""
+    from auditor.schema_utils import extract_json_ld_items, get_item_types
+
     json_ld_scripts = soup.find_all("script", type="application/ld+json")
-    
     if not json_ld_scripts:
-        # Also check for microdata
         microdata = soup.find(attrs={"itemscope": True})
         if microdata:
             return result_warn(
@@ -140,27 +140,36 @@ def audit_schema(soup) -> dict:
             '<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness",'
             '"name":"Your Business","url":"https://yourdomain.com"}</script>',
         )
-    
-    schema_types = []
-    for script in json_ld_scripts:
-        try:
-            data = json.loads(script.get_text())
-            t = data.get("@type") or data.get("@graph", [{}])[0].get("@type", "Unknown")
-            schema_types.append(str(t))
-        except Exception:
-            schema_types.append("Invalid JSON-LD")
-    
-    if "Invalid JSON-LD" in schema_types:
+
+    items, syntax_errors = extract_json_ld_items(soup)
+    schema_types: list[str] = []
+    for item in items:
+        for t in get_item_types(item):
+            if t not in schema_types:
+                schema_types.append(t)
+
+    if syntax_errors and not schema_types:
         return result_warn(
             "JSON-LD Schema found but contains invalid JSON.",
             "Validate your schema at schema.org/validator or Google's Rich Results Test. "
             "Invalid JSON breaks rich snippet eligibility.",
-            f"Types detected: {', '.join(schema_types)}",
+            f"Errors: {'; '.join(syntax_errors)}",
         )
-    
+
+    if not schema_types:
+        return result_warn(
+            "JSON-LD Schema tags found but no valid schema entities or types were declared.",
+            "Declare a valid Schema.org entity such as LocalBusiness, Organization, or WebSite.",
+        )
+
+    types_str = ", ".join(schema_types)
+    detail = f"Entities detected: {types_str} | Validate at: https://search.google.com/test/rich-results"
+    if syntax_errors:
+        detail += f" | Note: some tags had syntax errors: {'; '.join(syntax_errors)}"
+
     return result_pass(
-        f"JSON-LD Schema Markup found: {', '.join(schema_types)}",
-        detail="Validate at: https://search.google.com/test/rich-results",
+        f"JSON-LD Schema Markup found: {types_str}",
+        detail=detail,
     )
 
 

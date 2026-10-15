@@ -229,7 +229,11 @@ def _get_crawl_max_pages() -> int:
         return 10
 
 
-def _run_audit_sync(url: str, max_pages: int | None = None) -> dict:
+def _run_audit_sync(
+    url: str,
+    max_pages: int | None = None,
+    requested_url: str | None = None,
+) -> dict:
     """
     Run all 55+ SEO checks + multi-page crawl synchronously.
     Must be called via asyncio.get_event_loop().run_in_executor().
@@ -242,16 +246,18 @@ def _run_audit_sync(url: str, max_pages: int | None = None) -> dict:
           "page_audits": list,     # per-page results
           "html": str,             # homepage HTML (for extract_business_name)
           "response_content": bytes, # raw response bytes for page_size check
+          "url_info": dict,        # requested, final, canonical, and redirect status
         }
     """
     if not _NEW_AUDITOR_AVAILABLE:
         raise RuntimeError("New auditor package is not available. Check imports.")
 
+    req_url = normalize_url(requested_url or url)
     url = normalize_url(url)
     session = make_session()
 
     # Fetch homepage
-    logger.info("[audit_engine] Fetching homepage: %s", url)
+    logger.info("[audit_engine] Fetching homepage: %s (requested: %s)", url, req_url)
     t_home_start = time.perf_counter()
     page = fetch_page(url, session)
     home_elapsed_ms = round((time.perf_counter() - t_home_start) * 1000)
@@ -503,6 +509,17 @@ def _run_audit_sync(url: str, max_pages: int | None = None) -> dict:
         browser_pages    = [browser_evidence]
         logger.exception("[audit_engine] Browser evidence capture failed for %s", url)
 
+    canonical_tag = soup.find("link", rel=lambda x: x and "canonical" in x)
+    canonical_url = canonical_tag.get("href", "").strip() if canonical_tag else None
+    url_info = {
+        "requested_url": req_url,
+        "final_url": normalize_url(page.get("final_url") or url),
+        "canonical_url": canonical_url,
+        "is_redirected": page.get("is_redirected", False),
+        "redirect_url": page.get("redirect_url"),
+    }
+    site_summary["url_info"] = url_info
+
     return {
         "audit_results": audit_results,
         "score": score,
@@ -516,6 +533,7 @@ def _run_audit_sync(url: str, max_pages: int | None = None) -> dict:
         "browser_evidence": browser_evidence,
         "browser_status":   browser_status,
         "browser_pages":    browser_pages,
+        "url_info": url_info,
     }
 
 
@@ -894,23 +912,29 @@ async def run_audit(lead_id: str) -> None:
         logger.info(f"[audit_engine] Audit skipped for {website} — {label}")
         return  # no PDF, no further checks
 
-    audit_url = website
+    requested_url = normalize_url(website)
+    audit_target = requested_url
     try:
-        audit_url = await resolve_live_url(website)
+        resolved = await resolve_live_url(requested_url)
+        if resolved:
+            audit_target = resolved
     except Exception as e:
-        logger.warning(f"[audit_engine] resolve_live_url failed for {website}: {e}")
+        logger.warning(f"[audit_engine] resolve_live_url failed for {requested_url}: {e}")
 
     logger.info(
-        f"[audit_engine] Site is live — proceeding with 19-factor audit for "
-        f"{audit_url} (lead URL: {website})"
+        f"[audit_engine] Site is live — proceeding with audit for "
+        f"{audit_target} (requested URL: {requested_url})"
     )
 
-    # ── PHASE 3: 19-factor audit in thread pool (NO DB connection) ───────────
+    # ── PHASE 3: audit in thread pool (NO DB connection) ───────────
     loop = asyncio.get_running_loop()
     try:
-        data = await loop.run_in_executor(None, _run_audit_sync, audit_url)
+        data = await loop.run_in_executor(
+            None,
+            lambda: _run_audit_sync(audit_target, requested_url=requested_url),
+        )
     except Exception as e:
-        logger.error(f"[audit_engine] _run_audit_sync failed for {audit_url}: {e}")
+        logger.error(f"[audit_engine] _run_audit_sync failed for {audit_target}: {e}")
         try:
             async def _fail_write(db):
                 audit = await db.get(Audit, audit_id)
@@ -1057,7 +1081,7 @@ async def run_audit(lead_id: str) -> None:
             audit.schema_graph_ok       = db_cols.get("schema_graph_ok")
             # ── end v5.0 columns ───────────────────────────────────────────────
             audit.seo_score          = score
-            audit.audited_url        = audit_url
+            audit.audited_url        = requested_url
             audit.audit_results      = audit_results
             audit.site_summary       = {
                 **site_summary,
@@ -1092,7 +1116,7 @@ async def run_audit(lead_id: str) -> None:
             if lead and found_email:
                 from auditor.email_finder import should_update_email as _sue
                 from urllib.parse import urlparse as _up
-                host = _up(audit_url).netloc.lower().lstrip("www.")
+                host = _up(audit_target).netloc.lower().lstrip("www.")
                 if _sue(lead.email or "", found_email, host):
                     old_email_snapshot  = lead.email
                     corrected_email     = found_email
@@ -1120,12 +1144,13 @@ async def run_audit(lead_id: str) -> None:
         await loop.run_in_executor(
             None,
             lambda: build_pdf(
-                url=audit_url,
+                url=requested_url,
                 audit_results=audit_results,
                 score=score,
                 output_path=pdf_output_path,
                 site_summary=site_summary,
                 page_audits=page_audits,
+                url_info=data.get("url_info"),
             )
         )
         logger.info(f"[audit_engine] PDF saved: {pdf_output_path}")
@@ -1146,7 +1171,7 @@ async def run_audit(lead_id: str) -> None:
                 event_type="audit_done",
                 lead_id=lead_uuid,
                 message=_safe(
-                    f"Audit complete for {business_name} ({audit_url}). "
+                    f"Audit complete for {business_name} ({requested_url}). "
                     f"Score: {score}/100. {len(page_audits)} pages crawled."
                 ),
             )

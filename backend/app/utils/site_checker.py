@@ -38,6 +38,7 @@ import re
 import asyncio
 import aiohttp
 import logging
+import urllib.parse
 from enum import Enum
 
 try:
@@ -453,12 +454,12 @@ def _url_variants(url: str) -> list[str]:
             _strip_www(base_http),    # http://domain
         ]
     else:
-        # Input is bare domain — try www first
+        # Input is bare domain — try bare domain first (exact requested URL), then www
         variants = [
-            _add_www(base_https),     # https://www.domain
             base_https,               # https://domain
-            _add_www(base_http),      # http://www.domain
+            _add_www(base_https),     # https://www.domain
             base_http,                # http://domain
+            _add_www(base_http),      # http://www.domain
         ]
 
     # Deduplicate while preserving order
@@ -647,11 +648,15 @@ async def classify_site(url: str) -> tuple[SiteType, str]:
 
 async def resolve_live_url(url: str) -> str:
     """
-    Resolve the same 4 URL variants used by classify_site and return the first
-    reachable final URL. This lets the deep audit run against the real HTTPS/www
-    target instead of the possibly stale URL stored on the lead row.
+    Resolve URL variants to find the live reachable URL without mutating root path to subpaths.
+    Does NOT promote redirect subpaths (e.g. /lucknow) to replace a root URL.
     """
     variants = _url_variants(url)
+    clean_in = url.strip()
+    if not clean_in.startswith(("http://", "https://")):
+        clean_in = f"https://{clean_in}"
+    parsed_in = urllib.parse.urlsplit(clean_in)
+    input_is_root = parsed_in.path in ("", "/")
 
     connector = aiohttp.TCPConnector(ssl=False, limit_per_host=1)
     async with aiohttp.ClientSession(
@@ -663,7 +668,11 @@ async def resolve_live_url(url: str) -> str:
             try:
                 async with session.get(try_url, allow_redirects=True) as resp:
                     if resp.status not in NOT_FOUND_STATUSES and resp.status not in SERVER_ERROR_STATUSES:
-                        return str(resp.url).rstrip("/")
+                        resp_url = str(resp.url)
+                        if input_is_root:
+                            p_resp = urllib.parse.urlsplit(resp_url)
+                            return f"{p_resp.scheme}://{p_resp.netloc}".rstrip("/")
+                        return resp_url.rstrip("/")
             except Exception:
                 continue
 
@@ -681,7 +690,11 @@ async def resolve_live_url(url: str) -> str:
                         verify=False,
                     )
                     if resp.status_code not in NOT_FOUND_STATUSES and resp.status_code not in SERVER_ERROR_STATUSES:
-                        return resp.url.rstrip("/")
+                        resp_url = resp.url
+                        if input_is_root:
+                            p_resp = urllib.parse.urlsplit(resp_url)
+                            return f"{p_resp.scheme}://{p_resp.netloc}".rstrip("/")
+                        return resp_url.rstrip("/")
                 except Exception:
                     continue
             return None
@@ -690,7 +703,11 @@ async def resolve_live_url(url: str) -> str:
         if resolved:
             return resolved
 
-    return variants[0].rstrip("/")
+    default_url = variants[0]
+    if input_is_root:
+        p_def = urllib.parse.urlsplit(default_url)
+        return f"{p_def.scheme}://{p_def.netloc}".rstrip("/")
+    return default_url.rstrip("/")
 
 
 # ─── Tag Helpers (used by audit_engine and outreach_engine) ───────────────────

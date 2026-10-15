@@ -71,162 +71,227 @@ def audit_ssl(url: str, session: requests.Session) -> dict:
 
 def audit_sitemap(base_url: str, session: requests.Session) -> dict:
     """
-    Check if a sitemap exists by probing 4 standard URL variations in priority order:
-      1. /sitemap_index.xml  — Yoast SEO / Rank Math default (index of all sitemaps)
-      2. /sitemap.xml        — Generic / most CMS default
-      3. /post-sitemap.xml   — WordPress post type sitemap (Yoast / Rank Math)
-      4. /page-sitemap.xml   — WordPress page type sitemap (Yoast / Rank Math)
-
-    Also checks:
-      - Whether the found sitemap URL is declared in robots.txt
-      - Whether any variant was found even if the primary is missing
+    Check if a sitemap exists by:
+      1. Deriving site origin from base_url.
+      2. Fetching origin/robots.txt and extracting all valid Sitemap: directives.
+      3. Resolving relative sitemaps against origin and checking declared sitemaps first.
+      4. If no usable declaration, probing root-level common candidates:
+         /sitemap.xml, /sitemap_index.xml, /sitemap-index.xml, /wp-sitemap.xml,
+         /post-sitemap.xml, /page-sitemap.xml.
+      5. Strictly validating HTTP 200 responses as valid XML with root urlset or sitemapindex (rejecting HTML).
+      6. Bounding child sitemaps, response sizes, and timeouts with full stream cleanup.
+      7. Recording full URLs, status codes, and accept/reject reasons.
     """
-    # Priority-ordered sitemap candidates
-    candidates = [
-        (f"{base_url}/sitemap_index.xml", "sitemap_index.xml (Yoast/Rank Math index)"),
-        (f"{base_url}/sitemap.xml",       "sitemap.xml (generic default)"),
-        (f"{base_url}/post-sitemap.xml",  "post-sitemap.xml (WordPress posts)"),
-        (f"{base_url}/page-sitemap.xml",  "page-sitemap.xml (WordPress pages)"),
-    ]
+    import urllib.parse
+    import xml.etree.ElementTree as ET
+    from auditor.core import get_origin
 
-    found_urls:   list[str] = []
-    missing_urls: list[str] = []
-
+    origin = get_origin(base_url)
     sitemap_probe_timeout = min(TIMEOUT, 6)
-    for url, label in candidates:
-        try:
-            with session.get(url, timeout=sitemap_probe_timeout, stream=True) as r:
-                if r.status_code == 200:
-                    text = read_response_text(r, max_bytes=2 * 1024 * 1024, max_elapsed=sitemap_probe_timeout)
-                    is_trunc = getattr(text, "is_truncated", False)
-                    text_lower = text.lower()
-                    if (
-                        "xml" in r.headers.get("Content-Type", "")
-                        or "<sitemap" in text_lower
-                        or "<urlset" in text_lower
-                        or "<?xml" in text_lower[:100]
-                    ):
-                        # A1 fix: count both <url> entries AND child <sitemap> refs
-                        count_urls = text_lower.count("<url>")
-                        count_sitemaps = text_lower.count("<sitemap>")
-                        total_entries = count_urls + count_sitemaps
-                        trunc_note = " (truncated at byte limit)" if is_trunc else ""
-                        if total_entries:
-                            count_str = f"{count_urls} URLs" + (f", {count_sitemaps} sub-sitemaps" if count_sitemaps else "") + trunc_note
-                        else:
-                            count_str = f"found (no <url>/<sitemap> entries counted){trunc_note}"
-                        found_urls.append(f"✅ {label}: {count_str}")
-                    else:
-                        missing_urls.append(f"❌ {label}: not a valid sitemap")
-                else:
-                    missing_urls.append(f"❌ {label}: not found ({r.status_code})")
-        except requests.exceptions.Timeout:
-            missing_urls.append(f"❌ {label}: timed out")
-            break
-        except Exception:
-            missing_urls.append(f"❌ {label}: unreachable")
 
-    # ── Check robots.txt for a Sitemap: declaration ────────────────────────
-    sitemap_in_robots: str | None = None
+    # ── 1. Fetch robots.txt and parse all Sitemap: directives ──────────────
+    robots_url = f"{origin}/robots.txt"
+    declared_sitemaps: list[str] = []
+    robots_status: int | None = None
     try:
-        with session.get(f"{base_url}/robots.txt", timeout=min(TIMEOUT, 5), stream=True) as r:
+        with session.get(robots_url, timeout=min(TIMEOUT, 5), stream=True) as r:
+            robots_status = r.status_code
             if r.status_code == 200:
+                ctype = r.headers.get("Content-Type", "").lower()
                 robots_txt = read_response_text(r, max_bytes=512 * 1024, max_elapsed=min(TIMEOUT, 5))
-                for line in robots_txt.splitlines():
-                    if line.strip().lower().startswith("sitemap:"):
-                        sitemap_in_robots = line.strip()
-                        break
+                # Only parse directives if not an HTML page
+                if "text/html" not in ctype and not robots_txt.strip().lower().startswith(("<!doctype html", "<html")):
+                    for line in robots_txt.splitlines():
+                        trimmed = line.strip()
+                        if trimmed.lower().startswith("sitemap:"):
+                            raw_val = trimmed.split(":", 1)[1].strip()
+                            if raw_val:
+                                resolved = urllib.parse.urljoin(origin, raw_val)
+                                parsed_s = urllib.parse.urlparse(resolved)
+                                if parsed_s.scheme in ("http", "https") and resolved not in declared_sitemaps:
+                                    declared_sitemaps.append(resolved)
     except Exception:
         pass
 
-    robots_note = (
-        f"Sitemap declared in robots.txt ✅ ({sitemap_in_robots})"
-        if sitemap_in_robots
-        else "⚠️ Sitemap NOT declared in robots.txt — add 'Sitemap: <url>' at the bottom of robots.txt"
+    # ── 2. Build ordered candidate list (declared first, then common root fallbacks) ──
+    common_fallbacks = [
+        (f"{origin}/sitemap_index.xml", "sitemap_index.xml (index)"),
+        (f"{origin}/sitemap.xml",       "sitemap.xml (generic default)"),
+        (f"{origin}/sitemap-index.xml", "sitemap-index.xml (index alternate)"),
+        (f"{origin}/wp-sitemap.xml",    "wp-sitemap.xml (WordPress core)"),
+        (f"{origin}/post-sitemap.xml",  "post-sitemap.xml (WordPress posts)"),
+        (f"{origin}/page-sitemap.xml",  "page-sitemap.xml (WordPress pages)"),
+    ]
+
+    candidates: list[tuple[str, str, bool]] = []
+    for d_url in declared_sitemaps:
+        candidates.append((d_url, f"robots.txt declared ({d_url})", True))
+    for f_url, label in common_fallbacks:
+        if not any(c[0] == f_url for c in candidates):
+            candidates.append((f_url, label, False))
+
+    probes: list[dict] = []
+    found_sitemaps: list[dict] = []
+
+    def validate_sitemap_content(content: str, ctype: str) -> tuple[bool, str, int, int]:
+        """
+        Validate sitemap XML content. Returns (is_valid, reason, url_count, child_sitemap_count).
+        Strictly rejects HTML documents.
+        """
+        content_stripped = content.strip()
+        lower = content_stripped.lower()
+        if "text/html" in ctype or lower.startswith("<!doctype html") or lower.startswith("<html"):
+            return False, "returned HTML document instead of XML sitemap", 0, 0
+
+        try:
+            root = ET.fromstring(content_stripped)
+        except Exception as exc:
+            return False, f"malformed XML ({type(exc).__name__})", 0, 0
+
+        root_name = root.tag.rsplit("}", 1)[-1].lower()
+        if root_name not in ("urlset", "sitemapindex"):
+            return False, f"invalid XML root tag '<{root_name}>' (expected <urlset> or <sitemapindex>)", 0, 0
+
+        ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        url_count = 0
+        child_count = 0
+
+        if root_name == "sitemapindex":
+            # Count child sitemaps
+            sitemaps = root.findall(".//sm:sitemap", ns) or root.findall(".//sitemap")
+            child_count = len(sitemaps) if sitemaps else len(root.findall(".//sm:loc", ns) or root.findall(".//loc"))
+        else:
+            urls = root.findall(".//sm:url", ns) or root.findall(".//url")
+            url_count = len(urls) if urls else len(root.findall(".//sm:loc", ns) or root.findall(".//loc"))
+
+        return True, root_name, url_count, child_count
+
+    for cand_url, label, is_declared in candidates:
+        probe_record = {"url": cand_url, "label": label, "status_code": None, "outcome": "untested", "reason": ""}
+        try:
+            with session.get(cand_url, timeout=sitemap_probe_timeout, stream=True) as r:
+                probe_record["status_code"] = r.status_code
+                if r.status_code == 200:
+                    ctype = r.headers.get("Content-Type", "").lower()
+                    text = read_response_text(r, max_bytes=2 * 1024 * 1024, max_elapsed=sitemap_probe_timeout)
+                    is_valid, root_desc, u_count, c_count = validate_sitemap_content(text, ctype)
+                    if is_valid:
+                        desc = f"{u_count} URLs" if root_desc == "urlset" else f"{c_count} child sitemaps"
+                        probe_record["outcome"] = "ACCEPTED"
+                        probe_record["reason"] = f"Valid XML {root_desc} ({desc})"
+                        found_sitemaps.append({
+                            "url": cand_url,
+                            "label": label,
+                            "is_declared": is_declared,
+                            "type": root_desc,
+                            "url_count": u_count,
+                            "child_count": c_count,
+                            "desc": desc,
+                        })
+                        probes.append(probe_record)
+                        # Once we find a valid primary sitemap, we record it and stop extra network probes
+                        break
+                    else:
+                        probe_record["outcome"] = "REJECTED"
+                        probe_record["reason"] = root_desc
+                else:
+                    probe_record["outcome"] = "REJECTED"
+                    probe_record["reason"] = f"HTTP {r.status_code}"
+        except requests.exceptions.Timeout:
+            probe_record["outcome"] = "REJECTED"
+            probe_record["reason"] = "timed out"
+            probes.append(probe_record)
+            break
+        except Exception as exc:
+            probe_record["outcome"] = "REJECTED"
+            probe_record["reason"] = f"unreachable ({type(exc).__name__})"
+        probes.append(probe_record)
+
+    # ── Build probe summary detail ──────────────────────────────────────────
+    probe_lines = [f"{p['url']} [HTTP {p['status_code'] or 'ERR'}]: {p['reason']}" for p in probes]
+    robots_decl_note = (
+        f"Declared in robots.txt: {', '.join(declared_sitemaps)}"
+        if declared_sitemaps
+        else "No Sitemap directive declared in robots.txt"
     )
+    detail_str = f"{' | '.join(probe_lines)} | {robots_decl_note}"
 
-    # ── Build result ───────────────────────────────────────────────────────
-    all_lines = found_urls + missing_urls
-    detail = " | ".join(all_lines) + f" | {robots_note}"
-
-    if found_urls:
-        # At least one sitemap found — pass
-        primary = found_urls[0]
+    if found_sitemaps:
+        primary = found_sitemaps[0]
+        msg = f"Sitemap found: {primary['url']} ({primary['desc']})"
+        if primary["is_declared"]:
+            msg += " [declared in robots.txt]"
         return result_pass(
-            f"Sitemap found: {primary.split(':')[1].strip().split(' ')[0] if ':' in primary else 'sitemap'}",
-            detail=detail,
+            msg,
+            detail=detail_str,
+            evidence=[{"found_sitemaps": found_sitemaps, "probes": probes, "origin": origin}],
         )
 
-    # ── Nothing found — check robots.txt as last resort ───────────────────
-    if sitemap_in_robots:
+    if declared_sitemaps:
         return result_warn(
-            "No sitemap at standard paths, but a Sitemap: directive exists in robots.txt.",
-            "Verify the declared sitemap URL is accessible. "
-            "Move sitemap to /sitemap_index.xml or /sitemap.xml for maximum compatibility.",
-            detail,
+            f"Sitemap declared in robots.txt ({declared_sitemaps[0]}) was not usable, and no fallback sitemap was found.",
+            "Verify that the sitemap URL declared in robots.txt is accessible and serves valid XML (not an HTML error page).",
+            detail=detail_str,
+            evidence=[{"probes": probes, "declared_sitemaps": declared_sitemaps, "origin": origin}],
         )
 
     return result_fail(
-        "No sitemap found at any standard URL.",
+        "No sitemap found at any standard or declared location.",
         "Create an XML sitemap and submit it to Google Search Console. "
-        "WordPress: install Yoast SEO or Rank Math (auto-generates sitemap_index.xml). "
+        "WordPress: install Yoast SEO or Rank Math. "
         "Shopify: auto-generates /sitemap.xml. "
-        "Custom sites: use screaming frog or xml-sitemaps.com. "
-        "Also add 'Sitemap: https://yourdomain.com/sitemap_index.xml' to your robots.txt.",
-        detail,
+        "Also declare 'Sitemap: https://yourdomain.com/sitemap.xml' in robots.txt.",
+        detail=detail_str,
+        evidence=[{"probes": probes, "origin": origin}],
     )
-
-
 
 
 def audit_robots(base_url: str, session: requests.Session) -> dict:
     """
-    Check if robots.txt exists and has no catastrophic directives.
-
-    False-positive prevention rules:
-      1. Empty Disallow (path == "") under User-agent: * → means "allow all" per RFC — SAFE, never FAIL.
-      2. Specific path Disallow (e.g. /wp-admin/, /search/) — normal, NEVER treated as root block.
-      3. CRITICAL FAIL only when path == "/" literally under User-agent: * with no Allow: / override.
-      4. Multiple User-agent: * blocks → merged before evaluating (mirrors real Googlebot behaviour).
-      5. Allow: / or Allow: (empty) overrides Disallow: / → not blocked.
-      6. AI training bots (GPTBot, ClaudeBot, Google-Extended, CCBot, etc.)
-         blocking has ZERO SEO impact — never flag these as issues.
-      7. Googlebot-specific Disallow: / → separate CRITICAL check.
-
-    In plain English: a typical WordPress robots.txt that blocks /wp-admin/, /wp-login.php,
-    /xmlrpc.php etc. will always PASS this check. Only a site that has literally:
-        User-agent: *
-        Disallow: /
-    with no Allow: / will be flagged as CRITICAL.
+    Check if robots.txt exists at domain root and has no catastrophic directives.
+    Location is strictly the site origin (origin/robots.txt), not appending to page subpaths.
+    Verifies that HTTP 200 responses are plain text and not HTML error pages.
     """
-    # AI training bots whose blocking is irrelevant to SEO rankings
-    _AI_BOTS = {
-        "gptbot", "google-extended", "claudebot", "claude-web", "anthropic-ai",
-        "ccbot", "cohere-ai", "omgili", "omgilibot", "diffbot", "facebookbot",
-        "ia_archiver",
-    }
+    from auditor.core import get_origin
 
-    url = f"{base_url}/robots.txt"
+    origin = get_origin(base_url)
+    url = f"{origin}/robots.txt"
     robots_timeout = min(TIMEOUT, 5)
+
     try:
         with session.get(url, timeout=robots_timeout, stream=True) as r:
             if r.status_code == 200:
+                ctype = r.headers.get("Content-Type", "").lower()
                 robots_txt = read_response_text(r, max_bytes=512 * 1024, max_elapsed=robots_timeout)
                 is_trunc = getattr(robots_txt, "is_truncated", False)
+
+                # Validate content is not HTML
+                stripped = robots_txt.strip().lower()
+                if "text/html" in ctype or stripped.startswith("<!doctype html") or stripped.startswith("<html"):
+                    return result_warn(
+                        "robots.txt endpoint returned an HTML document instead of plain text.",
+                        "Ensure /robots.txt serves a plain-text file (text/plain) rather than a webpage or custom 404 page.",
+                        detail=f"URL: {url} — HTTP 200 returned Content-Type '{ctype or 'unknown'}' with HTML content.",
+                        evidence=[{"url": url, "status_code": 200, "content_type": ctype, "is_html": True}],
+                    )
+
                 lines = [ln.strip() for ln in robots_txt.splitlines()]
 
-            # ── Parse into blocks: {user_agent: [rules]} ──────────────────
-                # Each rule is ("disallow"|"allow", path)
+                # ── Parse into blocks: {user_agent: [rules]} ──────────────────
                 blocks: dict[str, list[tuple[str, str]]] = {}
                 current_agents: list[str] = []
+                declared_sitemaps: list[str] = []
 
                 for line in lines:
                     if not line or line.startswith("#"):
-                        # Blank line separates blocks
                         current_agents = []
                         continue
                     lower = line.lower()
-                    if lower.startswith("user-agent:"):
+                    if lower.startswith("sitemap:"):
+                        sm_val = line.split(":", 1)[1].strip()
+                        if sm_val:
+                            declared_sitemaps.append(sm_val)
+                    elif lower.startswith("user-agent:"):
                         ua = line.split(":", 1)[1].strip().lower()
                         current_agents.append(ua)
                         if ua not in blocks:
@@ -240,68 +305,49 @@ def audit_robots(base_url: str, session: requests.Session) -> dict:
                         for ua in current_agents:
                             blocks.setdefault(ua, []).append(("allow", path))
 
-                # ── Collect all rules that apply to * (merge multiple * blocks) ─
                 wildcard_rules = blocks.get("*", [])
-
-                # ── Check if root is effectively blocked for * ─────────────────
-                # CRITICAL RULE: We only flag as blocked when there is a LITERAL
-                # "Disallow: /" (path exactly equals "/") under User-agent: *.
-                #
-                # "Disallow: /wp-admin/" — a specific path — is NOT a root block.
-                # "Disallow:" (empty path) — means "allow everything" per RFC — NOT a block.
-                # Only "Disallow: /" with no "Allow: /" override is catastrophic.
-                disallow_root = any(
-                    directive == "disallow" and path == "/"
-                    for directive, path in wildcard_rules
-                )
-                allow_root = any(
-                    directive == "allow" and path in ("/", "")
-                    for directive, path in wildcard_rules
-                )
+                disallow_root = any(directive == "disallow" and path == "/" for directive, path in wildcard_rules)
+                allow_root = any(directive == "allow" and path in ("/", "") for directive, path in wildcard_rules)
 
                 if disallow_root and not allow_root:
                     return result_fail(
                         "robots.txt is BLOCKING all search engines from crawling the site!",
                         "Remove 'Disallow: /' under 'User-agent: *' immediately. "
                         "This is the #1 reason for disappearing from Google overnight.",
+                        detail=f"URL: {url} — Disallow: / active for User-agent: *",
+                        evidence=[{"url": url, "disallow_root": True}],
                     )
 
-                # ── Check if Googlebot is explicitly blocked ──────────────────
                 googlebot_rules = blocks.get("googlebot", [])
-                gb_disallow_root = any(
-                    directive == "disallow" and path == "/"
-                    for directive, path in googlebot_rules
-                )
-                gb_allow_root = any(
-                    directive == "allow" and path in ("/", "")
-                    for directive, path in googlebot_rules
-                )
+                gb_disallow_root = any(directive == "disallow" and path == "/" for directive, path in googlebot_rules)
+                gb_allow_root = any(directive == "allow" and path in ("/", "") for directive, path in googlebot_rules)
                 if gb_disallow_root and not gb_allow_root:
                     return result_fail(
                         "robots.txt explicitly blocks Googlebot from crawling the entire site!",
                         "Remove 'Disallow: /' under 'User-agent: Googlebot' immediately.",
+                        detail=f"URL: {url} — Disallow: / active for Googlebot",
+                        evidence=[{"url": url, "googlebot_blocked": True}],
                     )
 
-                # ── Multiple wildcard blocks? Warn (malformed but not critical) ─
-                star_block_count = sum(
-                    1 for line in lines
-                    if line.lower() == "user-agent: *"
-                )
+                star_block_count = sum(1 for line in lines if line.lower() == "user-agent: *")
+                trunc_note = " (truncated at byte limit)" if is_trunc else ""
+                sm_note = f" (Sitemap declared: {', '.join(declared_sitemaps)})" if declared_sitemaps else ""
+
                 if star_block_count > 1:
                     return result_pass(
                         "robots.txt found and allows crawling (multiple User-agent: * blocks detected).",
                         detail=(
-                            f"URL: {url} — "
+                            f"URL: {url}{trunc_note}{sm_note} — "
                             f"{star_block_count} separate User-agent: * blocks found. "
-                            "Consolidate into one block for cleaner robots.txt. "
-                            "Search engines merge them, but audit tools may misread this."
+                            "Consolidate into one block for cleaner robots.txt."
                         ),
+                        evidence=[{"url": url, "declared_sitemaps": declared_sitemaps}],
                     )
 
-                detail_str = f"URL: {url}" + (" (truncated at byte limit)" if is_trunc else "")
                 return result_pass(
                     "robots.txt found and allows crawling.",
-                    detail=detail_str,
+                    detail=f"URL: {url}{trunc_note}{sm_note}",
+                    evidence=[{"url": url, "declared_sitemaps": declared_sitemaps}],
                 )
 
             elif r.status_code == 404:
@@ -309,16 +355,29 @@ def audit_robots(base_url: str, session: requests.Session) -> dict:
                     "robots.txt not found (404).",
                     "Create a robots.txt at your domain root. Minimum content:\n"
                     "User-agent: *\nDisallow:\nSitemap: https://yourdomain.com/sitemap.xml",
+                    detail=f"URL: {url} returned HTTP 404.",
+                    evidence=[{"url": url, "status_code": 404}],
                 )
             else:
                 return result_warn(
                     f"robots.txt returned status {r.status_code}.",
-                    "Verify the file is accessible.",
+                    "Verify the file is accessible at the domain root.",
+                    detail=f"URL: {url} returned HTTP {r.status_code}.",
+                    evidence=[{"url": url, "status_code": r.status_code}],
                 )
+    except requests.exceptions.Timeout:
+        return result_warn(
+            "Could not fetch robots.txt: request timed out.",
+            "Ensure the server responds promptly to /robots.txt requests.",
+            detail=f"URL: {url} timed out.",
+            evidence=[{"url": url, "timeout": True}],
+        )
     except Exception as e:
         return result_warn(
             f"Could not fetch robots.txt: {e}",
             "Ensure the file exists at the domain root.",
+            detail=f"URL: {url} error: {e}",
+            evidence=[{"url": url, "error": str(e)}],
         )
 
 

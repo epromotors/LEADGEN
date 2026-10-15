@@ -11,33 +11,50 @@ from app.config import Settings
 from app.models import CampaignStatus, Base
 
 
-class StartupSchemaSafeguardTests(unittest.IsolatedAsyncioTestCase):
+def _run_coroutine(coro):
+    import asyncio
+    import concurrent.futures
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is not None and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
+
+
+class StartupSchemaSafeguardTests(unittest.TestCase):
     def test_default_init_schema_is_false(self):
         s = Settings(DATABASE_URL="postgresql+psycopg://dummy:dummy@127.0.0.1:5432/leadgen", JWT_SECRET="dummy" * 8)
         self.assertFalse(s.INIT_SCHEMA, "Default INIT_SCHEMA must be False")
 
-    async def test_create_tables_skipped_when_init_schema_false(self):
-        with patch.object(database.settings, "INIT_SCHEMA", False):
-            mock_engine = MagicMock()
-            with patch.object(database, "engine", mock_engine):
-                await database.create_tables()
-                mock_engine.begin.assert_not_called()
+    def test_create_tables_skipped_when_init_schema_false(self):
+        async def _run():
+            with patch.object(database.settings, "INIT_SCHEMA", False):
+                mock_engine = MagicMock()
+                with patch.object(database, "engine", mock_engine):
+                    await database.create_tables()
+                    mock_engine.begin.assert_not_called()
+        _run_coroutine(_run())
 
-    async def test_create_tables_executes_when_init_schema_true(self):
-        with patch.object(database.settings, "INIT_SCHEMA", True):
-            mock_conn = AsyncMock()
-            mock_ctx = MagicMock()
-            mock_ctx.__aenter__.return_value = mock_conn
-            mock_ctx.__aexit__.return_value = None
+    def test_create_tables_executes_when_init_schema_true(self):
+        async def _run():
+            with patch.object(database.settings, "INIT_SCHEMA", True):
+                mock_conn = AsyncMock()
+                mock_ctx = MagicMock()
+                mock_ctx.__aenter__.return_value = mock_conn
+                mock_ctx.__aexit__.return_value = None
 
-            mock_engine = MagicMock()
-            mock_engine.begin.return_value = mock_ctx
+                mock_engine = MagicMock()
+                mock_engine.begin.return_value = mock_ctx
 
-            with patch.object(database, "engine", mock_engine):
-                await database.create_tables()
-                mock_engine.begin.assert_called_once()
-                mock_conn.run_sync.assert_called_once_with(Base.metadata.create_all)
-                self.assertGreater(mock_conn.execute.call_count, 0)
+                with patch.object(database, "engine", mock_engine):
+                    await database.create_tables()
+                    mock_engine.begin.assert_called_once()
+                    mock_conn.run_sync.assert_called_once_with(Base.metadata.create_all)
+                    self.assertGreater(mock_conn.execute.call_count, 0)
+        _run_coroutine(_run())
 
 
 class CampaignStatusEnumOrderTests(unittest.TestCase):

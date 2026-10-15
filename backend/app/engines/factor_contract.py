@@ -32,6 +32,23 @@ def determine_lifecycle(*, homepage_ok: bool, crawl_status: str) -> str:
     return "COMPLETE"
 
 
+def resolve_priority(factor_id: str, status: str, score_weight: float = 0) -> str:
+    """Deterministic priority assignment: CRITICAL, HIGH, MEDIUM, LOW."""
+    if status == "FAIL":
+        if factor_id in {"technical.ssl", "technical.robots", "onpage.noindex", "indexability.noindex", "technical.mobile"}:
+            return "CRITICAL"
+        if score_weight >= 8 or factor_id in {"onpage.page_title", "onpage.h1", "technical.sitemap", "links.broken_links", "ux.cta"}:
+            return "HIGH"
+        if score_weight >= 5 or factor_id in {"onpage.schema", "local_seo.local_business_schema", "local_seo.nap_consistency"}:
+            return "MEDIUM"
+        return "LOW"
+    elif status == "WARN":
+        if score_weight >= 8 or factor_id in {"technical.robots", "technical.sitemap"}:
+            return "MEDIUM"
+        return "LOW"
+    return "LOW"
+
+
 @dataclass
 class FactorResult:
     id: str
@@ -139,10 +156,13 @@ def normalise_legacy_result(raw: dict[str, Any], factor: dict[str, Any], page_ur
     # never guessed from display text by persistence or scoring code.
     if value is None and value_type == "boolean" and status in {"PASS", "FAIL"}:
         value = status == "PASS"
+    severity = raw.get("severity") or factor.get("severity", "unclassified")
+    if severity == "unclassified" or not severity:
+        severity = resolve_priority(factor["id"], status, factor.get("score_weight", 0)).lower()
     return FactorResult(
         id=factor["id"], status=status, value=value, value_type=value_type,
         unit=raw.get("unit"), score=0, max_score=factor["score_weight"],
-        severity=factor.get("severity", "unclassified"), confidence=raw.get("confidence", 1.0),
+        severity=severity, confidence=raw.get("confidence", 1.0),
         message=raw.get("message", ""), evidence=raw.get("evidence", []),
         threshold=raw.get("threshold", {}), engine=factor.get("engine", "http_raw_dom"),
         page_url=page_url, duration_ms=duration_ms, error=raw.get("error"),

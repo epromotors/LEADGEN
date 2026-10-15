@@ -404,23 +404,23 @@ def audit_phone_number(soup) -> dict:
     if tel_links:
         number = tel_links[0].get("href", "").replace("tel:", "").strip()
         return result_pass(
-            f"Phone number found as clickable tel: link: {number}.",
+            f"Phone number found visible on page as clickable tel: link: {number}.",
             detail="Clickable phone links improve mobile UX and local SEO trust.",
         )
 
-    # Check footer and header text for phone patterns
-    for region in [soup.find("footer"), soup.find("header"), soup.find("body")]:
+    # Check footer, header, and body text for phone patterns
+    for region, name in [(soup.find("footer"), "footer"), (soup.find("header"), "header"), (soup.find("body"), "body")]:
         if region:
             text = region.get_text()
             m = _PHONE_PATTERNS.search(text)
             if m:
                 return result_pass(
-                    f"Phone number detected in page text: {m.group(0).strip()[:40]}.",
+                    f"Phone number detected visible on page in {name}: {m.group(0).strip()[:40]}.",
                     detail="Consider wrapping in a <a href='tel:...'>number</a> link for mobile users.",
                 )
 
     return result_warn(
-        "No phone number detected on the page.",
+        "No phone number detected visible on the page.",
         fix=(
             "Add a visible, clickable phone number. Use: <a href='tel:+1234567890'>+1 234 567 890</a>. "
             "Phone numbers are a key local SEO trust signal and improve conversion rates by 20–40%. "
@@ -431,55 +431,77 @@ def audit_phone_number(soup) -> dict:
 
 def audit_address_presence(soup) -> dict:
     """
-    Detect a physical address in footer or contact area.
+    Detect a physical address visible on the page in footer, contact area, or address tags.
+    Distinct from structured data checks.
 
-    SEO Impact: Medium — physical address improves local SEO authority and trust.
+    SEO Impact: Medium — visible physical address improves user trust and local SEO authority.
     Source: https://developers.google.com/search/docs/appearance/structured-data/local-business
     """
-    # Check for schema.org address in JSON-LD
-    import json as _json
-    for script in soup.find_all("script", type="application/ld+json"):
-        try:
-            data = _json.loads(script.get_text())
-            items = data.get("@graph", [data]) if isinstance(data, dict) else [data]
-            for item in items:
-                if isinstance(item, dict) and item.get("address"):
-                    addr = item["address"]
-                    if isinstance(addr, dict):
-                        street = addr.get("streetAddress", "")
-                        city   = addr.get("addressLocality", "")
-                        if street or city:
-                            return result_pass(
-                                f"Physical address found in JSON-LD schema: {street}, {city}.",
-                                detail="Structured address data improves Local Business rich results.",
-                            )
-                    elif isinstance(addr, str) and len(addr) > 5:
-                        return result_pass(
-                            f"Physical address found in JSON-LD schema.",
-                            detail=addr[:80],
-                        )
-        except Exception:
-            continue
+    from auditor.schema_utils import extract_json_ld_items
 
-    # Check footer for address keywords
+    # 1. Check for dedicated <address> tag
+    address_tag = soup.find("address")
+    if address_tag:
+        addr_text = " ".join(address_tag.get_text().split())
+        if len(addr_text) > 5:
+            return result_pass(
+                f"Physical address found visible on page in <address> tag: {addr_text[:60]}.",
+                detail="Semantic <address> tag improves accessibility and machine readability.",
+            )
+
+    # 2. Check footer and contact sections for address patterns
     footer = soup.find("footer")
     if footer:
         footer_text = footer.get_text()
-        if _ADDRESS_KEYWORDS.search(footer_text):
-            return result_pass(
-                "Physical address keywords detected in footer.",
-                detail="Consider also adding LocalBusiness JSON-LD schema with your address.",
-            )
-        # Check for address-like patterns: number + word (e.g., "123 Main St")
-        addr_m = re.search(r"\b\d{1,5}\s+[A-Z][a-z]+\s+(?:St|Ave|Rd|Lane|Dr|Blvd|Street|Road|Drive)\b", footer_text)
+        addr_m = re.search(r"\b\d{1,5}\s+[A-Z][a-z0-9\.\-]+\s+(?:St|Ave|Rd|Lane|Dr|Blvd|Street|Road|Drive|Way|Circle|Highway|Marg|Nagar|Road)\b", footer_text, re.IGNORECASE)
         if addr_m:
             return result_pass(
-                f"Street address detected in footer: {addr_m.group(0)}.",
-                detail="Wrap in LocalBusiness JSON-LD schema for maximum local SEO benefit.",
+                f"Physical street address detected visible on page in footer: {addr_m.group(0)}.",
+                detail="Visible street address confirms physical business presence to visitors.",
+            )
+        if _ADDRESS_KEYWORDS.search(footer_text):
+            return result_pass(
+                "Physical address keywords detected visible on page in footer.",
+                detail="Footer text contains physical location indicators.",
             )
 
+    # 3. Check page body text for clear address line
+    body = soup.find("body")
+    if body:
+        body_text = body.get_text()
+        addr_m = re.search(r"\b\d{1,5}\s+[A-Z][a-z0-9\.\-]+\s+(?:St|Ave|Rd|Lane|Dr|Blvd|Street|Road|Drive|Way)\b", body_text, re.IGNORECASE)
+        if addr_m:
+            return result_pass(
+                f"Physical street address detected visible on page text: {addr_m.group(0)}.",
+                detail="Visible address in page text confirms physical location.",
+            )
+
+    # 4. If not found visible on page, check if present in JSON-LD only
+    items, _ = extract_json_ld_items(soup)
+    structured_address = None
+    for item in items:
+        if isinstance(item, dict) and item.get("address"):
+            addr = item["address"]
+            if isinstance(addr, dict):
+                parts = [str(v) for v in (addr.get("streetAddress"), addr.get("addressLocality"), addr.get("postalCode")) if v]
+                structured_address = ", ".join(parts)
+            elif isinstance(addr, str) and len(addr.strip()) > 5:
+                structured_address = addr.strip()
+            if structured_address:
+                break
+
+    if structured_address:
+        return result_warn(
+            "Physical address is present in structured data, but not detected visible on the page.",
+            fix=(
+                "Add your physical address visibly in the footer or contact section so visitors can see it. "
+                "Google requires structured data content to be visible to human users."
+            ),
+            detail=f"Found in JSON-LD only: {structured_address[:60]}",
+        )
+
     return result_warn(
-        "No physical address detected on the page.",
+        "No physical address detected visible on the page.",
         fix=(
             "Add your physical address to the footer and wrap it in LocalBusiness JSON-LD schema. "
             "Format: <script type='application/ld+json'>{'@type':'LocalBusiness','address':{'streetAddress':'...'}}</script>. "

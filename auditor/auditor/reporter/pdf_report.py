@@ -85,6 +85,9 @@ def _styles():
 
     # Priority table
     ps("pri_critical",  fontName="Helvetica-Bold",  fontSize=8.5, textColor=_c(0.7,0.05,0.05), leading=12, alignment=TA_CENTER)
+    ps("pri_high",      fontName="Helvetica-Bold",  fontSize=8.5, textColor=_c(0.85,0.3,0.05), leading=12, alignment=TA_CENTER)
+    ps("pri_medium",    fontName="Helvetica-Bold",  fontSize=8.5, textColor=_c(0.7,0.5,0.0),   leading=12, alignment=TA_CENTER)
+    ps("pri_low",       fontName="Helvetica-Bold",  fontSize=8.5, textColor=_c(0.2,0.4,0.7),   leading=12, alignment=TA_CENTER)
     ps("pri_review",    fontName="Helvetica-Bold",  fontSize=8.5, textColor=_c(0.6,0.45,0.0),  leading=12, alignment=TA_CENTER)
     ps("pri_msg",       fontName="Helvetica",       fontSize=8.5, textColor=_c(0.15,0.15,0.22), leading=13)
     ps("pri_group",     fontName="Helvetica",       fontSize=8.5, textColor=_c(0.35,0.35,0.45), leading=13, alignment=TA_CENTER)
@@ -150,19 +153,30 @@ def _trunc(text: str, n: int) -> str:
 
 
 # ── Cover page ────────────────────────────────────────────────────────────────
-def _cover(url, report_date, score, agency, styles):
+def _cover(url, report_date, score, agency, styles, url_info=None):
     band_label = next((l for lo,hi,l,_ in SCORE_BANDS if lo <= score < hi), "")
     score_bg = C_DANGER if score < 40 else (C_WARN if score < 65 else (C_ACCENT if score < 85 else C_PASS))
+
+    req_url = (url_info.get("requested_url") if url_info else None) or url
+    final_url = url_info.get("final_url") if url_info else None
+    canonical_url = url_info.get("canonical_url") if url_info else None
+    is_redirected = bool(url_info.get("is_redirected") if url_info else False)
 
     # Full-width dark background block
     cover_rows = [
         [Paragraph("SEO PERFORMANCE AUDIT", styles["cov_eyebrow"])],
         [Paragraph("Website Analysis Report", styles["cov_title"])],
         [Spacer(1, 4*mm)],
-        [Paragraph(_safe(url), styles["cov_url"])],
+        [Paragraph(_safe(req_url), styles["cov_url"])],
+    ]
+    if is_redirected and final_url and final_url != req_url:
+        cover_rows.append([Paragraph(f"Redirected to: {_safe(final_url)}", styles["cov_meta"])])
+    if canonical_url and canonical_url != req_url and canonical_url != final_url:
+        cover_rows.append([Paragraph(f"Declared Canonical: {_safe(canonical_url)}", styles["cov_meta"])])
+    cover_rows.extend([
         [Paragraph(f"Prepared by {agency}", styles["cov_meta"])],
         [Paragraph(report_date, styles["cov_meta"])],
-    ]
+    ])
     bg_table = Table(cover_rows, colWidths=[CONTENT_W])
     bg_table.setStyle(TableStyle([
         ("BACKGROUND",    (0,0), (-1,-1), C_DARK),
@@ -519,6 +533,26 @@ def _page_detail_table(page_audits, base_url, styles):
     return [t, Spacer(1, 5*mm)]
 
 
+def _resolve_priority_label(factor_id: str, status: str, result: dict) -> str:
+    sev = str(result.get("severity") or "").upper()
+    if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+        return sev
+    fid = result.get("id") or factor_id
+    if status == "FAIL":
+        if fid in ("technical.ssl", "technical.robots", "onpage.noindex", "indexability.noindex", "technical.mobile"):
+            return "CRITICAL"
+        if fid in ("onpage.page_title", "onpage.h1", "technical.sitemap", "links.broken_links", "ux.cta", "indexability.soft_404"):
+            return "HIGH"
+        if fid in ("technical.favicon", "images.lazy_load", "conversion.social", "conversion.whatsapp", "content.reading_level"):
+            return "LOW"
+        return "MEDIUM"
+    elif status == "WARN":
+        if fid in ("technical.robots", "technical.sitemap"):
+            return "MEDIUM"
+        return "LOW"
+    return "REVIEW"
+
+
 # ── Priority action plan ──────────────────────────────────────────────────────
 def _priority_table(audit_results, styles):
     header = [
@@ -535,10 +569,11 @@ def _priority_table(audit_results, styles):
                 if result.get("status") == level:
                     msg    = _safe(_trunc(result.get("message", test_id), 130))
                     grp    = group_key.title()
-                    label  = PRIORITY_LABEL[level]
-                    bg_pri = _c(0.99,0.92,0.92) if level == "FAIL" else _c(1.0,0.97,0.87)
+                    label  = _resolve_priority_label(test_id, level, result)
+                    style_key = f"pri_{label.lower()}"
+                    pri_style = styles.get(style_key, styles.get("pri_review", styles["th"]))
                     rows.append([
-                        Paragraph(label,  styles["pri_critical"] if level=="FAIL" else styles["pri_review"]),
+                        Paragraph(label,  pri_style),
                         Paragraph(msg,    styles["pri_msg"]),
                         Paragraph(grp,    styles["pri_group"]),
                     ])
@@ -546,8 +581,15 @@ def _priority_table(audit_results, styles):
     # Colour priority column
     for i, row in enumerate(rows[1:], 1):
         lbl = row[0]
-        if "CRITICAL" in (lbl.text if hasattr(lbl,"text") else ""):
-            cmds.append(("BACKGROUND", (0,i), (0,i), _c(0.99,0.93,0.93)))
+        txt = getattr(lbl, "text", "") or ""
+        if "CRITICAL" in txt:
+            cmds.append(("BACKGROUND", (0,i), (0,i), _c(0.99,0.92,0.92)))
+        elif "HIGH" in txt:
+            cmds.append(("BACKGROUND", (0,i), (0,i), _c(1.0,0.94,0.90)))
+        elif "MEDIUM" in txt:
+            cmds.append(("BACKGROUND", (0,i), (0,i), _c(1.0,0.98,0.90)))
+        elif "LOW" in txt:
+            cmds.append(("BACKGROUND", (0,i), (0,i), _c(0.93,0.96,1.0)))
         else:
             cmds.append(("BACKGROUND", (0,i), (0,i), _c(1.0,0.97,0.87)))
 
@@ -577,26 +619,30 @@ def build_pdf(
     output_path: str,
     site_summary: dict = None,
     page_audits: list = None,
+    url_info: dict = None,
 ):
     styles = _styles()
     report_date = datetime.datetime.now().strftime("%B %d, %Y")
     agency = BRANDING.get("agency_name", "SEO Audit Engine")
+
+    effective_url_info = url_info or (site_summary.get("url_info") if site_summary else None)
+    header_url = (effective_url_info.get("requested_url") if effective_url_info else None) or url
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=20*mm, bottomMargin=15*mm,
-        title=f"SEO Audit — {url}",
+        title=f"SEO Audit — {header_url}",
         author=agency,
         subject="SEO Audit Report",
     )
 
     story = []
-    chrome = _page_chrome(url, report_date, agency)
+    chrome = _page_chrome(header_url, report_date, agency)
 
     # ─── Page 1: Cover ────────────────────────────────────────────────────────
-    story += _cover(url, report_date, score, agency, styles)
+    story += _cover(header_url, report_date, score, agency, styles, url_info=effective_url_info)
 
     # ─── Page 1 cont: Executive Summary ───────────────────────────────────────
     story += _section("Executive Summary", styles)

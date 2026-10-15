@@ -38,18 +38,11 @@ def audit_nap_consistency(soup) -> dict:
         text, re.IGNORECASE,
     ))
 
-    # Check schema for name
-    has_name_schema = False
-    for script in soup.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(script.get_text())
-            items = data.get("@graph", [data]) if isinstance(data, dict) else [data]
-            for item in items:
-                if isinstance(item, dict) and item.get("name"):
-                    has_name_schema = True
-                    break
-        except Exception:
-            continue
+    # Check schema for name using shared extractor
+    from auditor.schema_utils import extract_json_ld_items, is_local_business_item, check_local_business_fields, get_item_types
+
+    items, _ = extract_json_ld_items(soup)
+    has_name_schema = any(bool(item.get("name") or item.get("legalName")) for item in items if isinstance(item, dict))
 
     missing = []
     if not has_phone:   missing.append("Phone")
@@ -77,40 +70,60 @@ def audit_local_business_schema(soup) -> dict:
     SEO Impact: High
     Source: https://schema.org/LocalBusiness
     """
-    _LOCAL_TYPES = {
-        "localbusiness", "restaurant", "store", "medicalclinic", "dentist",
-        "hotel", "gym", "spaorsalonorbarbershop", "automotivebusiness",
-        "organization", "corporation", "professionalservice",
-    }
+    from auditor.schema_utils import (
+        extract_json_ld_items,
+        is_local_business_item,
+        check_local_business_fields,
+        get_item_types,
+    )
 
-    for script in soup.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(script.get_text())
-            items = data.get("@graph", [data]) if isinstance(data, dict) else [data]
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                item_type = str(item.get("@type", "")).lower()
-                if item_type in _LOCAL_TYPES:
-                    has_address = bool(item.get("address"))
-                    has_phone   = bool(item.get("telephone"))
-                    has_url     = bool(item.get("url"))
-                    missing_fields = []
-                    if not has_address: missing_fields.append("address")
-                    if not has_phone:   missing_fields.append("telephone")
-                    if missing_fields:
-                        return result_warn(
-                            f"LocalBusiness schema found ({item.get('@type')}) but missing: {', '.join(missing_fields)}.",
-                            f"Add {', '.join(missing_fields)} to your LocalBusiness schema. "
-                            "Complete schema with address+phone improves local pack visibility.",
-                            f"@type: {item.get('@type')}",
-                        )
-                    return result_pass(
-                        f"LocalBusiness schema found with address and phone: @type={item.get('@type')}.",
-                        detail="Validate at: https://search.google.com/test/rich-results",
-                    )
-        except Exception:
+    items, syntax_errors = extract_json_ld_items(soup)
+
+    best_warn = None
+    all_types: list[str] = []
+
+    for item in items:
+        if not isinstance(item, dict):
             continue
+        types = get_item_types(item)
+        for t in types:
+            if t not in all_types:
+                all_types.append(t)
+
+        is_match, matched_type = is_local_business_item(item)
+        if is_match:
+            fields = check_local_business_fields(item)
+            missing_fields = []
+            if not fields["has_address"]:
+                missing_fields.append("address")
+            if not fields["has_phone"]:
+                missing_fields.append("telephone")
+
+            if missing_fields:
+                best_warn = result_warn(
+                    f"LocalBusiness schema found ({matched_type}) but missing: {', '.join(missing_fields)}.",
+                    f"Add {', '.join(missing_fields)} to your LocalBusiness schema. "
+                    "Complete schema with address+phone improves local pack visibility.",
+                    f"@type: {matched_type}",
+                )
+            else:
+                return result_pass(
+                    f"LocalBusiness schema found with address and phone: @type={matched_type}.",
+                    detail="Validate at: https://search.google.com/test/rich-results",
+                )
+
+    if best_warn:
+        return best_warn
+
+    if all_types:
+        types_str = ", ".join(all_types)
+        return result_fail(
+            f"No LocalBusiness or Organization JSON-LD schema found (detected schemas: {types_str}).",
+            "Add LocalBusiness structured data with name, address, telephone, and url. "
+            "This is essential for appearing in Google's local pack and maps. "
+            "Use: https://technicalseo.com/tools/schema-markup-generator/",
+            detail=f"Detected other schemas: {types_str}",
+        )
 
     return result_fail(
         "No LocalBusiness or Organization JSON-LD schema found.",

@@ -72,14 +72,21 @@ def normalise(url: str, base_url: str) -> str | None:
 # ── Sitemap parser ────────────────────────────────────────────────────────────
 
 def _parse_sitemap_xml(content: str, base_url: str) -> tuple[list[str], list[str]]:
+    """Parse sitemap XML content, strictly ignoring HTML error documents."""
     page_urls = []
     child_sitemaps = []
+    content_stripped = (content or "").strip()
+    if not content_stripped or content_stripped.lower().startswith(("<!doctype html", "<html")):
+        return page_urls, child_sitemaps
+
     try:
-        root = ET.fromstring(content)
+        root = ET.fromstring(content_stripped)
         ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
         root_name = root.tag.rsplit("}", 1)[-1].lower()
-        # sitemap index → recurse (just grab locs, don't follow sub-sitemaps here)
-        for loc in root.findall(".//sm:loc", ns):
+        if root_name not in ("urlset", "sitemapindex"):
+            return page_urls, child_sitemaps
+
+        for loc in root.findall(".//sm:loc", ns) or root.findall(".//loc"):
             text = (loc.text or "").strip()
             if text:
                 if root_name == "sitemapindex" or text.lower().endswith(".xml"):
@@ -92,23 +99,46 @@ def _parse_sitemap_xml(content: str, base_url: str) -> tuple[list[str], list[str
 
 
 def discover_via_sitemap(base_url: str, session) -> list[str]:
-    """Return all URLs from sitemap.xml (or sitemap index)."""
-    parsed_base = urllib.parse.urlparse(base_url)
-    root_base = f"{parsed_base.scheme}://{parsed_base.netloc}"
-    candidates = [
-        f"{root_base}/sitemap.xml",
-        f"{root_base}/sitemap_index.xml",
-    ]
-    # Also check robots.txt for Sitemap directive
+    """
+    Return all URLs from sitemap.xml (or sitemap index).
+    Site origin is derived from base_url so robots.txt and sitemaps are probed at domain root.
+    Site-wide crawl policy: Traverses same-origin paths across the domain, not constrained to subpaths.
+    """
+    from auditor.core import get_origin
+    root_base = get_origin(base_url)
+
+    candidates: list[str] = []
+
+    # Check robots.txt for Sitemap directives first
     try:
-        r = session.get(f"{root_base}/robots.txt", timeout=TIMEOUT)
-        for line in r.text.splitlines():
-            if line.lower().startswith("sitemap:"):
-                sm_url = line.split(":", 1)[1].strip()
-                if sm_url not in candidates:
-                    candidates.insert(0, sm_url)
+        with session.get(f"{root_base}/robots.txt", timeout=min(TIMEOUT, 5), stream=True) as r:
+            if r.status_code == 200:
+                ctype = r.headers.get("Content-Type", "").lower()
+                r_text = read_response_text(r, max_bytes=512 * 1024, max_elapsed=min(TIMEOUT, 5))
+                if "text/html" not in ctype and not r_text.strip().lower().startswith(("<!doctype html", "<html")):
+                    for line in r_text.splitlines():
+                        if line.lower().startswith("sitemap:"):
+                            raw_val = line.split(":", 1)[1].strip()
+                            if raw_val:
+                                resolved = urllib.parse.urljoin(root_base, raw_val)
+                                parsed_s = urllib.parse.urlparse(resolved)
+                                if parsed_s.scheme in ("http", "https") and resolved not in candidates:
+                                    candidates.append(resolved)
     except Exception:
         pass
+
+    # Common root fallbacks
+    common_fallbacks = [
+        f"{root_base}/sitemap_index.xml",
+        f"{root_base}/sitemap.xml",
+        f"{root_base}/sitemap-index.xml",
+        f"{root_base}/wp-sitemap.xml",
+        f"{root_base}/post-sitemap.xml",
+        f"{root_base}/page-sitemap.xml",
+    ]
+    for fallback in common_fallbacks:
+        if fallback not in candidates:
+            candidates.append(fallback)
 
     domain = get_domain(base_url)
     seen_sitemaps = set()
@@ -123,6 +153,9 @@ def discover_via_sitemap(base_url: str, session) -> list[str]:
         try:
             with session.get(sm_url, timeout=min(TIMEOUT, 6), stream=True) as r:
                 if r.status_code != 200:
+                    return False
+                ctype = r.headers.get("Content-Type", "").lower()
+                if "text/html" in ctype:
                     return False
                 xml_text = read_response_text(r, max_bytes=2 * 1024 * 1024, max_elapsed=min(TIMEOUT, 6))
             if getattr(xml_text, "is_truncated", False):
@@ -139,8 +172,9 @@ def discover_via_sitemap(base_url: str, session) -> list[str]:
             for child in child_sitemaps:
                 if len(seen_sitemaps) >= MAX_SITEMAPS_TO_FETCH or len(all_urls) >= MAX_SITEMAP_URLS:
                     break
-                if is_internal(child, domain):
-                    crawl_sitemap(child, depth + 1)
+                resolved_child = urllib.parse.urljoin(root_base, child)
+                if is_internal(resolved_child, domain):
+                    crawl_sitemap(resolved_child, depth + 1)
             return bool(urls or child_sitemaps)
         except Exception:
             return False

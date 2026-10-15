@@ -236,10 +236,37 @@ def make_session() -> requests.Session:
 
 
 def normalize_url(url: str) -> str:
+    """
+    Deterministic normalization:
+    - Strips leading/trailing whitespace
+    - Ensures scheme (defaults to https://)
+    - Lowercases scheme and hostname
+    - Normalizes path and trailing slashes deterministically
+    - Preserves query parameters, strips fragment
+    """
+    if not url:
+        return ""
     url = url.strip()
-    if not url.startswith(("http://", "https://")):
+    if not url.lower().startswith(("http://", "https://")):
         url = "https://" + url
-    return url.rstrip("/")
+    parsed = urllib.parse.urlsplit(url)
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+    path = parsed.path
+    if path != "/" and path.endswith("/"):
+        path = path.rstrip("/")
+    elif not path:
+        path = ""
+    query = parsed.query
+    normalized = urllib.parse.urlunsplit((scheme, netloc, path, query, ""))
+    return normalized.rstrip("/") if (not path or path == "/") else normalized
+
+
+def get_origin(url: str) -> str:
+    """Extract standard http(s)://hostname[:port] origin from any page or subpath URL."""
+    norm = normalize_url(url)
+    parsed = urllib.parse.urlsplit(norm)
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def get_domain(url: str) -> str:
@@ -250,11 +277,12 @@ def get_domain(url: str) -> str:
 def fetch_page(url: str, session: requests.Session) -> dict:
     """
     Fetch a URL and return rich response metadata.
-    Returns dict with keys: ok, url, final_url, status_code,
+    Returns dict with keys: ok, url, final_url, is_redirected, redirect_url, status_code,
                             html, soup, headers, error, truncated
     """
     result = {
         "ok": False, "url": url, "final_url": url,
+        "is_redirected": False, "redirect_url": None,
         "status_code": None, "html": "", "soup": None,
         "headers": {}, "error": None, "truncated": False,
     }
@@ -262,6 +290,8 @@ def fetch_page(url: str, session: requests.Session) -> dict:
         with session.get(url, timeout=TIMEOUT, allow_redirects=True, verify=False, stream=True) as resp:
             result["ok"] = True
             result["final_url"] = resp.url
+            result["is_redirected"] = normalize_url(url) != normalize_url(resp.url)
+            result["redirect_url"] = resp.url if result["is_redirected"] else None
             result["status_code"] = resp.status_code
             html_text = read_response_text(resp, max_bytes=MAX_BODY_BYTES, max_elapsed=MAX_READ_TIME)
             result["html"] = html_text
