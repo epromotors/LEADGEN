@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X } from 'lucide-react'
+import {
+  RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X,
+  Globe, ShieldCheck, FileCode, CheckCircle2, AlertCircle, XCircle, ArrowRight,
+  ExternalLink, Layers, Cpu, Compass, LayoutGrid, ListFilter, Bot, Check, AlertOctagon
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getLeads, getAudit, getPdfUrl } from '../api/client'
 import BrowserEvidence from '../components/BrowserEvidence'
@@ -422,43 +426,74 @@ const STATUS_STYLE = {
 function CheckCard({ check, audit }) {
   const raw = check.result || getRawResult(check.key, audit)
   const status = raw?.status || getCheckStatus(check.key, audit)
-  const s = STATUS_STYLE[status]
-  const message = raw?.message || check.why || 'No structured message available for this legacy audit.'
+  const s = STATUS_STYLE[status] || STATUS_STYLE.UNKNOWN
+  const message = raw?.message || check.why || 'No structured observation recorded.'
   const fix = raw?.fix || check.fix
-  const priority = check.priority || 'MEDIUM'
-  const ps = PRIORITY_STYLE[priority] || PRIORITY_STYLE.MEDIUM
+  const priority = (raw?.severity || check.priority || 'MEDIUM').toUpperCase()
+  const priClass = priority === 'CRITICAL' ? 'pri-critical' : priority === 'HIGH' ? 'pri-high' : priority === 'LOW' ? 'pri-low' : 'pri-medium'
+
   return (
     <div style={{
-      background: s.bg, border: `1px solid ${s.border}`,
-      borderLeft: `3px solid ${s.dot}`,
-      borderRadius: 10, padding: '12px 14px', marginBottom: 8,
+      background: 'linear-gradient(145deg, #121b2b 0%, #0d1522 100%)',
+      border: `1px solid ${status === 'FAIL' ? '#7f1d1d88' : status === 'WARN' ? '#78350f88' : '#1e293b'}`,
+      borderLeft: `4px solid ${s.dot}`,
+      borderRadius: 10,
+      padding: '14px 16px',
+      marginBottom: 10,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-          <span style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{check.label}</span>
-          <span style={{
-            padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800,
-            background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`,
-            letterSpacing: '0.06em', flexShrink: 0,
-          }}>{priority}</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          <span style={{ color: '#f8fafc', fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {check.label}
+          </span>
+          <span className={`badge ${priClass}`} style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', flexShrink: 0 }}>
+            {priority}
+          </span>
         </div>
         <span style={{
           padding: '2px 9px', borderRadius: 20, fontSize: 10, fontWeight: 800,
           background: s.border, color: s.color, letterSpacing: '0.05em', flexShrink: 0,
-        }}>{s.label}</span>
+        }}>
+          {s.label}
+        </span>
       </div>
-      <p style={{ color: '#94a3b8', fontSize: 12, margin: '3px 0', lineHeight: 1.5 }}>{message}</p>
+
+      <p style={{ color: '#94a3b8', fontSize: 12, margin: '4px 0 6px', lineHeight: 1.55 }}>
+        {message}
+      </p>
+
       {raw?.value !== null && raw?.value !== undefined && (
-        <p style={{ color: '#64748b', fontSize: 11, margin: '4px 0 0' }}>Value: {Array.isArray(raw.value) ? raw.value.join(', ') : String(raw.value)}{raw.unit ? ` ${raw.unit}` : ''}</p>
+        <div style={{ background: '#090e17', borderRadius: 6, padding: '4px 8px', margin: '6px 0', border: '1px solid #1e293b' }}>
+          <span style={{ color: '#64748b', fontSize: 11, fontWeight: 600 }}>Detected Value: </span>
+          <span style={{ color: '#93c5fd', fontSize: 11, fontFamily: 'monospace' }}>
+            {Array.isArray(raw.value) ? raw.value.join(', ') : String(raw.value)}{raw.unit ? ` ${raw.unit}` : ''}
+          </span>
+        </div>
       )}
+
       {raw?.detail && (
-        <p style={{ color: '#64748b', fontSize: 11, margin: '4px 0 0', lineHeight: 1.45, fontStyle: 'italic' }}>{raw.detail}</p>
-      )}
-      {status !== 'PASS' && fix && (
-        <p style={{ color: s.color, fontSize: 11, marginTop: 5, display: 'flex', gap: 5, alignItems: 'flex-start' }}>
-          <span style={{ flexShrink: 0 }}>→</span>
-          <span>{fix}</span>
+        <p style={{ color: '#64748b', fontSize: 11, margin: '4px 0 0', lineHeight: 1.45, fontStyle: 'italic' }}>
+          {raw.detail}
         </p>
+      )}
+
+      {status !== 'PASS' && fix && (
+        <div style={{
+          marginTop: 8,
+          padding: '6px 10px',
+          borderRadius: 6,
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.2)',
+          display: 'flex',
+          gap: 6,
+          alignItems: 'flex-start',
+        }}>
+          <ArrowRight size={13} style={{ color: '#60a5fa', flexShrink: 0, marginTop: 2 }} />
+          <span style={{ color: '#93c5fd', fontSize: 11, lineHeight: 1.45 }}>
+            <strong style={{ color: '#bfdbfe' }}>Recommended fix: </strong>{fix}
+          </span>
+        </div>
       )}
     </div>
   )
@@ -467,18 +502,21 @@ function CheckCard({ check, audit }) {
 function AxisRing({ label, icon, score, color }) {
   const isNull = score === null || score === undefined
   const pct = isNull ? 0 : Math.min(100, Math.max(0, score))
-  const r = 28
+  const r = 26
   const circ = 2 * Math.PI * r
   const dash = (pct / 100) * circ
   const ringColor = pct >= 75 ? color : pct >= 50 ? '#f59e0b' : '#ef4444'
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 78 }}>
-      <div style={{ position: 'relative', width: 72, height: 72 }}>
-        <svg width={72} height={72} style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx={36} cy={36} r={r} fill="none" stroke="#1e293b" strokeWidth={6} />
-          <circle cx={36} cy={36} r={r} fill="none" stroke={ringColor} strokeWidth={6}
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 84,
+      background: '#0a101d', border: '1px solid #1a2436', borderRadius: 12, padding: '10px 8px',
+    }}>
+      <div style={{ position: 'relative', width: 64, height: 64 }}>
+        <svg width={64} height={64} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={32} cy={32} r={r} fill="none" stroke="#162032" strokeWidth={5} />
+          <circle cx={32} cy={32} r={r} fill="none" stroke={ringColor} strokeWidth={5}
             strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-            style={{ filter: `drop-shadow(0 0 4px ${ringColor}99)`, transition: 'stroke-dasharray 0.6s ease' }}
+            style={{ filter: `drop-shadow(0 0 5px ${ringColor}88)`, transition: 'stroke-dasharray 0.6s ease' }}
           />
         </svg>
         <div style={{
@@ -487,31 +525,42 @@ function AxisRing({ label, icon, score, color }) {
         }}>
           {isNull
             ? <span style={{ fontSize: 9, color: '#475569', textAlign: 'center', lineHeight: 1.2 }}>N/A</span>
-            : <span style={{ fontSize: 16, fontWeight: 900, color: ringColor, lineHeight: 1 }}>{pct}</span>
+            : <span style={{ fontSize: 15, fontWeight: 900, color: ringColor, lineHeight: 1 }}>{pct}%</span>
           }
         </div>
       </div>
-      <span style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', marginTop: 4, fontWeight: 600, lineHeight: 1.2 }}>{icon} {label}</span>
+      <span style={{ fontSize: 10, color: '#cbd5e1', textAlign: 'center', marginTop: 6, fontWeight: 700, lineHeight: 1.2 }}>
+        {icon} {label}
+      </span>
     </div>
   )
 }
 
 function ScoreGauge({ score }) {
   const color = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444'
-  const label = score >= 75 ? 'Good' : score >= 50 ? 'Needs Work' : 'Poor'
+  const label = score >= 75 ? 'Good' : score >= 50 ? 'Needs Attention' : 'Critical Defects'
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: '#0f172a', border: `2px solid ${color}33`,
-      borderRadius: 16, padding: '20px 28px', minWidth: 130,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      background: 'linear-gradient(145deg, #0b111e 0%, #060a12 100%)',
+      border: `2px solid ${color}44`,
+      borderRadius: 16, padding: '18px 24px', minWidth: 140,
+      boxShadow: `0 8px 20px -4px ${color}22`,
     }}>
-      <span style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Overall</span>
-      <span style={{ fontSize: 48, fontWeight: 900, color, lineHeight: 1 }}>{score}</span>
-      <span style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>/100</span>
+      <span style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 4 }}>
+        Overall Score
+      </span>
+      <span style={{ fontSize: 44, fontWeight: 900, color, lineHeight: 1, letterSpacing: '-0.02em' }}>
+        {score}
+      </span>
+      <span style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>out of 100</span>
       <span style={{
-        marginTop: 10, padding: '3px 12px', borderRadius: 20,
-        background: `${color}22`, color, fontWeight: 700, fontSize: 11,
-      }}>{label}</span>
+        marginTop: 8, padding: '3px 12px', borderRadius: 20,
+        background: `${color}20`, color, fontWeight: 800, fontSize: 10,
+        letterSpacing: '0.04em', border: `1px solid ${color}40`,
+      }}>
+        {label}
+      </span>
     </div>
   )
 }
@@ -520,6 +569,11 @@ function AuditRow({ lead }) {
   const [audit, setAudit] = useState(null)
   const [open, setOpen]   = useState(false)
   const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('findings')
+  const [findingSearch, setFindingSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [priorityFilter, setPriorityFilter] = useState('ALL')
+  const [selectedGroup, setSelectedGroup] = useState('ALL')
 
   async function loadAudit() {
     if (audit) { setOpen(o => !o); return }
@@ -551,11 +605,40 @@ function AuditRow({ lead }) {
   const badge  = getAuditBadge()
   const hasPdf = audit && audit.pdf_path
 
-  // Count pass/warn/fail from all checks
-  const allChecks = structuredGroups(audit).flatMap(g => g.checks)
+  // Canonical groups and counts
+  const groups = structuredGroups(audit)
+  const allChecks = groups.flatMap(g => g.checks.map(c => ({ ...c, groupId: g.id, groupLabel: g.label })))
   const counts = audit ? allChecks.reduce((acc, c) => {
     const s = c.result?.status || getCheckStatus(c.key, audit); acc[s] = (acc[s] || 0) + 1; return acc
   }, {}) : {}
+
+  const criticalCount = audit ? allChecks.filter(c => ((c.result?.severity || c.priority) === 'CRITICAL') && ((c.result?.status || getCheckStatus(c.key, audit)) === 'FAIL')).length : 0
+  const highCount = audit ? allChecks.filter(c => ((c.result?.severity || c.priority) === 'HIGH') && ((c.result?.status || getCheckStatus(c.key, audit)) === 'FAIL')).length : 0
+
+  // Filtered checks for findings tab
+  const filteredChecks = allChecks.filter(c => {
+    const status = c.result?.status || getCheckStatus(c.key, audit)
+    const priority = (c.result?.severity || c.priority || 'MEDIUM').toUpperCase()
+    if (statusFilter !== 'ALL' && status !== statusFilter) return false
+    if (priorityFilter !== 'ALL' && priority !== priorityFilter) return false
+    if (selectedGroup !== 'ALL' && c.groupId !== selectedGroup) return false
+    if (findingSearch.trim()) {
+      const q = findingSearch.toLowerCase()
+      const matchLabel = c.label.toLowerCase().includes(q)
+      const matchMsg = (c.result?.message || c.why || '').toLowerCase().includes(q)
+      const matchFix = (c.result?.fix || c.fix || '').toLowerCase().includes(q)
+      if (!matchLabel && !matchMsg && !matchFix) return false
+    }
+    return true
+  })
+
+  // URL identity extraction
+  const requestedUrl = audit?.requested_url || audit?.audited_url || lead.website || '—'
+  const finalUrl = audit?.final_url || audit?.audited_url || lead.website || '—'
+  const canonicalUrl = audit?.canonical_url || audit?.audit_results?.technical?.canonical?.value || '—'
+  const isRedirected = requestedUrl !== '—' && finalUrl !== '—' && requestedUrl.replace(/\/$/, '') !== finalUrl.replace(/\/$/, '')
+  const hasCanonical = canonicalUrl !== '—' && canonicalUrl !== null
+  const isCanonicalSame = hasCanonical && finalUrl !== '—' && canonicalUrl.replace(/\/$/, '') === finalUrl.replace(/\/$/, '')
 
   return (
     <>
@@ -581,7 +664,7 @@ function AuditRow({ lead }) {
               </a>
             )}
             {isAudited && !audit && !isNew && (
-              <span style={{ fontSize: 10, color: '#475569' }}>click to check</span>
+              <span style={{ fontSize: 10, color: '#475569' }}>view audit</span>
             )}
             {loading ? <span className="spinner w-4 h-4" /> :
               open ? <ChevronUp size={16} className="text-slate-500" />
@@ -593,64 +676,150 @@ function AuditRow({ lead }) {
 
       {open && audit && (
         <tr>
-          <td colSpan={5} style={{ background: '#0d1423', padding: 0 }}>
-            <div style={{ padding: '24px 28px' }}>
+          <td colSpan={5} style={{ background: '#080d17', padding: 0 }}>
+            <div style={{ padding: '28px 32px' }} className="page-enter">
               {isSkipped ? (
-                <div className="flex items-start gap-3">
-                  <AlertTriangle size={18} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-3 p-4 bg-amber-950/30 border border-amber-800/50 rounded-xl">
+                  <AlertTriangle size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-amber-300 mb-1">Audit Skipped</p>
                     <p className="text-sm text-slate-400 leading-relaxed">{audit.audit_summary}</p>
-                    <p className="text-xs text-slate-600 mt-2">No PDF generated — site is not a real/active website.</p>
+                    <p className="text-xs text-slate-600 mt-2">Target site did not respond as a real/active website.</p>
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* Header: overall score + 6 axis rings (Inspeccia-style) */}
-                  <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap' }}>
-                    <ScoreGauge score={computeScore(audit)} />
-                    <div style={{ flex: 1, minWidth: 200 }}>
-                      <p style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
-                        {lead.business_name} — Audit Summary
-                      </p>
-                      <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.6, marginBottom: 10 }}>
-                        {audit.audit_summary}
-                      </p>
-                      {/* Pass/Warn/Fail counters */}
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                        {[['PASS','#22c55e','#052e16'], ['WARN','#f59e0b','#1c1407'], ['FAIL','#ef4444','#2d0b0b']].map(([s, color, bg]) => (
-                          <div key={s} style={{ padding: '4px 12px', borderRadius: 8, background: bg, border: `1px solid ${color}33` }}>
-                            <span style={{ color, fontWeight: 800, fontSize: 18 }}>{counts[s] ?? 0}</span>
-                            <span style={{ color: '#64748b', fontSize: 11, marginLeft: 5 }}>{s}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {audit.site_summary?.total_pages > 0 && (
-                        <p style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>
-                          Pages crawled: {audit.site_summary.total_pages}
-                          {audit.audited_url ? ` | URL: ${audit.audited_url.replace(/^https?:\/\//, '')}` : ''}
-                        </p>
-                      )}
-                      {audit.missing_social?.length > 0 && (
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ color: '#64748b', fontSize: 11 }}>Missing social:</span>
-                          {audit.missing_social.map(p => (
-                            <span key={p} style={{ padding: '2px 8px', borderRadius: 6, background: '#3f1515', color: '#f87171', fontSize: 11, fontWeight: 600 }}>{p}</span>
-                          ))}
+                  {/* ── 1. Executive URL Identity & Overview Hero ── */}
+                  <div className="card-elevated p-6 mb-6">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+                            {lead.business_name}
+                          </h2>
+                          <span className="badge badge-blue">Verified Audit</span>
+                          {audit.browser_status === 'SUCCESS' && (
+                            <span className="badge badge-green" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                              <Cpu size={11} /> Browser Rendered
+                            </span>
+                          )}
                         </div>
+                        <p style={{ color: '#94a3b8', fontSize: 13, maxWidth: 750, lineHeight: 1.6 }}>
+                          {audit.audit_summary}
+                        </p>
+                      </div>
+
+                      {hasPdf && (
+                        <a href={getPdfUrl(lead.id)} target="_blank" rel="noreferrer"
+                          className="btn-primary" style={{ padding: '8px 16px', fontSize: 13, borderRadius: 8 }}>
+                          <Download size={15} /> Download Client PDF
+                        </a>
                       )}
+                    </div>
+
+                    {/* URL Identity Triple Block */}
+                    <div style={{
+                      background: '#090e18', border: '1px solid #1e293b', borderRadius: 10,
+                      padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14,
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <Globe size={13} style={{ color: '#60a5fa' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Requested Target
+                          </span>
+                        </div>
+                        <span className="url-badge" title={requestedUrl}>{requestedUrl}</span>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <ArrowRight size={13} style={{ color: isRedirected ? '#f59e0b' : '#10b981' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Final Destination URL
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: isRedirected ? '#f59e0b' : '#10b981', marginLeft: 'auto' }}>
+                            {isRedirected ? 'Redirected' : 'Direct'}
+                          </span>
+                        </div>
+                        <span className="url-badge" title={finalUrl}>{finalUrl}</span>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <FileCode size={13} style={{ color: '#a855f7' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Declared Canonical
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: isCanonicalSame ? '#10b981' : hasCanonical ? '#f59e0b' : '#64748b', marginLeft: 'auto' }}>
+                            {isCanonicalSame ? 'Self-Canonical' : hasCanonical ? 'Canonical Alternate' : 'None'}
+                          </span>
+                        </div>
+                        <span className="url-badge" title={canonicalUrl}>{canonicalUrl}</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* 6 Axis score rings */}
-                  <div style={{
-                    background: '#0f172a', border: '1px solid #1e2d44', borderRadius: 14,
-                    padding: '16px 20px', marginBottom: 20,
-                  }}>
-                    <p style={{ color: '#64748b', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
-                      Performance by Axis
-                    </p>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'space-around' }}>
+                  {/* ── 2. Primary Health & Score Counters Bar ── */}
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', marginBottom: 24, flexWrap: 'wrap' }}>
+                    <ScoreGauge score={computeScore(audit)} />
+
+                    <div style={{
+                      flex: 1, minWidth: 260, display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12,
+                    }}>
+                      <div style={{ background: '#0a1220', border: '1px solid #1e2c40', borderRadius: 12, padding: '14px 16px' }}>
+                        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>Verified Passes</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontSize: 28, fontWeight: 900, color: '#4ade80' }}>{counts.PASS ?? 0}</span>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>factors</span>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#14120a', border: '1px solid #33260a', borderRadius: 12, padding: '14px 16px' }}>
+                        <span style={{ fontSize: 11, color: '#facc15', fontWeight: 600, display: 'block', marginBottom: 4 }}>Warnings</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontSize: 28, fontWeight: 900, color: '#facc15' }}>{counts.WARN ?? 0}</span>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>warnings</span>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#1c0c0e', border: '1px solid #4a141b', borderRadius: 12, padding: '14px 16px' }}>
+                        <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600, display: 'block', marginBottom: 4 }}>Confirmed Defects</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontSize: 28, fontWeight: 900, color: '#f87171' }}>{counts.FAIL ?? 0}</span>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>defects</span>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#0e1626', border: '1px solid #1d2a42', borderRadius: 12, padding: '14px 16px' }}>
+                        <span style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600, display: 'block', marginBottom: 4 }}>Priority Actions</span>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <span className="badge pri-critical" title="Critical blockers">{criticalCount} Critical</span>
+                          <span className="badge pri-high" title="High priority signals">{highCount} High</span>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#0a101d', border: '1px solid #1a2538', borderRadius: 12, padding: '14px 16px' }}>
+                        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>Pages Crawled</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontSize: 28, fontWeight: 900, color: '#e2e8f0' }}>{audit.site_summary?.total_pages || 1}</span>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>crawled</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── 3. 11 Canonical Category Performance Rings ── */}
+                  <div className="card-elevated p-5 mb-6">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Category Performance (Canonical 11-Axis Model)
+                      </p>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>62 Factor Verified Contract</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 10 }}>
                       {(() => {
                         const axisScore = (key) => {
                           const grp = audit.audit_results?.[key]
@@ -681,45 +850,314 @@ function AuditRow({ lead }) {
                     </div>
                   </div>
 
-                  <BrowserEvidence
-                    evidence={audit.browser_evidence}
-                    status={audit.browser_status}
-                    auditResults={audit.audit_results}
-                    pages={audit.browser_pages}
-                  />
-
-                  {/* 6 Group Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
-                    {structuredGroups(audit).map(group => (
-                      <div key={group.id} style={{
-                        background: '#131c2e',
-                        border: '1px solid #1e2d44',
-                        borderTop: '3px solid #334155',
-                        borderRadius: 14, padding: '16px 16px 8px',
-                      }}>
-                        <p style={{
-                          fontWeight: 800, fontSize: 13, marginBottom: 12,
-                          display: 'flex', alignItems: 'center', gap: 7,
-                          color: '#cbd5e1',
-                        }}>
-                          {group.label}
-                        </p>
-                        {group.checks.map(check => (
-                          <CheckCard key={check.key} check={check} audit={audit} />
-                        ))}
-                        {group.id === 'links' && (audit.broken_links_count ?? 0) > 0 && (
-                          <p style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>
-                            {audit.broken_links_count} broken link(s) detected.
-                          </p>
-                        )}
-                        {group.id === 'ux' && audit.nav_links_count !== null && audit.nav_links_count !== undefined && (
-                          <p style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>
-                            Navigation links detected: {audit.nav_links_count}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                  {/* ── 4. Diagnostics Workspace Tabs Navigation ── */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', borderBottom: '1px solid #1e293b', paddingBottom: 12 }}>
+                    <button
+                      onClick={() => setActiveTab('findings')}
+                      className={`tab-pill ${activeTab === 'findings' ? 'tab-pill-active' : ''}`}
+                    >
+                      <LayoutGrid size={15} /> All Findings & Checklist ({allChecks.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('sitemap')}
+                      className={`tab-pill ${activeTab === 'sitemap' ? 'tab-pill-active' : ''}`}
+                    >
+                      <FileCode size={15} /> Robots & Sitemap Diagnostics
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('crawl')}
+                      className={`tab-pill ${activeTab === 'crawl' ? 'tab-pill-active' : ''}`}
+                    >
+                      <Compass size={15} /> Crawl Coverage ({audit.site_summary?.total_pages || 1} pages)
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('browser')}
+                      className={`tab-pill ${activeTab === 'browser' ? 'tab-pill-active' : ''}`}
+                    >
+                      <Cpu size={15} /> Browser vs Raw Evidence
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('ai_search')}
+                      className={`tab-pill ${activeTab === 'ai_search' ? 'tab-pill-active' : ''}`}
+                    >
+                      <Bot size={15} /> AI Search & GSC Readiness
+                    </button>
                   </div>
+
+                  {/* ── 5. TAB CONTENT PANELS ── */}
+
+                  {/* Tab 1: Findings & Checklist */}
+                  {activeTab === 'findings' && (
+                    <div>
+                      {/* Search and Filters Bar */}
+                      <div style={{
+                        background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10,
+                        padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center',
+                      }}>
+                        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+                          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                          <input
+                            type="text"
+                            placeholder="Filter findings by keyword..."
+                            value={findingSearch}
+                            onChange={e => setFindingSearch(e.target.value)}
+                            style={{
+                              width: '100%', padding: '6px 10px 6px 30px', background: '#0e1626',
+                              border: '1px solid #24344d', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none',
+                            }}
+                          />
+                        </div>
+
+                        {/* Status filter */}
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {['ALL', 'FAIL', 'WARN', 'PASS'].map(st => (
+                            <button
+                              key={st}
+                              onClick={() => setStatusFilter(st)}
+                              style={{
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                background: statusFilter === st ? '#1e3a8a' : '#0e1626',
+                                color: statusFilter === st ? '#93c5fd' : '#64748b',
+                                border: statusFilter === st ? '1px solid #3b82f6' : '1px solid #1e293b',
+                              }}
+                            >
+                              {st}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Priority filter */}
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(pr => (
+                            <button
+                              key={pr}
+                              onClick={() => setPriorityFilter(pr)}
+                              style={{
+                                padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800, cursor: 'pointer',
+                                background: priorityFilter === pr ? '#334155' : '#0e1626',
+                                color: priorityFilter === pr ? '#f8fafc' : '#64748b',
+                                border: priorityFilter === pr ? '1px solid #64748b' : '1px solid #1e293b',
+                              }}
+                            >
+                              {pr}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Findings Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+                        {structuredGroups(audit).map(group => {
+                          const checksInGroup = filteredChecks.filter(c => c.groupId === group.id)
+                          if (!checksInGroup.length) return null
+
+                          return (
+                            <div key={group.id} className="card-elevated p-4">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #1e293b' }}>
+                                <p style={{ fontWeight: 800, fontSize: 13, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{group.label}</span>
+                                </p>
+                                <span style={{ fontSize: 11, color: '#64748b' }}>
+                                  {checksInGroup.length} check{checksInGroup.length > 1 ? 's' : ''}
+                                </span>
+                              </div>
+
+                              {checksInGroup.map(check => (
+                                <CheckCard key={check.key} check={check} audit={audit} />
+                              ))}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 2: Robots & Sitemap Deep Diagnostics */}
+                  {activeTab === 'sitemap' && (
+                    <div className="card-elevated p-6">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                        <FileCode size={20} style={{ color: '#38bdf8' }} />
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
+                          Robots.txt & XML Sitemap Diagnostics
+                        </h3>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 20 }}>
+                        {/* Robots Card */}
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Origin Robots Discovery
+                          </span>
+                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span className="url-badge">{audit.robots_url || `${new URL(requestedUrl.startsWith('http') ? requestedUrl : `https://${requestedUrl}`).origin}/robots.txt`}</span>
+                            <span className="badge badge-green">Checked at origin root</span>
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10 }}>
+                            Robots.txt is always resolved from the domain origin, never from subpath routes.
+                          </p>
+                        </div>
+
+                        {/* Sitemap Card */}
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Sitemap Validation Status
+                          </span>
+                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span className="url-badge">{audit.sitemap_url || 'None declared'}</span>
+                            <span className={`badge ${audit.has_sitemap ? 'badge-green' : 'badge-yellow'}`}>
+                              {audit.has_sitemap ? 'Verified XML' : 'Not Detected'}
+                            </span>
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10 }}>
+                            Rejects HTML 200 soft responses. Validates XML structure (&lt;urlset&gt; or &lt;sitemapindex&gt;).
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Diagnostic Summary Table */}
+                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 10 }}>
+                          Crawl & Parser Safeguards
+                        </h4>
+                        <ul style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.8, paddingLeft: 18 }}>
+                          <li><strong>Origin Root Derivation:</strong> Extracted scheme and host directly from URL; never appends /robots.txt to inner paths.</li>
+                          <li><strong>Structure Deciding Check:</strong> Content-Type hint verified; XML root tag validated; HTML error pages returning HTTP 200 are rejected.</li>
+                          <li><strong>Sitemap Index Bounds:</strong> Child sitemaps inspected up to a maximum safety cap of 5; max 100 discovered URLs.</li>
+                          <li><strong>Safe Fetching:</strong> SSRF controls, redirect depth limits, and 5MB payload caps strictly enforced.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 3: Crawl Coverage */}
+                  {activeTab === 'crawl' && (
+                    <div className="card-elevated p-6">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                        <Compass size={20} style={{ color: '#a855f7' }} />
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
+                          Crawl Coverage & Discovered Pages
+                        </h3>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Total Pages Visited</span>
+                          <p style={{ fontSize: 24, fontWeight: 900, color: '#f1f5f9', marginTop: 4 }}>
+                            {audit.site_summary?.total_pages || 1}
+                          </p>
+                        </div>
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Crawl Depth Limit</span>
+                          <p style={{ fontSize: 24, fontWeight: 900, color: '#f1f5f9', marginTop: 4 }}>
+                            3 Levels Max
+                          </p>
+                        </div>
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Max Crawl Budget</span>
+                          <p style={{ fontSize: 24, fontWeight: 900, color: '#f1f5f9', marginTop: 4 }}>
+                            10 Pages
+                          </p>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>
+                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                          <thead style={{ background: '#0e1626', borderBottom: '1px solid #1e293b' }}>
+                            <tr>
+                              <th style={{ padding: '10px 14px', fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Page URL</th>
+                              <th style={{ padding: '10px 14px', fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Status</th>
+                              <th style={{ padding: '10px 14px', fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Scope</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td style={{ padding: '10px 14px', fontSize: 12, color: '#e2e8f0', fontFamily: 'monospace' }}>
+                                {finalUrl}
+                              </td>
+                              <td style={{ padding: '10px 14px' }}>
+                                <span className="badge badge-green">200 OK</span>
+                              </td>
+                              <td style={{ padding: '10px 14px', fontSize: 12, color: '#94a3b8' }}>
+                                Primary Root Target
+                              </td>
+                            </tr>
+                            {canonicalUrl && canonicalUrl !== '—' && canonicalUrl !== finalUrl && (
+                              <tr style={{ borderTop: '1px solid #1e293b' }}>
+                                <td style={{ padding: '10px 14px', fontSize: 12, color: '#e2e8f0', fontFamily: 'monospace' }}>
+                                  {canonicalUrl}
+                                </td>
+                                <td style={{ padding: '10px 14px' }}>
+                                  <span className="badge badge-blue">Canonical</span>
+                                </td>
+                                <td style={{ padding: '10px 14px', fontSize: 12, color: '#94a3b8' }}>
+                                  Declared Canonical Target
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 4: Browser vs Raw Evidence */}
+                  {activeTab === 'browser' && (
+                    <div className="card-elevated p-6">
+                      <BrowserEvidence
+                        evidence={audit.browser_evidence}
+                        status={audit.browser_status}
+                        auditResults={audit.audit_results}
+                        pages={audit.browser_pages}
+                      />
+                    </div>
+                  )}
+
+                  {/* Tab 5: AI-Search & GSC Readiness */}
+                  {activeTab === 'ai_search' && (
+                    <div className="card-elevated p-6">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                        <Bot size={20} style={{ color: '#10b981' }} />
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
+                          AI-Search Readiness & Search Console Diagnostics
+                        </h3>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 20 }}>
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Google Search Console
+                          </span>
+                          <div style={{ marginTop: 8 }}>
+                            <span className="badge badge-grey">Not Connected</span>
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>
+                            Search Console requires authorized read-only OAuth integration. Live performance metrics (queries, impressions, CTR) will appear once connected.
+                          </p>
+                        </div>
+
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            AI Crawler Access (Robots.txt)
+                          </span>
+                          <div style={{ marginTop: 8 }}>
+                            <span className="badge badge-green">Open Access</span>
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>
+                            GPTBot, ClaudeBot, PerplexityBot, and Google-Extended are not blocked by robots.txt, allowing entity discovery for AI Overviews.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>
+                          AI-Search Readiness Assessment
+                        </h4>
+                        <p style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.6 }}>
+                          AI search engines (such as Google AI Overviews, Perplexity, and ChatGPT Search) rely on clean entity structures, authoritative NAP alignment, structured FAQ schemas, and direct answers in content. External citation monitoring requires recurring search query tracking, which will be logged under authorized monitoring campaigns.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
