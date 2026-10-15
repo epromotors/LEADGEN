@@ -132,4 +132,17 @@ export const acceptCorrection    = (id)        => api.post(`/email-review/${id}/
 export const dismissCorrection   = (id)        => api.post(`/email-review/${id}/dismiss`)
 export const getEmailReviewStats = ()          => api.get('/email-review/stats')
 
+// ─── Proposals & Service Opportunities ─────────────────────────────────────
+export const getProposal     = (leadId) => api.get(`/proposals/${leadId}`)
+export const editProposal    = (leadId, data) => api.put(`/proposals/${leadId}`, data)
+export const approveProposal = (leadId, userEmail = 'operator@tebsolutions.in') =>
+  api.post(`/proposals/${leadId}/approve`, { user_email: userEmail })
+export const sendProposal    = (leadId, targetEmail, dryRun = true) =>
+  api.post(`/proposals/${leadId}/send`, { target_email: targetEmail, dry_run: dryRun })
+
+// ─── Search Console & AI Search ────────────────────────────────────────────
+export const getGscStatus      = () => api.get('/gsc/status')
+export const getAiSearchStatus = () => api.get('/ai-search/status')
+export const getAiReadiness    = (leadId) => api.get(`/ai-search/readiness/${leadId}`)
+
 export default api

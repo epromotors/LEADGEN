@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import {
   RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X,
   Globe, ShieldCheck, FileCode, CheckCircle2, AlertCircle, XCircle, ArrowRight,
-  ExternalLink, Layers, Cpu, Compass, LayoutGrid, ListFilter, Bot, Check, AlertOctagon
+  ExternalLink, Layers, Cpu, Compass, LayoutGrid, ListFilter, Bot, Check, AlertOctagon,
+  Send, CheckCheck, FileText
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getLeads, getAudit, getPdfUrl } from '../api/client'
+import { getLeads, getAudit, getPdfUrl, getProposal, approveProposal, sendProposal } from '../api/client'
 import BrowserEvidence from '../components/BrowserEvidence'
 
 // ── Audit check definitions: label, explanation, fix hint ─────────────────
@@ -575,6 +576,52 @@ function AuditRow({ lead }) {
   const [priorityFilter, setPriorityFilter] = useState('ALL')
   const [selectedGroup, setSelectedGroup] = useState('ALL')
 
+  const [proposal, setProposal] = useState(null)
+  const [loadingProposal, setLoadingProposal] = useState(false)
+  const [approving, setApproving] = useState(false)
+  const [sendingSimulation, setSendingSimulation] = useState(false)
+
+  async function loadProposal() {
+    setLoadingProposal(true)
+    try {
+      const res = await getProposal(lead.id)
+      setProposal(res.data)
+    } catch {
+      toast.error('Could not load proposal for this lead')
+    } finally {
+      setLoadingProposal(false)
+    }
+  }
+
+  async function handleApproveProposal() {
+    setApproving(true)
+    try {
+      const res = await approveProposal(lead.id)
+      setProposal(res.data)
+      toast.success('Proposal explicitly approved for outreach!')
+    } catch {
+      toast.error('Failed to record approval')
+    } finally {
+      setApproving(false)
+    }
+  }
+
+  async function handleSendSimulation() {
+    if (!proposal?.approved) {
+      toast.error('Human approval is required before delivery!')
+      return
+    }
+    setSendingSimulation(true)
+    try {
+      const res = await sendProposal(lead.id, lead.email, true)
+      toast.success(res.data?.message || 'Simulation test successful (dry run)!')
+    } catch (e) {
+      toast.error(e.response?.data?.detail?.message || 'Delivery simulation failed')
+    } finally {
+      setSendingSimulation(false)
+    }
+  }
+
   async function loadAudit() {
     if (audit) { setOpen(o => !o); return }
     setLoading(true)
@@ -882,6 +929,12 @@ function AuditRow({ lead }) {
                     >
                       <Bot size={15} /> AI Search & GSC Readiness
                     </button>
+                    <button
+                      onClick={() => { setActiveTab('proposal'); if (!proposal) loadProposal(); }}
+                      className={`tab-pill ${activeTab === 'proposal' ? 'tab-pill-active' : ''}`}
+                    >
+                      <Send size={15} /> Service Proposal & Outreach Offer
+                    </button>
                   </div>
 
                   {/* ── 5. TAB CONTENT PANELS ── */}
@@ -1156,6 +1209,125 @@ function AuditRow({ lead }) {
                           AI search engines (such as Google AI Overviews, Perplexity, and ChatGPT Search) rely on clean entity structures, authoritative NAP alignment, structured FAQ schemas, and direct answers in content. External citation monitoring requires recurring search query tracking, which will be logged under authorized monitoring campaigns.
                         </p>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Tab 6: Service Proposal & Outreach Offer */}
+                  {activeTab === 'proposal' && (
+                    <div className="card-elevated p-6">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Send size={20} style={{ color: '#3b82f6' }} />
+                          <div>
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                              Service Proposal & Client Offer
+                            </h3>
+                            <span style={{ fontSize: 12, color: '#64748b' }}>
+                              Derived strictly from verified audit findings for {lead.business_name}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          {proposal?.approved ? (
+                            <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
+                              <CheckCircle2 size={14} /> Approved by {proposal.approved_by}
+                            </span>
+                          ) : (
+                            <span className="badge badge-yellow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
+                              <AlertTriangle size={14} /> Requires Human Approval
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {loadingProposal ? (
+                        <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                          <RefreshCw size={24} className="spin" style={{ margin: '0 auto 12px auto' }} />
+                          <p>Synthesizing evidence-based proposal...</p>
+                        </div>
+                      ) : !proposal ? (
+                        <div style={{ padding: 30, textAlign: 'center', background: '#0a101d', borderRadius: 8, border: '1px solid #1e293b' }}>
+                          <p style={{ color: '#94a3b8', marginBottom: 16 }}>No proposal draft currently active for this audit.</p>
+                          <button onClick={loadProposal} className="btn btn-primary">
+                            Generate Evidence-Based Proposal
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {/* Selected Observations Section */}
+                          <div style={{ marginBottom: 24 }}>
+                            <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                              Curated Service Opportunities ({proposal.selected_opportunities_count} Salient Findings)
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+                              {proposal.observations?.map((obs, idx) => (
+                                <div key={idx} style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 8, padding: 14 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>{obs.service_name}</span>
+                                    <span className="badge badge-grey" style={{ fontSize: 10, textTransform: 'uppercase' }}>{obs.scope}</span>
+                                  </div>
+                                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 8px 0' }}>
+                                    <strong>Evidence:</strong> {obs.evidence}
+                                  </p>
+                                  <p style={{ fontSize: 11, color: '#60a5fa', margin: 0 }}>
+                                    → Action: {obs.next_step}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>
+                              Contributing Factor IDs: {proposal.contributing_factor_ids?.map((fid) => (
+                                <code key={fid} style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4, marginRight: 6, color: '#93c5fd' }}>{fid}</code>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Email Draft Preview */}
+                          <div style={{ background: '#060a12', border: '1px solid #1e293b', borderRadius: 8, padding: 16, marginBottom: 20 }}>
+                            <div style={{ borderBottom: '1px solid #1e293b', paddingBottom: 10, marginBottom: 12 }}>
+                              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Subject: </span>
+                              <span style={{ fontSize: 13, color: '#f8fafc', fontWeight: 700 }}>{proposal.subject}</span>
+                            </div>
+                            <div style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 13, lineHeight: 1.6, maxHeight: 220, overflowY: 'auto' }}>
+                              {proposal.body_text}
+                            </div>
+                          </div>
+
+                          {/* Human Approval Action Gate Bar */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1px solid #1e293b', paddingTop: 16 }}>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                              {proposal.approved ? (
+                                <span style={{ color: '#22c55e' }}>✓ Authorized by human review. Proposal is eligible for delivery simulation.</span>
+                              ) : (
+                                <span style={{ color: '#f59e0b' }}>⚠️ Sending is strictly blocked until an operator reviews and authorizes the draft.</span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              {!proposal.approved && (
+                                <button
+                                  onClick={handleApproveProposal}
+                                  disabled={approving}
+                                  className="btn btn-primary"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                                >
+                                  <CheckCheck size={16} /> {approving ? 'Authorizing...' : 'Approve Proposal (Human Review)'}
+                                </button>
+                              )}
+                              <button
+                                onClick={handleSendSimulation}
+                                disabled={!proposal.approved || sendingSimulation}
+                                className="btn btn-secondary"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: proposal.approved ? 1 : 0.5 }}
+                                title={!proposal.approved ? 'Approval required before delivery' : 'Simulate delivery safely (dry run)'}
+                              >
+                                <Send size={16} /> {sendingSimulation ? 'Testing...' : 'Test Send Simulation (Dry Run)'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

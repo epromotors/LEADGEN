@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import create_tables
 from app.logger import setup_logging          # ← IST rotating file logger
-from app.routers import auth, leads, audits, campaigns, activity, replies, email_review
+from app.routers import auth, leads, audits, campaigns, activity, replies, email_review, proposals, gsc, ai_search
 
 # ── Logging must be configured FIRST, before anything writes a log line ───────
 setup_logging()
@@ -86,6 +86,9 @@ app.include_router(campaigns.router)
 app.include_router(activity.router)
 app.include_router(replies.router)
 app.include_router(email_review.router)
+app.include_router(proposals.router)
+app.include_router(gsc.router)
+app.include_router(ai_search.router)
 
 
 # ── Frontend client-side error sink ─────────────────────────────────────────

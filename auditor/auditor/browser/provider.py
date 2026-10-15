@@ -135,6 +135,11 @@ class BrowserEvidence:
     selection_rank: int = 0
     inbound_links_count: int = 0
 
+    # Advanced Web-Design Diagnostics (Domain H)
+    has_horizontal_overflow: bool = False
+    overflow_px: int = 0
+    design_diagnostics: dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict compatible with the factor evidence list."""
         return {
@@ -169,6 +174,9 @@ class BrowserEvidence:
             "lab_metrics_available": self.lab_metrics_available,
             "selection_rank": self.selection_rank,
             "inbound_links_count": self.inbound_links_count,
+            "has_horizontal_overflow": self.has_horizontal_overflow,
+            "overflow_px": self.overflow_px,
+            "design_diagnostics": self.design_diagnostics,
         }
 
     @staticmethod
