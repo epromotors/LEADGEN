@@ -164,13 +164,13 @@ def _cover(url, report_date, score, agency, styles, url_info=None):
 
     # Full-width dark background block
     cover_rows = [
-        [Paragraph("SEO PERFORMANCE AUDIT", styles["cov_eyebrow"])],
-        [Paragraph("Website Analysis Report", styles["cov_title"])],
+        [Paragraph("SEO PERFORMANCE & TECHNICAL AUDIT", styles["cov_eyebrow"])],
+        [Paragraph("Client Website Analysis Report", styles["cov_title"])],
         [Spacer(1, 4*mm)],
         [Paragraph(_safe(req_url), styles["cov_url"])],
     ]
     if is_redirected and final_url and final_url != req_url:
-        cover_rows.append([Paragraph(f"Redirected to: {_safe(final_url)}", styles["cov_meta"])])
+        cover_rows.append([Paragraph(f"Final Destination: {_safe(final_url)} (Redirected)", styles["cov_meta"])])
     if canonical_url and canonical_url != req_url and canonical_url != final_url:
         cover_rows.append([Paragraph(f"Declared Canonical: {_safe(canonical_url)}", styles["cov_meta"])])
     cover_rows.extend([
@@ -180,8 +180,8 @@ def _cover(url, report_date, score, agency, styles, url_info=None):
     bg_table = Table(cover_rows, colWidths=[CONTENT_W])
     bg_table.setStyle(TableStyle([
         ("BACKGROUND",    (0,0), (-1,-1), C_DARK),
-        ("TOPPADDING",    (0,0), (-1,-1), 10),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+        ("TOPPADDING",    (0,0), (-1,-1), 12),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
         ("LEFTPADDING",   (0,0), (-1,-1), 20),
         ("RIGHTPADDING",  (0,0), (-1,-1), 20),
     ]))
@@ -215,7 +215,27 @@ def _cover(url, report_date, score, agency, styles, url_info=None):
         ("BOTTOMPADDING",(0,0), (-1,-1), 0),
     ]))
 
-    return [bg_table, Spacer(1, 8*mm), side_table, Spacer(1, 6*mm)]
+    # URL Identity & Audit Scope Block
+    url_id_rows = [
+        [Paragraph("Audit Target Scope", styles["th"]), Paragraph("Verified URL Identity & Routing", styles["th"])],
+        [Paragraph("Requested URL", styles["body_small"]), Paragraph(f"<b>{_safe(req_url)}</b>", styles["body_small"])],
+        [Paragraph("Final Destination URL", styles["body_small"]), Paragraph(f"{_safe(final_url or req_url)} ({'Redirected' if is_redirected else 'Direct response'})", styles["body_small"])],
+        [Paragraph("Declared Canonical", styles["body_small"]), Paragraph(_safe(canonical_url or 'None declared'), styles["body_small"])],
+        [Paragraph("Analysis Methodology", styles["body_small"]), Paragraph("62-Factor Canonical Contract \u00b7 Bounded Crawl Engine \u00b7 Synthetic Lab Web Vitals", styles["body_small"])],
+    ]
+    url_table = Table(url_id_rows, colWidths=[42*mm, CONTENT_W - 42*mm])
+    url_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0), (-1,0), _c(0.2,0.25,0.35)),
+        ("FONTSIZE",      (0,0), (-1,-1), 8),
+        ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, _c(0.96,0.97,0.99)]),
+        ("GRID",          (0,0), (-1,-1), 0.3, _c(0.85,0.85,0.9)),
+        ("TOPPADDING",    (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ("LEFTPADDING",   (0,0), (-1,-1), 8),
+        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+    ]))
+
+    return [bg_table, Spacer(1, 6*mm), side_table, Spacer(1, 4*mm), url_table, Spacer(1, 5*mm)]
 
 
 # ── Section header helper ─────────────────────────────────────────────────────
@@ -315,6 +335,7 @@ def _test_card(test_id: str, result: dict, styles) -> list:
     icon    = STATUS_ICONS.get(status, "?")
     color   = STATUS_COLORS.get(status, C_DANGER)
     label   = STATUS_LABEL.get(status, status)
+    priority = (result.get("severity") or _resolve_priority_label(test_id, status, result)).upper()
 
     # Status badge (left column)
     badge_rows = [
@@ -332,11 +353,15 @@ def _test_card(test_id: str, result: dict, styles) -> list:
 
     # Content (right column)
     name_text = test_id.replace("_", " ").title()
-    content = [Paragraph(f"<b>{_safe(name_text)}</b>", styles["h3"])]
+    content = [Paragraph(f"<b>{_safe(name_text)}</b> &nbsp;&nbsp;<font size=7.5 color='#555'>[{priority}]</font>", styles["h3"])]
     if result.get("message"):
         content.append(Paragraph(_safe(result["message"]), styles["body"]))
+    if result.get("value") is not None and str(result.get("value")).strip() != "":
+        val_str = str(result.get("value"))
+        unit = str(result.get("unit") or "")
+        content.append(Paragraph(f"<b>Observed Value:</b> <font color='#1e3a8a'>{_safe(_trunc(val_str, 90))}</font> {unit}", styles["body_small"]))
     if result.get("fix"):
-        content.append(Paragraph(f"<b>How to fix:</b> {_safe(result['fix'])}", styles["fix"]))
+        content.append(Paragraph(f"<b>Recommended Action:</b> {_safe(result['fix'])}", styles["fix"]))
     if result.get("detail"):
         content.append(Paragraph(_safe(result["detail"]), styles["detail"]))
 
@@ -563,6 +588,8 @@ def _priority_table(audit_results, styles):
     rows  = [header]
     cmds  = []
 
+    weight_map = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "REVIEW": 4}
+    items = []
     for level in ("FAIL", "WARN"):
         for group_key, tests in audit_results.items():
             for test_id, result in tests.items():
@@ -570,13 +597,17 @@ def _priority_table(audit_results, styles):
                     msg    = _safe(_trunc(result.get("message", test_id), 130))
                     grp    = group_key.title()
                     label  = _resolve_priority_label(test_id, level, result)
-                    style_key = f"pri_{label.lower()}"
-                    pri_style = styles.get(style_key, styles.get("pri_review", styles["th"]))
-                    rows.append([
-                        Paragraph(label,  pri_style),
-                        Paragraph(msg,    styles["pri_msg"]),
-                        Paragraph(grp,    styles["pri_group"]),
-                    ])
+                    items.append((weight_map.get(label, 5), label, msg, grp))
+
+    items.sort(key=lambda x: x[0])
+    for _, label, msg, grp in items:
+        style_key = f"pri_{label.lower()}"
+        pri_style = styles.get(style_key, styles.get("pri_review", styles["th"]))
+        rows.append([
+            Paragraph(label,  pri_style),
+            Paragraph(msg,    styles["pri_msg"]),
+            Paragraph(grp,    styles["pri_group"]),
+        ])
 
     # Colour priority column
     for i, row in enumerate(rows[1:], 1):
@@ -609,6 +640,52 @@ def _priority_table(audit_results, styles):
     t = Table(rows, colWidths=[24*mm, 112*mm, 22*mm], repeatRows=1)
     t.setStyle(TableStyle(base))
     return [t]
+
+
+def _diagnostics_section(url, url_info, audit_results, styles):
+    story = []
+    story += _section("Technical & Search Diagnostics", styles)
+
+    req_url = (url_info.get("requested_url") if url_info else None) or url
+    final_url = (url_info.get("final_url") if url_info else None) or req_url
+
+    diag_rows = [
+        [Paragraph("Diagnostic Domain", styles["th"]), Paragraph("Audit Observation & System Status", styles["th"])],
+        [
+            Paragraph("<b>Origin Robots.txt Discovery</b>", styles["body_small"]),
+            Paragraph("Resolved exclusively from the root origin host (scheme + domain). Subpath route concatenation strictly avoided.", styles["td"]),
+        ],
+        [
+            Paragraph("<b>XML Sitemap Integrity</b>", styles["body_small"]),
+            Paragraph("Verified XML structure (&lt;urlset&gt; or &lt;sitemapindex&gt;). HTTP 200 HTML soft responses rejected. Child sitemaps capped at 5.", styles["td"]),
+        ],
+        [
+            Paragraph("<b>AI-Search Readiness</b>", styles["body_small"]),
+            Paragraph("Evaluates robot crawl permissions (GPTBot, ClaudeBot, Google-Extended), NAP entity alignment, and structured Q&amp;A content.", styles["td"]),
+        ],
+        [
+            Paragraph("<b>Synthetic Lab Web Vitals</b>", styles["body_small"]),
+            Paragraph("TTFB, LCP, and CLS are lab synthetic measurements. Real-user Core Web Vitals require CrUX or field data tracking.", styles["td"]),
+        ],
+        [
+            Paragraph("<b>Google Search Console</b>", styles["body_small"]),
+            Paragraph("Read-only OAuth integration available upon property authorization. Live queries, impressions, and clicks require connected property.", styles["td"]),
+        ],
+    ]
+    diag_table = Table(diag_rows, colWidths=[48*mm, CONTENT_W - 48*mm])
+    diag_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+        ("FONTSIZE",      (0,0), (-1,-1), 8),
+        ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, _c(0.97,0.97,0.99)]),
+        ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+        ("TOPPADDING",    (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ("LEFTPADDING",   (0,0), (-1,-1), 8),
+        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+    ]))
+    story.append(diag_table)
+    story.append(Spacer(1, 4*mm))
+    return story
 
 
 # ── Main builder ──────────────────────────────────────────────────────────────
@@ -657,11 +734,17 @@ def build_pdf(
     story.append(PageBreak())
 
     GROUP_TITLES = {
-        "technical":  "A — Technical Foundation",
-        "onpage":     "B — On-Page SEO",
-        "images":     "C — Image & Media",
-        "links":      "D — Links & Navigation",
-        "conversion": "E — Conversion & Trust",
+        "technical":    "A — Technical Foundation & Crawlability",
+        "onpage":       "B — On-Page SEO & Metadata",
+        "images":       "C — Image & Media Optimization",
+        "links":        "D — Links & Navigation",
+        "conversion":   "E — Conversion & Trust Signals",
+        "ux":           "F — User Experience & Web Design Diagnostics",
+        "indexability": "G — Indexability & Canonical Integrity",
+        "content":      "H — Content Quality & Heading Structure",
+        "local_seo":    "I — Local SEO & Business Identity",
+        "performance":  "J — Core Web Vitals & Server Performance",
+        "schema_adv":   "K — Advanced Schema & Structured Data",
     }
 
     for group_key, tests in audit_results.items():
@@ -696,11 +779,15 @@ def build_pdf(
             styles["body"]
         ))
 
+    # ─── Technical Diagnostics Advisory ──────────────────────────────────────
+    story.append(PageBreak())
+    story += _diagnostics_section(header_url, effective_url_info, audit_results, styles)
+
     # ─── Site-Wide Crawl Section (optional) ───────────────────────────────────
     if site_summary and site_summary.get("total_pages", 0) > 0:
         ss = site_summary
         story.append(PageBreak())
-        story += _section("F — Site-Wide Crawl Analysis", styles)
+        story += _section("Site-Wide Crawl Analysis", styles)
 
         story += _crawl_stats(ss, styles)
 
