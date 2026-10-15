@@ -108,25 +108,25 @@ class OpportunityEngine:
             })
 
         # 3. Local SEO, Entity Alignment & Structured Data
-        local_nap = get_factor("local_seo", "has_nap")
-        local_schema = get_factor("local_seo", "has_local_business_schema")
-        local_maps = get_factor("local_seo", "has_google_maps")
+        local_nap = get_factor("local_seo", "nap_consistency") or get_factor("local_seo", "has_nap")
+        local_schema = get_factor("local_seo", "local_business_schema") or get_factor("local_seo", "has_local_business_schema")
+        local_maps = get_factor("local_seo", "google_maps_embed") or get_factor("local_seo", "has_google_maps")
         onpage_schema = get_factor("onpage", "schema")
 
         local_factors: List[str] = []
         local_evidence: List[str] = []
 
         if local_schema and local_schema.get("status") == "FAIL":
-            local_factors.append("local_seo.has_local_business_schema")
+            local_factors.append("local_seo.local_business_schema")
             local_evidence.append("LocalBusiness schema markup missing")
         elif onpage_schema and onpage_schema.get("status") == "FAIL":
             local_factors.append("onpage.schema")
             local_evidence.append("Structured data (JSON-LD) missing from page head")
         if local_nap and local_nap.get("status") == "FAIL":
-            local_factors.append("local_seo.has_nap")
+            local_factors.append("local_seo.nap_consistency")
             local_evidence.append("Consistent NAP (Name, Address, Phone) details not observable")
         if local_maps and local_maps.get("status") == "FAIL":
-            local_factors.append("local_seo.has_google_maps")
+            local_factors.append("local_seo.google_maps_embed")
             local_evidence.append("Google Maps directions/location embed missing")
 
         if local_factors:
@@ -231,7 +231,7 @@ class OpportunityEngine:
         ai_evidence: List[str] = []
 
         if local_schema and local_schema.get("status") == "FAIL":
-            ai_factors.append("local_seo.has_local_business_schema")
+            ai_factors.append("local_seo.local_business_schema")
             ai_evidence.append("Missing entity metadata required for AI knowledge panels")
 
         onpage_title = get_factor("onpage", "page_title")

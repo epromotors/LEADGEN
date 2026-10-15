@@ -968,6 +968,7 @@ async def run_audit(lead_id: str) -> None:
     browser_evidence = data.get("browser_evidence", {})
     browser_status   = data.get("browser_status", "DISABLED")
     browser_pages    = data.get("browser_pages", [])
+    audit_url = audit_target
 
     # ── PHASE 4: Extract business name (pure CPU, no DB) ─────────────────────
     suggested_name = None

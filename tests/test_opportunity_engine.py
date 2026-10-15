@@ -105,8 +105,8 @@ def test_proposal_draft_provenance_and_approval_gate():
             "contrast": {"status": "FAIL"},
         },
         "local_seo": {
-            "has_local_business_schema": {"status": "FAIL"},
-            "has_nap": {"status": "FAIL"},
+            "local_business_schema": {"status": "FAIL"},
+            "nap_consistency": {"status": "FAIL"},
         },
         "performance": {
             "response_time": {"status": "FAIL", "value": 2400},
