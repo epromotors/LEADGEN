@@ -141,8 +141,11 @@ export const sendProposal    = (leadId, targetEmail, dryRun = true) =>
   api.post(`/proposals/${leadId}/send`, { target_email: targetEmail, dry_run: dryRun })
 
 // ─── Search Console & AI Search ────────────────────────────────────────────
-export const getGscStatus      = () => api.get('/gsc/status')
-export const getAiSearchStatus = () => api.get('/ai-search/status')
-export const getAiReadiness    = (leadId) => api.get(`/ai-search/readiness/${leadId}`)
+export const getGscStatus          = () => api.get('/gsc/status')
+export const getAiSearchStatus     = () => api.get('/ai-search/status')
+export const getAiReadiness        = (leadId) => api.get(`/ai-search/readiness/${leadId}`)
+export const runAiVisibilityCheck  = (payload) => api.post('/ai-search/run', payload)
+export const getAiSearchHistory    = (leadId) => api.get(`/ai-search/history/${leadId}`)
+export const getLatestAiSearchRun  = (leadId) => api.get(`/ai-search/latest/${leadId}`)
 
 export default api

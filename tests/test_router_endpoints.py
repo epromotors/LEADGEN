@@ -110,6 +110,97 @@ def test_ai_search_query_corpus_endpoint(client):
     assert any("Lucknow" in q for q in queries)
 
 
+def test_ai_search_run_endpoint_lifecycle(client):
+    from unittest.mock import patch, AsyncMock
+    from app.routers.ai_search import _ai_search_service
+
+    # 1. When unconfigured, POST /ai-search/run returns 400 Bad Request
+    _ai_search_service.provider.api_key = ""
+    bad_resp = client.post("/ai-search/run", json={"domain": "carmedicmotors.in", "brand_name": "Car Medic"})
+    assert bad_resp.status_code == 400
+    assert "provider is not configured" in bad_resp.json()["detail"]
+
+    # 2. When configured, POST /ai-search/run executes and records history
+    _ai_search_service.provider.api_key = "test_perplexity_secret_key"
+    mock_run_res = {
+        "run_id": "test-run-endpoint-uuid",
+        "lead_id": "lead-endpoint-123",
+        "target_domain": "carmedicmotors.in",
+        "brand_name": "Car Medic Motors",
+        "provider": "Perplexity Agent API",
+        "model": "sonar",
+        "status": "completed",
+        "queries_attempted": 2,
+        "queries_succeeded": 2,
+        "queries_failed": 0,
+        "brand_mentions_count": 2,
+        "brand_mention_rate": 1.0,
+        "domain_citations_count": 1,
+        "citation_rate": 0.5,
+        "share_of_voice": 1.0,
+        "evidence": [
+            {
+                "query": "What is Car Medic Motors?",
+                "intent": "brand_direct",
+                "status": "success",
+                "brand_mentioned": True,
+                "domain_cited": True,
+                "citations": [{"url": "https://carmedicmotors.in", "domain": "carmedicmotors.in", "title": "Home"}],
+            }
+        ],
+        "uncertainty_note": "Observations recorded via Perplexity Agent API.",
+    }
+
+    with patch.object(_ai_search_service, "execute_visibility_run", new_callable=AsyncMock) as mock_exec:
+        mock_exec.return_value = mock_run_res
+
+        run_resp = client.post("/ai-search/run", json={
+            "domain": "carmedicmotors.in",
+            "brand_name": "Car Medic Motors",
+            "query_budget": 2,
+        })
+        assert run_resp.status_code == 200
+        run_data = run_resp.json()
+        assert run_data["run_id"] == "test-run-endpoint-uuid"
+        assert run_data["status"] == "completed"
+        assert run_data["brand_mention_rate"] == 1.0
+        assert run_data["citation_rate"] == 0.5
+        # Redaction: secret key must never be in returned JSON
+        assert "test_perplexity_secret_key" not in str(run_data)
+
+    # 3. History and Latest retrieval
+    _ai_search_service._runs_by_lead["lead-endpoint-123"] = [mock_run_res]
+
+    hist_resp = client.get("/ai-search/history/lead-endpoint-123")
+    assert hist_resp.status_code == 200
+    assert hist_resp.json()["total_runs"] == 1
+
+    latest_resp = client.get("/ai-search/latest/lead-endpoint-123")
+    assert latest_resp.status_code == 200
+    assert latest_resp.json()["run_id"] == "test-run-endpoint-uuid"
+
+    # Reset API key to unconfigured
+    _ai_search_service.provider.api_key = ""
+
+
+def test_ai_search_duplicate_run_conflict(client):
+    from unittest.mock import patch, AsyncMock
+    from app.routers.ai_search import _ai_search_service
+
+    _ai_search_service.provider.api_key = "test_key"
+    with patch.object(_ai_search_service, "execute_visibility_run", new_callable=AsyncMock) as mock_exec:
+        mock_exec.side_effect = RuntimeError("A visibility check is already running for carmedicmotors.in.")
+
+        conflict_resp = client.post("/ai-search/run", json={
+            "domain": "carmedicmotors.in",
+            "brand_name": "Car Medic Motors",
+        })
+        assert conflict_resp.status_code == 409
+        assert "already running" in conflict_resp.json()["detail"]
+
+    _ai_search_service.provider.api_key = ""
+
+
 def test_proposals_workflow_api(client):
     # Setup mock proposal in service store
     lead_id = "test-api-lead-999"

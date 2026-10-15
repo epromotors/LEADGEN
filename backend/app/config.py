@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     GSC_ENCRYPTION_KEY: str = ""
     GSC_CREDENTIALS_FILE: str = "reports/.gsc_credentials.enc"
 
+    # AI-Search Live Visibility (Perplexity Agent API)
+    AI_SEARCH_PROVIDER: str = "perplexity"
+    AI_SEARCH_PROVIDER_KEY: str = ""
+    AI_SEARCH_MODEL: str = "sonar"
+    AI_SEARCH_TIMEOUT_SECONDS: int = 20
+    AI_SEARCH_MAX_QUERIES: int = 10
+    AI_SEARCH_STORAGE_FILE: str = "reports/.ai_search_runs.json"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

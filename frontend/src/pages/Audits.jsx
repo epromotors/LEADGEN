@@ -3,10 +3,13 @@ import {
   RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X,
   Globe, ShieldCheck, FileCode, CheckCircle2, AlertCircle, XCircle, ArrowRight,
   ExternalLink, Layers, Cpu, Compass, LayoutGrid, ListFilter, Bot, Check, AlertOctagon,
-  Send, CheckCheck, FileText
+  Send, CheckCheck, FileText, Play
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getLeads, getAudit, getPdfUrl, getProposal, approveProposal, sendProposal } from '../api/client'
+import {
+  getLeads, getAudit, getPdfUrl, getProposal, approveProposal, sendProposal,
+  getAiSearchStatus, getAiReadiness, runAiVisibilityCheck, getAiSearchHistory, getLatestAiSearchRun
+} from '../api/client'
 import BrowserEvidence from '../components/BrowserEvidence'
 
 // ── Audit check definitions: label, explanation, fix hint ─────────────────
@@ -622,6 +625,71 @@ function AuditRow({ lead }) {
     }
   }
 
+  const [aiStatus, setAiStatus] = useState(null)
+  const [aiReadiness, setAiReadiness] = useState(null)
+  const [aiLatestRun, setAiLatestRun] = useState(null)
+  const [aiHistory, setAiHistory] = useState([])
+  const [loadingAiData, setLoadingAiData] = useState(false)
+  const [runningAiCheck, setRunningAiCheck] = useState(false)
+  const [expandedQueryIdx, setExpandedQueryIdx] = useState(null)
+
+  async function loadAiData() {
+    setLoadingAiData(true)
+    try {
+      const [statusRes, readinessRes] = await Promise.allSettled([
+        getAiSearchStatus(),
+        getAiReadiness(lead.id),
+      ])
+      if (statusRes.status === 'fulfilled') setAiStatus(statusRes.value.data)
+      if (readinessRes.status === 'fulfilled') setAiReadiness(readinessRes.value.data)
+
+      try {
+        const latestRes = await getLatestAiSearchRun(lead.id)
+        setAiLatestRun(latestRes.data)
+      } catch {
+        setAiLatestRun(null)
+      }
+
+      try {
+        const histRes = await getAiSearchHistory(lead.id)
+        setAiHistory(histRes.data?.runs || [])
+      } catch {
+        setAiHistory([])
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingAiData(false)
+    }
+  }
+
+  async function handleRunAiVisibilityCheck() {
+    if (!aiStatus?.monitoring_enabled) {
+      toast.error('AI-Search provider is not configured. Set AI_SEARCH_PROVIDER_KEY in server environment.')
+      return
+    }
+    setRunningAiCheck(true)
+    try {
+      const res = await runAiVisibilityCheck({
+        lead_id: lead.id,
+        brand_name: lead.business_name,
+        domain: lead.website,
+        query_budget: 10,
+      })
+      setAiLatestRun(res.data)
+      toast.success('Live AI-search visibility check completed!')
+      try {
+        const histRes = await getAiSearchHistory(lead.id)
+        setAiHistory(histRes.data?.runs || [])
+      } catch {}
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Visibility check execution failed.'
+      toast.error(typeof detail === 'string' ? detail : JSON.stringify(detail))
+    } finally {
+      setRunningAiCheck(false)
+    }
+  }
+
   async function loadAudit() {
     if (audit) { setOpen(o => !o); return }
     setLoading(true)
@@ -924,7 +992,7 @@ function AuditRow({ lead }) {
                       <Cpu size={15} /> Browser vs Raw Evidence
                     </button>
                     <button
-                      onClick={() => setActiveTab('ai_search')}
+                      onClick={() => { setActiveTab('ai_search'); if (!aiStatus) loadAiData(); }}
                       className={`tab-pill ${activeTab === 'ai_search' ? 'tab-pill-active' : ''}`}
                     >
                       <Bot size={15} /> AI Search & GSC Readiness
@@ -1168,47 +1236,338 @@ function AuditRow({ lead }) {
                   {/* Tab 5: AI-Search & GSC Readiness */}
                   {activeTab === 'ai_search' && (
                     <div className="card-elevated p-6">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                        <Bot size={20} style={{ color: '#10b981' }} />
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
-                          AI-Search Readiness & Search Console Diagnostics
-                        </h3>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Bot size={22} style={{ color: '#10b981' }} />
+                          <div>
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                              AI-Search Live Visibility & Diagnostics
+                            </h3>
+                            <span style={{ fontSize: 12, color: '#64748b' }}>
+                              Real-time citation tracking via Perplexity Agent API & indexing readiness for {lead.business_name}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <button
+                            onClick={handleRunAiVisibilityCheck}
+                            disabled={runningAiCheck || !aiStatus?.monitoring_enabled}
+                            className="btn btn-primary"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '8px 16px',
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: (runningAiCheck || !aiStatus?.monitoring_enabled) ? 'not-allowed' : 'pointer',
+                              opacity: (runningAiCheck || !aiStatus?.monitoring_enabled) ? 0.6 : 1,
+                            }}
+                            title={!aiStatus?.monitoring_enabled ? 'Set AI_SEARCH_PROVIDER_KEY to enable live sampling' : 'Execute 10-query Perplexity check'}
+                          >
+                            <RefreshCw size={14} className={runningAiCheck ? 'spin' : ''} />
+                            {runningAiCheck ? 'Checking Visibility...' : 'Run Visibility Check'}
+                          </button>
+                        </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 20 }}>
+                      {/* 1. Status Overview Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 24 }}>
+                        {/* Provider Status */}
                         <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Google Search Console
-                          </span>
-                          <div style={{ marginTop: 8 }}>
-                            <span className="badge badge-grey">Not Connected</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Perplexity Agent API
+                            </span>
+                            {aiStatus?.monitoring_enabled ? (
+                              <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+                            ) : (
+                              <span className="badge badge-grey" style={{ fontSize: 10 }}>Unconfigured</span>
+                            )}
                           </div>
-                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>
-                            Search Console requires authorized read-only OAuth integration. Live performance metrics (queries, impressions, CTR) will appear once connected.
+                          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
+                            {aiStatus?.monitoring_enabled ? `Active Model: ${aiStatus.model || 'sonar'}` : 'Disconnected'}
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 8, lineHeight: 1.5, margin: 0 }}>
+                            {aiStatus?.monitoring_enabled
+                              ? 'Authenticated live citation discovery enabled (conservative 10-query budget cap).'
+                              : 'External provider key missing. Set AI_SEARCH_PROVIDER_KEY to enable automated sampling.'}
                           </p>
                         </div>
 
+                        {/* Robots.txt AI Crawlers */}
                         <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            AI Crawler Access (Robots.txt)
-                          </span>
-                          <div style={{ marginTop: 8 }}>
-                            <span className="badge badge-green">Open Access</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              AI Crawler Access
+                            </span>
+                            {aiReadiness?.crawlers?.all_allowed ? (
+                              <span className="badge badge-green" style={{ fontSize: 10 }}>Open Access</span>
+                            ) : (
+                              <span className="badge badge-yellow" style={{ fontSize: 10 }}>Restricted</span>
+                            )}
                           </div>
-                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>
-                            GPTBot, ClaudeBot, PerplexityBot, and Google-Extended are not blocked by robots.txt, allowing entity discovery for AI Overviews.
+                          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
+                            Robots.txt Permissions
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 8, lineHeight: 1.5, margin: 0 }}>
+                            {aiReadiness?.crawlers?.blocked?.length
+                              ? `Blocked bots: ${aiReadiness.crawlers.blocked.join(', ')}`
+                              : 'GPTBot, ClaudeBot, PerplexityBot, and Google-Extended permitted for AI discovery.'}
+                          </p>
+                        </div>
+
+                        {/* Schema & llms.txt */}
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Readiness Signals
+                            </span>
+                            <span className="badge badge-blue" style={{ fontSize: 10 }}>
+                              Score: {aiReadiness?.readiness_score ?? '—'}/100
+                            </span>
+                          </div>
+                          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
+                            {aiReadiness?.entity_structure?.has_schema_markup ? 'Schema Markup Detected' : 'Basic Entities'}
+                          </div>
+                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 8, lineHeight: 1.5, margin: 0 }}>
+                            {aiReadiness?.llms_txt?.note || 'llms.txt is an optional emerging convention; not a required ranking factor.'}
                           </p>
                         </div>
                       </div>
 
-                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>
-                          AI-Search Readiness Assessment
-                        </h4>
-                        <p style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.6 }}>
-                          AI search engines (such as Google AI Overviews, Perplexity, and ChatGPT Search) rely on clean entity structures, authoritative NAP alignment, structured FAQ schemas, and direct answers in content. External citation monitoring requires recurring search query tracking, which will be logged under authorized monitoring campaigns.
-                        </p>
-                      </div>
+                      {/* 2. Active Run Progress */}
+                      {runningAiCheck && (
+                        <div style={{
+                          background: '#0e1626', border: '1px solid #3b82f640', borderRadius: 10,
+                          padding: '24px', textAlign: 'center', marginBottom: 24,
+                        }}>
+                          <RefreshCw size={28} className="spin" style={{ color: '#3b82f6', margin: '0 auto 12px auto' }} />
+                          <h4 style={{ fontSize: 15, fontWeight: 800, color: '#f8fafc', margin: '0 0 6px 0' }}>
+                            Sampling Perplexity Agent API...
+                          </h4>
+                          <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>
+                            Evaluating brand mentions, citations, and source URLs across 10 business queries.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 3. Latest Visibility Run Results */}
+                      {aiLatestRun && (
+                        <div>
+                          {/* Run Execution Summary Header */}
+                          <div style={{
+                            background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10,
+                            padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'center', flexWrap: 'wrap', gap: 10,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>Latest Check:</span>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#f8fafc' }}>
+                                {new Date(aiLatestRun.completed_at || aiLatestRun.created_at).toLocaleString()}
+                              </span>
+                              <span className={`badge ${aiLatestRun.status === 'completed' ? 'badge-green' : aiLatestRun.status === 'partial' ? 'badge-yellow' : 'badge-red'}`} style={{ fontSize: 10 }}>
+                                {aiLatestRun.status?.toUpperCase()}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                              <span>Queries: <strong style={{ color: '#f8fafc' }}>{aiLatestRun.queries_succeeded}</strong> succeeded of {aiLatestRun.queries_attempted} attempted</span>
+                            </div>
+                          </div>
+
+                          {/* Key Metrics Cards */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                            {/* Brand Mention Rate */}
+                            <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Brand Mention Rate
+                              </span>
+                              <div style={{ fontSize: 28, fontWeight: 900, color: '#10b981', marginTop: 6, lineHeight: 1 }}>
+                                {aiLatestRun.brand_mention_rate != null ? `${Math.round(aiLatestRun.brand_mention_rate * 100)}%` : '—'}
+                              </div>
+                              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginTop: 8 }}>
+                                {aiLatestRun.brand_mentions_count || 0} of {aiLatestRun.queries_succeeded} answers mentioned brand
+                              </span>
+                            </div>
+
+                            {/* Domain Citation Rate */}
+                            <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Domain Citation Rate
+                              </span>
+                              <div style={{ fontSize: 28, fontWeight: 900, color: '#3b82f6', marginTop: 6, lineHeight: 1 }}>
+                                {aiLatestRun.citation_rate != null ? `${Math.round(aiLatestRun.citation_rate * 100)}%` : '—'}
+                              </div>
+                              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginTop: 8 }}>
+                                {aiLatestRun.domain_citations_count || 0} of {aiLatestRun.queries_succeeded} queries cited {aiLatestRun.target_domain}
+                              </span>
+                            </div>
+
+                            {/* Share of Voice */}
+                            <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Share of Voice
+                              </span>
+                              <div style={{ fontSize: 28, fontWeight: 900, color: '#a855f7', marginTop: 6, lineHeight: 1 }}>
+                                {aiLatestRun.share_of_voice != null ? `${Math.round(aiLatestRun.share_of_voice * 100)}%` : '100%'}
+                              </div>
+                              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginTop: 8 }}>
+                                Brand vs detected competitor citations
+                              </span>
+                            </div>
+
+                            {/* Provider & Usage */}
+                            <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                API Tokens & Engine
+                              </span>
+                              <div style={{ fontSize: 24, fontWeight: 900, color: '#facc15', marginTop: 6, lineHeight: 1 }}>
+                                {aiLatestRun.usage?.total_tokens ? aiLatestRun.usage.total_tokens.toLocaleString() : '—'}
+                              </div>
+                              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginTop: 8 }}>
+                                {aiLatestRun.provider} ({aiLatestRun.model})
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Query Evidence Table */}
+                          <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+                            <div style={{ padding: '14px 16px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                                Query Evidence & Extracted Citations ({aiLatestRun.evidence?.length || 0})
+                              </h4>
+                              <span style={{ fontSize: 11, color: '#64748b' }}>
+                                Target Domain: {aiLatestRun.target_domain}
+                              </span>
+                            </div>
+
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
+                                <thead>
+                                  <tr style={{ background: '#070b13', borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                                    <th style={{ padding: '10px 16px' }}>Query & Intent</th>
+                                    <th style={{ padding: '10px 12px' }}>Brand Mentioned</th>
+                                    <th style={{ padding: '10px 12px' }}>Domain Cited</th>
+                                    <th style={{ padding: '10px 16px' }}>Citations & Sources</th>
+                                    <th style={{ padding: '10px 16px', textAlign: 'right' }}>Answer Excerpt</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {aiLatestRun.evidence?.map((item, idx) => (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #162032' }}>
+                                      <td style={{ padding: '12px 16px', maxWidth: 280 }}>
+                                        <div style={{ fontWeight: 700, color: '#f1f5f9' }}>{item.query}</div>
+                                        <span className="badge badge-grey" style={{ fontSize: 10, marginTop: 4 }}>
+                                          {item.intent}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '12px 12px' }}>
+                                        {item.brand_mentioned ? (
+                                          <span className="badge badge-green" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            <Check size={12} /> Mentioned
+                                          </span>
+                                        ) : (
+                                          <span className="badge badge-grey" style={{ fontSize: 10 }}>Not in text</span>
+                                        )}
+                                      </td>
+                                      <td style={{ padding: '12px 12px' }}>
+                                        {item.domain_cited ? (
+                                          <span className="badge badge-blue" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            <Check size={12} /> Cited
+                                          </span>
+                                        ) : (
+                                          <span className="badge badge-grey" style={{ fontSize: 10 }}>Not cited</span>
+                                        )}
+                                      </td>
+                                      <td style={{ padding: '12px 16px', maxWidth: 300 }}>
+                                        {item.citations?.length ? (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            {item.citations.slice(0, 3).map((cit, cidx) => (
+                                              <a
+                                                key={cidx}
+                                                href={cit.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ color: '#38bdf8', textDecoration: 'none', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                              >
+                                                <ExternalLink size={11} /> {cit.title || cit.domain}
+                                              </a>
+                                            ))}
+                                            {item.citations.length > 3 && (
+                                              <span style={{ fontSize: 10, color: '#64748b' }}>
+                                                +{item.citations.length - 3} more sources
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span style={{ color: '#64748b', fontSize: 11 }}>No sources returned</span>
+                                        )}
+                                      </td>
+                                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                        <button
+                                          onClick={() => setExpandedQueryIdx(expandedQueryIdx === idx ? null : idx)}
+                                          className="btn btn-secondary"
+                                          style={{ padding: '4px 8px', fontSize: 11 }}
+                                        >
+                                          {expandedQueryIdx === idx ? 'Hide Excerpt' : 'View Excerpt'}
+                                        </button>
+                                        {expandedQueryIdx === idx && (
+                                          <div style={{
+                                            marginTop: 8, padding: 10, background: '#070b13', border: '1px solid #1e293b',
+                                            borderRadius: 6, textAlign: 'left', color: '#cbd5e1', fontSize: 11, lineHeight: 1.5,
+                                            maxHeight: 180, overflowY: 'auto',
+                                          }}>
+                                            {item.answer_excerpt || 'No answer text recorded.'}
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Volatility Disclaimer Alert */}
+                          <div style={{
+                            background: '#090e18', border: '1px solid #1e293b', borderRadius: 8,
+                            padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10,
+                          }}>
+                            <AlertCircle size={16} style={{ color: '#facc15', flexShrink: 0, marginTop: 2 }} />
+                            <span style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
+                              {aiLatestRun.uncertainty_note || 'Observations recorded via Perplexity Agent API. Generative AI answers vary dynamically across users, time, and regions; citations represent point-in-time test samples.'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 4. Empty State when No Run Has Occurred */}
+                      {!aiLatestRun && !runningAiCheck && (
+                        <div style={{
+                          background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10,
+                          padding: '30px', textAlign: 'center',
+                        }}>
+                          <Bot size={36} style={{ color: '#64748b', margin: '0 auto 12px auto' }} />
+                          <h4 style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
+                            {aiStatus?.monitoring_enabled ? 'No Visibility Checks Run Yet' : 'AI-Search Visibility Unconfigured'}
+                          </h4>
+                          <p style={{ color: '#94a3b8', fontSize: 12, maxWidth: 500, margin: '0 auto 16px auto', lineHeight: 1.6 }}>
+                            {aiStatus?.monitoring_enabled
+                              ? `Click "Run Visibility Check" above to query the Perplexity Agent API across 10 business queries and observe actual brand citations for ${lead.business_name}.`
+                              : 'To track whether AI search engines cite this business, configure AI_SEARCH_PROVIDER_KEY in your environment with a valid Perplexity API key.'}
+                          </p>
+                          {aiStatus?.monitoring_enabled && (
+                            <button
+                              onClick={handleRunAiVisibilityCheck}
+                              className="btn btn-primary"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: 13 }}
+                            >
+                              <Play size={14} /> Run Visibility Check Now
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
