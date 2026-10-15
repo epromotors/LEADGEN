@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     WHATSAPP_API_TOKEN: str = ""
     WHATSAPP_PHONE_ID: str = ""
 
+    # Google Search Console (OAuth 2.0 & Token Persistence)
+    GSC_CLIENT_ID: str = ""
+    GSC_CLIENT_SECRET: str = ""
+    GSC_REDIRECT_URI: str = "http://localhost:8001/gsc/oauth/callback"
+    GSC_ENCRYPTION_KEY: str = ""
+    GSC_CREDENTIALS_FILE: str = "reports/.gsc_credentials.enc"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

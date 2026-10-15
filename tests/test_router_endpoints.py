@@ -27,6 +27,62 @@ def test_gsc_status_endpoint(client):
     assert data["status"] in ["unconfigured", "disconnected"]
 
 
+def test_gsc_auth_url_and_callback_lifecycle(client):
+    from unittest.mock import MagicMock, patch
+    from app.routers.gsc import _gsc_service
+
+    # Ensure service is configured with mock credentials for endpoint test
+    _gsc_service.client_id = "test_client_id"
+    _gsc_service.client_secret = "test_client_secret"
+
+    # 1. Get auth URL
+    auth_resp = client.get("/gsc/auth-url?property_key=testdomain.in")
+    assert auth_resp.status_code == 200
+    auth_data = auth_resp.json()
+    assert auth_data["configured"] is True
+    assert "accounts.google.com" in auth_data["authorization_url"]
+    state_nonce = auth_data["state"]
+
+    # 2. Callback missing state -> 400
+    bad_cb1 = client.get("/gsc/oauth/callback?code=mock_code")
+    assert bad_cb1.status_code == 400
+    assert "Missing required OAuth state parameter" in bad_cb1.json()["detail"]
+
+    # 3. Callback with invalid / unknown state -> 400
+    bad_cb2 = client.get("/gsc/oauth/callback?code=mock_code&state=forged_state_nonce")
+    assert bad_cb2.status_code == 400
+    assert "Invalid, replayed, or unrecognized" in bad_cb2.json()["detail"]
+
+    # 4. User denial callback -> 400
+    denial_cb = client.get("/gsc/oauth/callback?error=access_denied&error_description=Consent+rejected")
+    assert denial_cb.status_code == 400
+    assert "Consent rejected" in denial_cb.json()["detail"]
+
+    # 5. Successful callback with valid state & mocked Google token exchange -> 200
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "access_token": "ya29.sample_secret_access_token_12345",
+        "refresh_token": "1//sample_refresh_token",
+        "expires_in": 3600,
+        "scope": "https://www.googleapis.com/auth/webmasters.readonly",
+    }
+
+    with patch("requests.post", return_value=mock_resp):
+        success_cb = client.get(f"/gsc/oauth/callback?code=mock_auth_code&state={state_nonce}")
+        assert success_cb.status_code == 200
+        cb_data = success_cb.json()
+        assert cb_data["success"] is True
+        assert cb_data["property_key"] == "testdomain.in"
+        assert cb_data["token_masked"].startswith("ya29.sam")
+        assert "12345" not in cb_data["token_masked"]
+
+    # 6. Replay attack: calling callback again with same state -> 400
+    replay_cb = client.get(f"/gsc/oauth/callback?code=mock_auth_code&state={state_nonce}")
+    assert replay_cb.status_code == 400
+    assert "Invalid, replayed, or unrecognized" in replay_cb.json()["detail"]
+
+
 def test_ai_search_status_endpoint(client):
     resp = client.get("/ai-search/status")
     assert resp.status_code == 200

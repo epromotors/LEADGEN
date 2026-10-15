@@ -280,3 +280,18 @@ class EmailCorrection(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     lead: Mapped["Lead"] = relationship("Lead")
+
+
+class GSCCredential(Base):
+    """Stores encrypted Google Search Console OAuth credentials for verified properties."""
+    __tablename__ = "gsc_credentials"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    property_key: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    encrypted_tokens: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
