@@ -9,6 +9,7 @@ import {
   getLeads, uploadLeads, deleteLead, bulkDeleteLeads, deleteAllLeads,
   triggerAudit, triggerAllAudits, triggerSkippedAudits, updateLead, getAudit, getAuditStats,
 } from '../api/client'
+import BulkImportDiscovery from '../components/BulkImportDiscovery'
 
 const STATUS_BADGE = {
   new:      'badge-grey',
@@ -939,6 +940,9 @@ export default function Leads() {
           )}
         </div>
       </div>
+
+      {/* Bulk Keyword & Location Lead Discovery Import */}
+      <BulkImportDiscovery onLeadsImported={() => fetchLeads()} />
 
       {/* Dropzone */}
       <div

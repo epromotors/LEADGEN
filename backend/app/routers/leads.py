@@ -1,14 +1,22 @@
 import uuid
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response, BackgroundTasks
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_db
 from app.models import Lead, ActivityLog
 from app.schemas import LeadResponse, LeadListResponse, LeadUpdate
 from app.utils.csv_parser import parse_and_clean_csv
+from app.services.lead_discovery_service import (
+    lead_discovery_service,
+    parse_txt_upload_content,
+    DEFAULT_PRESET_KEYWORDS,
+    DEFAULT_PRESET_LOCATIONS,
+)
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -98,6 +106,154 @@ async def upload_leads(
         "skipped_duplicates": skipped,
         "total_in_file": len(rows),
     }
+
+
+# ─── Bulk Keyword & Location Lead Discovery Endpoints ─────────────────────────
+
+class DiscoveryPreviewRequest(BaseModel):
+    keywords: List[str] = []
+    locations: List[str] = []
+    mode: str = "uploaded_only"
+    custom_budget: Optional[int] = None
+
+
+class DiscoveryJobCreateRequest(BaseModel):
+    keywords: List[str] = []
+    locations: List[str] = []
+    mode: str = "uploaded_only"
+    budget: Optional[int] = None
+
+
+@router.get("/discovery/presets", summary="Get built-in keyword and location presets")
+async def get_discovery_presets():
+    return {
+        "keywords": DEFAULT_PRESET_KEYWORDS,
+        "locations": DEFAULT_PRESET_LOCATIONS,
+    }
+
+
+@router.get("/discovery/providers", summary="Get provider configurations and failover status")
+async def get_discovery_providers():
+    return lead_discovery_service.get_provider_statuses()
+
+
+@router.post("/discovery/upload-txt", summary="Upload keywords or locations .txt file")
+async def upload_discovery_txt(
+    file: UploadFile = File(...),
+    file_type: str = Query("keywords", pattern="^(keywords|locations)$"),
+):
+    """
+    Accept UTF-8 text file (.txt). Parse line-by-line, trim whitespace, ignore
+    blank lines & comments (#), remove case-insensitive duplicates, and return stats.
+    """
+    filename_lower = (file.filename or "").lower()
+    if not filename_lower.endswith(".txt"):
+        raise HTTPException(status_code=400, detail="Only .txt text files are accepted.")
+
+    content = await file.read()
+    try:
+        parsed = parse_txt_upload_content(
+            content,
+            max_file_size=getattr(settings, "DISCOVERY_MAX_FILE_SIZE_BYTES", 1_048_576),
+            max_entries=getattr(settings, "DISCOVERY_MAX_ENTRIES_PER_FILE", 250),
+        )
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+
+    return {
+        "file_type": file_type,
+        "filename": file.filename,
+        **parsed,
+    }
+
+
+@router.post("/discovery/preview", summary="Calculate search combinations and budget estimate")
+async def preview_discovery_combinations(payload: DiscoveryPreviewRequest):
+    return lead_discovery_service.calculate_combinations(
+        keywords=payload.keywords,
+        locations=payload.locations,
+        mode=payload.mode,
+        custom_budget=payload.custom_budget,
+    )
+
+
+@router.post("/discovery/jobs", summary="Create and trigger lead discovery job")
+async def create_discovery_job(
+    payload: DiscoveryJobCreateRequest,
+    background_tasks: BackgroundTasks,
+):
+    try:
+        job = lead_discovery_service.create_job(
+            keywords=payload.keywords,
+            locations=payload.locations,
+            mode=payload.mode,
+            budget=payload.budget,
+        )
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+
+    background_tasks.add_task(lead_discovery_service.run_discovery_job, job["job_id"])
+    return job
+
+
+@router.get("/discovery/jobs", summary="List all discovery jobs")
+async def list_discovery_jobs():
+    return list(lead_discovery_service._jobs.values())
+
+
+@router.get("/discovery/jobs/{job_id}", summary="Get discovery job status and discovered leads")
+async def get_discovery_job(job_id: str):
+    job = lead_discovery_service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Discovery job not found.")
+    return job
+
+
+@router.post("/discovery/jobs/{job_id}/pause", summary="Pause a running discovery job")
+async def pause_discovery_job(job_id: str):
+    try:
+        return lead_discovery_service.pause_job(job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Discovery job not found.")
+
+
+@router.post("/discovery/jobs/{job_id}/resume", summary="Resume a paused discovery job")
+async def resume_discovery_job(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+):
+    try:
+        job = lead_discovery_service.resume_job(job_id)
+        background_tasks.add_task(lead_discovery_service.run_discovery_job, job_id)
+        return job
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Discovery job not found.")
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+
+
+@router.post("/discovery/jobs/{job_id}/cancel", summary="Cancel a discovery job")
+async def cancel_discovery_job(job_id: str):
+    try:
+        return lead_discovery_service.cancel_job(job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Discovery job not found.")
+
+
+@router.get("/discovery/jobs/{job_id}/export", summary="Export discovered leads to CSV")
+async def export_discovery_leads(
+    job_id: str,
+    format: str = Query("leadgen", pattern="^(leadgen|simple)$"),
+):
+    try:
+        csv_content = lead_discovery_service.export_leads_csv(job_id, format_type=format)
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=leads_{job_id}_{format}.csv"},
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Discovery job not found.")
 
 
 @router.get("/", response_model=LeadListResponse, summary="List all leads")

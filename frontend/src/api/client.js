@@ -96,6 +96,36 @@ export const bulkDeleteLeads = (ids) => api.post('/leads/bulk-delete', { ids })
 export const deleteAllLeads  = ()    => api.delete('/leads/all')
 export const updateLead      = (id, data) => api.patch(`/leads/${id}`, data)
 
+// ─── Lead Discovery (Scraper + Bulk Import) ─────────────────────────────────
+export const getDiscoveryPresets = () =>
+  api.get('/leads/discovery/presets')
+export const getDiscoveryProviders = () =>
+  api.get('/leads/discovery/providers')
+export const uploadDiscoveryTxt = (file, fileType) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/leads/discovery/upload-txt', fd, {
+    params: { file_type: fileType },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+export const previewDiscovery = (data) =>
+  api.post('/leads/discovery/preview', data)
+export const createDiscoveryJob = (data) =>
+  api.post('/leads/discovery/jobs', data)
+export const getDiscoveryJobs = () =>
+  api.get('/leads/discovery/jobs')
+export const getDiscoveryJob = (jobId) =>
+  api.get(`/leads/discovery/jobs/${jobId}`)
+export const pauseDiscoveryJob = (jobId) =>
+  api.post(`/leads/discovery/jobs/${jobId}/pause`)
+export const resumeDiscoveryJob = (jobId) =>
+  api.post(`/leads/discovery/jobs/${jobId}/resume`)
+export const cancelDiscoveryJob = (jobId) =>
+  api.post(`/leads/discovery/jobs/${jobId}/cancel`)
+export const getDiscoveryExportUrl = (jobId, format = 'leadgen') =>
+  `/api/leads/discovery/jobs/${jobId}/export?format=${format}`
+
 // ─── Audits ────────────────────────────────────────────────────────────────
 export const triggerAudit     = (leadId) => api.post(`/audits/trigger/${leadId}`)
 // mode: 'new_only' | 'not_emailed' | 'force_all'

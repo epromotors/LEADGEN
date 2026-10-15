@@ -91,6 +91,18 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_ENABLE_SEARCH_GROUNDING: bool = True
 
+    # Lead Discovery & Search Providers
+    SERPER_API_KEY: str = ""
+    SERPAPI_API_KEY: str = ""
+    HASDATA_API_KEY: str = ""
+    OUTSCRAPER_API_KEY: str = ""
+    HUNTER_API_KEY: str = ""
+    TREG_API_TOKEN: str = ""
+    DISCOVERY_MAX_FILE_SIZE_BYTES: int = 1_048_576
+    DISCOVERY_MAX_ENTRIES_PER_FILE: int = 250
+    DISCOVERY_MAX_COMBINATIONS_LIMIT: int = 500
+    DISCOVERY_STORAGE_FILE: str = "reports/.lead_discovery_jobs.json"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
