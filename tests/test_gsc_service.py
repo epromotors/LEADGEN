@@ -6,7 +6,7 @@ Verifies:
 1. Disconnected state: when credentials/tokens are absent, returns explicit disconnected status.
 2. Never fabricates clicks, impressions, CTR, or position when disconnected.
 3. Read-only authorization scope enforcement (webmasters.readonly).
-4. Secure token storage: tokens are masked and not leaked.
+4. Secure token storage: zero full or partial token leakage in any response payload or log.
 5. Mocked Search Analytics query parsing: computes total clicks, impressions, avg CTR, weighted position.
 6. Handles HTTP 403 forbidden and API error states gracefully.
 7. Redirect URI alignment with backend host and port 8001.
@@ -14,8 +14,12 @@ Verifies:
 9. Authorization denial handling.
 10. Fernet authenticated-encryption persistence across service restart / reconstruction.
 11. Refresh token lifecycle and revocation handling.
+12. Prohibition of insecure default secret fallbacks.
+13. Dedicated GSC_ENCRYPTION_KEY priority and JWT_SECRET fallback / rotation implications.
+14. Corrupted / unreadable encrypted store safe handling.
 """
 
+import os
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta, timezone
 import pytest
@@ -27,7 +31,7 @@ from backend.app.services.gsc_service import (
 
 
 def test_gsc_unconfigured_state():
-    svc = GSCService(client_id="", client_secret="", storage_path="")
+    svc = GSCService(client_id="", client_secret="", storage_path="", encryption_key="test_key_abc")
     assert not svc.is_configured()
 
     auth = svc.get_authorization_url()
@@ -52,6 +56,7 @@ def test_gsc_redirect_uri_and_auth_url():
         client_id="test_id",
         client_secret="test_secret",
         storage_path="",
+        encryption_key="test_key_abc",
     )
     assert svc_default.redirect_uri == DEFAULT_GSC_REDIRECT_URI
     assert "8001" in svc_default.redirect_uri
@@ -67,7 +72,7 @@ def test_gsc_redirect_uri_and_auth_url():
 
 
 def test_gsc_state_nonce_lifecycle_and_replay_defense():
-    svc = GSCService(client_id="id", client_secret="secret", storage_path="")
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
 
     # 1. Generate state
     nonce = svc.generate_state(property_key="client_domain.com", ttl_seconds=600)
@@ -100,7 +105,7 @@ def test_gsc_state_nonce_lifecycle_and_replay_defense():
 
 
 def test_gsc_oauth_denial_handling():
-    svc = GSCService(client_id="id", client_secret="secret", storage_path="")
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
     denial = svc.handle_oauth_denial("access_denied", "User declined Search Console permissions")
     assert denial["success"] is False
     assert denial["status"] == "denied"
@@ -109,13 +114,14 @@ def test_gsc_oauth_denial_handling():
 
 
 def test_gsc_token_exchange_mocked():
-    svc = GSCService(client_id="test_id", client_secret="test_secret", storage_path="")
+    raw_secret_token = "ya29.sample_secret_access_token_12345"
+    svc = GSCService(client_id="test_id", client_secret="test_secret", storage_path="", encryption_key="test_key_abc")
     state_nonce = svc.generate_state("carmedic.in")
 
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
-        "access_token": "ya29.sample_secret_access_token_12345",
+        "access_token": raw_secret_token,
         "refresh_token": "1//sample_refresh_token_67890",
         "expires_in": 3600,
         "scope": GSC_READONLY_SCOPE,
@@ -129,9 +135,13 @@ def test_gsc_token_exchange_mocked():
         )
         assert res["success"] is True
         assert res["property_key"] == "carmedic.in"
-        assert res["token_masked"].startswith("ya29.sam")
-        assert "12345" not in res["token_masked"]
+        assert res["has_token"] is True
+        assert res["token_type"] == "Bearer"
         assert res["scope"] == GSC_READONLY_SCOPE
+        # Security invariant: zero partial or full token material in API response
+        assert "token_masked" not in res
+        assert raw_secret_token not in str(res)
+        assert "ya29" not in str(res)
 
         # Verify POST payload
         post_kwargs = mock_post.call_args[1]
@@ -141,6 +151,55 @@ def test_gsc_token_exchange_mocked():
         assert data["client_secret"] == "test_secret"
         assert data["redirect_uri"] == svc.redirect_uri
         assert data["grant_type"] == "authorization_code"
+
+
+def test_gsc_zero_token_leakage_in_connection_status():
+    raw_secret_token = "ya29.sample_secret_access_token_12345"
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
+    svc.store_token("prop1", raw_secret_token)
+
+    status = svc.get_connection_status("prop1")
+    assert status["connected"] is True
+    assert status["status"] == "connected"
+    assert status["has_token"] is True
+    assert status["token_type"] == "Bearer"
+    # Security invariant: NO full or partial token string in status
+    assert "token_masked" not in status
+    assert raw_secret_token not in str(status)
+    assert "ya29" not in str(status)
+
+
+def test_gsc_insecure_default_secret_prohibition():
+    # If encryption key and JWT_SECRET are absent, _get_fernet must raise ValueError
+    with patch.dict(os.environ, {"GSC_ENCRYPTION_KEY": "", "JWT_SECRET": ""}, clear=True):
+        svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="")
+        with pytest.raises(ValueError, match="GSC token encryption requires GSC_ENCRYPTION_KEY or JWT_SECRET"):
+            svc._get_fernet()
+
+
+def test_gsc_encryption_key_priority_and_rotation(tmp_path):
+    enc_file = str(tmp_path / "gsc_tokens.enc")
+    key_dedicated = "explicit_dedicated_gsc_encryption_key_123"
+    key_jwt = "jwt_secret_fallback_key_456"
+
+    # 1. Dedicated key takes precedence over JWT_SECRET
+    with patch.dict(os.environ, {"GSC_ENCRYPTION_KEY": key_dedicated, "JWT_SECRET": key_jwt}):
+        svc1 = GSCService(client_id="id", client_secret="secret", storage_path=enc_file)
+        svc1.store_token("site_a.com", "token_a")
+        # Reading with dedicated key succeeds
+        svc_read = GSCService(client_id="id", client_secret="secret", storage_path=enc_file, encryption_key=key_dedicated)
+        assert svc_read.get_connection_status("site_a.com")["connected"] is True
+
+    # 2. When GSC_ENCRYPTION_KEY is unset, falls back to JWT_SECRET
+    enc_file_jwt = str(tmp_path / "gsc_tokens_jwt.enc")
+    with patch.dict(os.environ, {"GSC_ENCRYPTION_KEY": "", "JWT_SECRET": key_jwt}):
+        svc_jwt = GSCService(client_id="id", client_secret="secret", storage_path=enc_file_jwt)
+        svc_jwt.store_token("site_b.com", "token_b")
+        # Rotating JWT_SECRET invalidates old ciphertext safely without crashing
+        with patch.dict(os.environ, {"GSC_ENCRYPTION_KEY": "", "JWT_SECRET": "new_rotated_jwt_secret_789"}):
+            svc_rotated = GSCService(client_id="id", client_secret="secret", storage_path=enc_file_jwt)
+            # Store safely starts disconnected instead of leaking or crashing
+            assert svc_rotated.get_connection_status("site_b.com")["connected"] is False
 
 
 def test_gsc_encrypted_persistence_across_process_restart(tmp_path):
@@ -174,7 +233,9 @@ def test_gsc_encrypted_persistence_across_process_restart(tmp_path):
     status_a = svc2.get_connection_status("site_a.com")
     assert status_a["connected"] is True
     assert status_a["status"] == "connected"
-    assert status_a["token_masked"].startswith("access_t")
+    assert status_a["has_token"] is True
+    assert status_a["token_type"] == "Bearer"
+    assert "token_masked" not in status_a
 
     status_b = svc2.get_connection_status("site_b.com")
     assert status_b["connected"] is True
@@ -191,8 +252,26 @@ def test_gsc_encrypted_persistence_across_process_restart(tmp_path):
     assert svc3.get_connection_status("site_b.com")["connected"] is True
 
 
+def test_gsc_corrupted_file_safe_recovery(tmp_path):
+    enc_file = str(tmp_path / "gsc_tokens_corrupted.enc")
+    # Write garbage corrupted data
+    with open(enc_file, "wb") as f:
+        f.write(b"gAAAAA_this_is_not_valid_fernet_ciphertext_corrupted_payload")
+
+    # Service must recover safely, not crash, and initialize clean disconnected store
+    svc = GSCService(
+        client_id="id",
+        client_secret="secret",
+        storage_path=enc_file,
+        encryption_key="test_key_123",
+    )
+    status = svc.get_connection_status("any_domain.com")
+    assert status["connected"] is False
+    assert status["status"] == "disconnected"
+
+
 def test_gsc_token_refresh_and_revocation():
-    svc = GSCService(client_id="id", client_secret="secret", storage_path="")
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
     # Set token as already expired
     svc._token_store["revoked.com"] = {
         "access_token": "expired_access",
@@ -227,7 +306,7 @@ def test_gsc_token_refresh_and_revocation():
 
 
 def test_gsc_list_properties():
-    svc = GSCService(client_id="id", client_secret="secret", storage_path="")
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
     svc.store_token("default", "mock_token")
 
     mock_resp = MagicMock()
@@ -247,7 +326,7 @@ def test_gsc_list_properties():
 
 
 def test_gsc_search_performance_parsing_mocked():
-    svc = GSCService(client_id="id", client_secret="secret", storage_path="")
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
     svc.store_token("https://mysite.com", "mock_token")
 
     mock_response_data = {
@@ -290,7 +369,7 @@ def test_gsc_search_performance_parsing_mocked():
 
 
 def test_gsc_forbidden_and_error_handling():
-    svc = GSCService(client_id="id", client_secret="secret", storage_path="")
+    svc = GSCService(client_id="id", client_secret="secret", storage_path="", encryption_key="test_key_abc")
     svc.store_token("https://forbidden.com", "mock_token")
 
     mock_resp = MagicMock()

@@ -74,8 +74,11 @@ def test_gsc_auth_url_and_callback_lifecycle(client):
         cb_data = success_cb.json()
         assert cb_data["success"] is True
         assert cb_data["property_key"] == "testdomain.in"
-        assert cb_data["token_masked"].startswith("ya29.sam")
-        assert "12345" not in cb_data["token_masked"]
+        assert cb_data["has_token"] is True
+        assert cb_data["token_type"] == "Bearer"
+        assert "token_masked" not in cb_data
+        assert "ya29" not in str(cb_data)
+        assert "12345" not in str(cb_data)
 
     # 6. Replay attack: calling callback again with same state -> 400
     replay_cb = client.get(f"/gsc/oauth/callback?code=mock_auth_code&state={state_nonce}")

@@ -74,7 +74,8 @@ async def gsc_oauth_callback(
     return {
         "success": True,
         "property_key": property_key,
-        "token_masked": res.get("token_masked"),
+        "has_token": res.get("has_token", True),
+        "token_type": res.get("token_type", "Bearer"),
         "scope": res.get("scope"),
         "message": "Google Search Console connected successfully.",
     }

@@ -77,20 +77,42 @@ class GSCService:
         return bool(self.client_id and self.client_secret)
 
     def _get_fernet(self) -> Fernet:
-        """Derive an authenticated-encryption Fernet key from encryption_key."""
-        raw_key = self.encryption_key or "leadgen_gsc_default_encryption_key_32b"
+        """
+        Derive an authenticated-encryption Fernet key from the configured secret.
+        Prefers dedicated GSC_ENCRYPTION_KEY.
+        Falls back to JWT_SECRET if GSC_ENCRYPTION_KEY is unset (with documented rotation implications:
+        rotating JWT_SECRET will invalidate persisted GSC tokens unless GSC_ENCRYPTION_KEY is preserved).
+        Prohibits any silent fallback to an insecure or hardcoded default secret.
+        """
+        raw_key = (self.encryption_key or "").strip()
+        if not raw_key:
+            raw_key = os.environ.get("GSC_ENCRYPTION_KEY", "").strip()
+        if not raw_key:
+            raw_key = os.environ.get("JWT_SECRET", "").strip()
+
+        if not raw_key:
+            raise ValueError(
+                "GSC token encryption requires GSC_ENCRYPTION_KEY or JWT_SECRET to be configured. "
+                "Insecure default secret fallbacks are prohibited."
+            )
+
         derived_32 = hashlib.sha256(raw_key.encode("utf-8")).digest()
         urlsafe_key = base64.urlsafe_b64encode(derived_32)
         return Fernet(urlsafe_key)
 
     def _save_to_disk(self) -> None:
-        """Safely encrypt and persist all authorized tokens to disk."""
+        """Safely encrypt and persist all authorized tokens to disk with restrictive owner permissions."""
         if not self.storage_path:
             return
         try:
+            fernet = self._get_fernet()
+        except ValueError as e:
+            logger.warning("GSC token persistence skipped: %s", e)
+            return
+
+        try:
             target_dir = os.path.dirname(os.path.abspath(self.storage_path))
             os.makedirs(target_dir, exist_ok=True)
-            fernet = self._get_fernet()
 
             serialized: Dict[str, Any] = {}
             for k, v in self._token_store.items():
@@ -112,8 +134,15 @@ class GSCService:
             encrypted_bytes = fernet.encrypt(plaintext_bytes)
 
             tmp_path = f"{self.storage_path}.tmp"
-            with open(tmp_path, "wb") as f:
+            # Write with owner-only restrictive permissions (0o600)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            fd = os.open(tmp_path, flags, 0o600)
+            with os.fdopen(fd, "wb") as f:
                 f.write(encrypted_bytes)
+            try:
+                os.chmod(tmp_path, 0o600)
+            except OSError:
+                pass
             os.replace(tmp_path, self.storage_path)
             logger.debug("Encrypted GSC tokens persisted to %s", self.storage_path)
         except Exception as e:
@@ -124,11 +153,16 @@ class GSCService:
         if not self.storage_path or not os.path.exists(self.storage_path):
             return
         try:
+            fernet = self._get_fernet()
+        except ValueError as e:
+            logger.warning("GSC token restoration skipped: %s", e)
+            return
+
+        try:
             with open(self.storage_path, "rb") as f:
                 encrypted_bytes = f.read()
             if not encrypted_bytes:
                 return
-            fernet = self._get_fernet()
             plaintext_bytes = fernet.decrypt(encrypted_bytes)
             data = json.loads(plaintext_bytes.decode("utf-8"))
             for k, v in data.items():
@@ -285,7 +319,8 @@ class GSCService:
             return {
                 "success": True,
                 "property_key": property_key,
-                "token_masked": access_token[:8] + "..." if access_token else "none",
+                "has_token": bool(access_token),
+                "token_type": "Bearer",
                 "scope": data.get("scope", GSC_READONLY_SCOPE),
             }
         except Exception as e:
@@ -403,7 +438,9 @@ class GSCService:
             "status": "connected",
             "reason": "Connected with authorized read-only OAuth credentials.",
             "property": property_key,
-            "token_masked": token_data["access_token"][:8] + "...",
+            "has_token": True,
+            "token_type": "Bearer",
+            "scope": token_data.get("scope", GSC_READONLY_SCOPE),
             "available_properties": list(self._token_store.keys()),
         }
 

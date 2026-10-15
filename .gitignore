@@ -3,6 +3,8 @@
 *.env
 backend/.env
 !backend/.env.example
+*.enc
+.gsc_credentials.enc
 
 # Logs
 logs/
