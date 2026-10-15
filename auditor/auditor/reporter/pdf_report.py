@@ -56,9 +56,9 @@ def _styles():
     ps("cov_meta",      fontName="Helvetica",       fontSize=10, textColor=_c(0.78,0.85,1.0), leading=15, spaceAfter=2)
 
     # Headings
-    ps("h1",            fontName="Helvetica-Bold",  fontSize=16, textColor=C_PRIMARY,         leading=22, spaceBefore=12, spaceAfter=4)
-    ps("h2",            fontName="Helvetica-Bold",  fontSize=12, textColor=C_DARK,            leading=17, spaceBefore=10, spaceAfter=3)
-    ps("h3",            fontName="Helvetica-Bold",  fontSize=10, textColor=C_DARK,            leading=14, spaceAfter=2)
+    ps("h1",            fontName="Helvetica-Bold",  fontSize=16, textColor=C_PRIMARY,         leading=22, spaceBefore=12, spaceAfter=4, keepWithNext=True)
+    ps("h2",            fontName="Helvetica-Bold",  fontSize=12, textColor=C_DARK,            leading=17, spaceBefore=10, spaceAfter=3, keepWithNext=True)
+    ps("h3",            fontName="Helvetica-Bold",  fontSize=10, textColor=C_DARK,            leading=14, spaceAfter=2, keepWithNext=True)
 
     # Body text
     ps("body",          fontName="Helvetica",       fontSize=9.5, textColor=_c(0.18,0.18,0.22), leading=14, spaceAfter=3)
@@ -74,6 +74,8 @@ def _styles():
     ps("score_of",      fontName="Helvetica",       fontSize=11, textColor=_c(0.85,0.87,1.0), leading=15, alignment=TA_CENTER)
     ps("score_band",    fontName="Helvetica-Bold",  fontSize=13, textColor=C_WHITE,           leading=18, alignment=TA_CENTER)
     ps("score_desc",    fontName="Helvetica",       fontSize=10, textColor=_c(0.2,0.22,0.32), leading=15, alignment=TA_JUSTIFY)
+    ps("badge_icon",    fontName="Helvetica-Bold",  fontSize=13, textColor=C_WHITE,           leading=15, alignment=TA_CENTER)
+    ps("badge_label",   fontName="Helvetica-Bold",  fontSize=9.5, textColor=C_WHITE,          leading=12, alignment=TA_CENTER)
 
     # Table cells
     ps("th",            fontName="Helvetica-Bold",  fontSize=9,  textColor=C_WHITE,           leading=13, alignment=TA_LEFT)
@@ -339,10 +341,10 @@ def _test_card(test_id: str, result: dict, styles) -> list:
 
     # Status badge (left column)
     badge_rows = [
-        [Paragraph(icon,    styles["score_band"])],
-        [Paragraph(label,   styles["score_band"])],
+        [Paragraph(icon,    styles["badge_icon"])],
+        [Paragraph(label,   styles["badge_label"])],
     ]
-    badge = Table(badge_rows, colWidths=[16*mm])
+    badge = Table(badge_rows, colWidths=[20*mm])
     badge.setStyle(TableStyle([
         ("BACKGROUND",    (0,0), (-1,-1), color),
         ("ALIGN",         (0,0), (-1,-1), "CENTER"),
@@ -368,7 +370,7 @@ def _test_card(test_id: str, result: dict, styles) -> list:
     # 2-col layout: badge | content
     card_data = [[badge, content]]
     card_w    = CONTENT_W
-    card = Table(card_data, colWidths=[18*mm, card_w - 18*mm])
+    card = Table(card_data, colWidths=[22*mm, card_w - 22*mm])
     card.setStyle(TableStyle([
         ("BACKGROUND",    (1,0), (1,-1), _c(0.975,0.975,0.985)),
         ("VALIGN",        (0,0), (-1,-1), "TOP"),
@@ -588,6 +590,19 @@ def _priority_table(audit_results, styles):
     rows  = [header]
     cmds  = []
 
+    FRIENDLY_GROUPS = {
+        "technical": "Technical",
+        "onpage": "On-Page",
+        "images": "Images",
+        "links": "Links",
+        "conversion": "Conversion",
+        "ux": "UI / UX",
+        "indexability": "Indexability",
+        "content": "Content",
+        "local_seo": "Local SEO",
+        "performance": "Performance",
+        "schema_adv": "Adv Schema",
+    }
     weight_map = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "REVIEW": 4}
     items = []
     for level in ("FAIL", "WARN"):
@@ -595,7 +610,7 @@ def _priority_table(audit_results, styles):
             for test_id, result in tests.items():
                 if result.get("status") == level:
                     msg    = _safe(_trunc(result.get("message", test_id), 130))
-                    grp    = group_key.title()
+                    grp    = FRIENDLY_GROUPS.get(group_key.lower(), group_key.replace("_", " ").title())
                     label  = _resolve_priority_label(test_id, level, result)
                     items.append((weight_map.get(label, 5), label, msg, grp))
 
@@ -637,7 +652,7 @@ def _priority_table(audit_results, styles):
         ("ALIGN",         (2,0), (-1,-1), "CENTER"),
     ] + cmds
 
-    t = Table(rows, colWidths=[24*mm, 112*mm, 22*mm], repeatRows=1)
+    t = Table(rows, colWidths=[24*mm, 116*mm, 34*mm], repeatRows=1)
     t.setStyle(TableStyle(base))
     return [t]
 
@@ -720,8 +735,9 @@ def build_pdf(
 
     # ─── Page 1: Cover ────────────────────────────────────────────────────────
     story += _cover(header_url, report_date, score, agency, styles, url_info=effective_url_info)
+    story.append(PageBreak())
 
-    # ─── Page 1 cont: Executive Summary ───────────────────────────────────────
+    # ─── Page 2: Executive Summary ───────────────────────────────────────────
     story += _section("Executive Summary", styles)
     story += _overview_bar(audit_results, styles)
     story.append(Spacer(1, 6*mm))
@@ -730,7 +746,7 @@ def build_pdf(
     story += _group_table(audit_results, styles)
     story.append(Spacer(1, 4*mm))
 
-    # ─── Page 2+: Detailed Findings ───────────────────────────────────────────
+    # ─── Page 3+: Detailed Findings ───────────────────────────────────────────
     story.append(PageBreak())
 
     GROUP_TITLES = {
