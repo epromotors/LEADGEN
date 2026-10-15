@@ -41,6 +41,7 @@ class RunVisibilityCheckRequest(BaseModel):
     brand_aliases: Optional[List[str]] = None
     competitors: Optional[List[Dict[str, str]]] = None
     query_budget: Optional[int] = 10
+    provider: Optional[str] = None
 
 
 @router.get("/status", summary="Get AI-Search visibility monitoring status")
@@ -58,15 +59,17 @@ async def run_visibility_check(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Execute an on-demand AI visibility check using the Perplexity Agent API.
+    Execute an on-demand AI visibility check using the selected provider (Gemini, OpenRouter, or Perplexity).
     Enforces a strict query budget cap and returns verifiable citation/mention evidence.
     """
-    if not _ai_search_service.is_provider_configured():
+    selected_provider_id = payload.provider or _ai_search_service.get_active_provider_id()
+
+    if not _ai_search_service.is_provider_configured(selected_provider_id):
         raise HTTPException(
             status_code=400,
             detail=(
-                "AI-Search provider is not configured. "
-                "Set AI_SEARCH_PROVIDER_KEY in the server environment to enable live visibility monitoring."
+                f"AI-Search provider '{selected_provider_id}' is not configured. "
+                "Set GEMINI_API_KEY, OPENROUTER_API_KEY, or AI_SEARCH_PROVIDER_KEY in the server environment to enable live visibility monitoring."
             ),
         )
 
@@ -107,6 +110,7 @@ async def run_visibility_check(
             brand_aliases=payload.brand_aliases,
             competitors=payload.competitors,
             query_budget=payload.query_budget or 10,
+            provider_name=selected_provider_id,
         )
         return run_record
     except RuntimeError as ex:

@@ -32,6 +32,8 @@ from unittest.mock import MagicMock, patch
 from backend.app.services.ai_search_service import AiSearchMonitoringService
 from backend.app.services.ai_search_provider import (
     PerplexityAgentProvider,
+    OpenRouterAgentProvider,
+    GeminiSearchProvider,
     normalize_domain,
     is_domain_match,
     is_brand_mentioned_in_text,
@@ -463,7 +465,7 @@ def test_no_false_zero_metrics_on_all_failed_queries():
         assert res["brand_mention_rate"] is None
         assert res["citation_rate"] is None
         assert res["share_of_voice"] is None
-        assert "Provider queries failed" in res["uncertainty_note"]
+        assert "queries failed or were rate-limited" in res["uncertainty_note"]
 
     asyncio.run(_test())
 
@@ -488,6 +490,338 @@ def test_duplicate_run_protection():
         assert "already running" in str(exc_info.value)
         # Clean up lock
         svc._active_runs.discard(lead_id)
+
+    asyncio.run(_test())
+
+
+# ── 10. Gemini Provider Tests (Search Grounding & Redaction) ───────────────────
+
+def test_gemini_provider_success_with_grounding():
+    async def _test():
+        provider = GeminiSearchProvider(
+            api_key="mock_gemini_secret_key_12345",
+            model="gemini-2.0-flash",
+            enable_search_grounding=True,
+        )
+
+        mock_gemini_response = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": "Car Medic Motors is a premier car workshop in Gomti Nagar, Lucknow. They provide full engine service."
+                            }
+                        ],
+                        "role": "model",
+                    },
+                    "groundingMetadata": {
+                        "webSearchQueries": ["car repair gomti nagar lucknow", "car medic motors lucknow"],
+                        "groundingChunks": [
+                            {
+                                "web": {
+                                    "uri": "https://carmedicmotors.in/services",
+                                    "title": "Car Medic Motors - Car Repair & Service",
+                                }
+                            },
+                            {
+                                "web": {
+                                    "uri": "https://www.justdial.com/Lucknow/Car-Medic",
+                                    "title": "Car Medic in Gomti Nagar, Lucknow - Justdial",
+                                }
+                            },
+                        ],
+                    },
+                    "finishReason": "STOP",
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 42,
+                "candidatesTokenCount": 78,
+                "totalTokenCount": 120,
+            },
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = mock_gemini_response
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Top car workshop in Gomti Nagar Lucknow",
+            client=mock_client,
+        )
+
+        assert res["status"] == "success"
+        assert res["engine"] == "Google Gemini API"
+        assert res["model"] == "gemini-2.0-flash"
+        assert res["grounding_active"] is True
+        assert "Car Medic Motors" in res["answer_text"]
+        assert len(res["citations"]) == 2
+        assert res["citations"][0]["domain"] == "carmedicmotors.in"
+        assert res["citations"][0]["title"] == "Car Medic Motors - Car Repair & Service"
+        assert res["usage"]["total_tokens"] == 120
+        assert "mock_gemini_secret_key" not in str(res)
+
+    asyncio.run(_test())
+
+
+def test_gemini_provider_rate_limit_429():
+    async def _test():
+        provider = GeminiSearchProvider(api_key="mock_gemini_key")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 429
+        mock_resp.text = json.dumps({"error": {"message": "Resource has been exhausted (e.g. check quota)."}})
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Test Query",
+            client=mock_client,
+        )
+
+        assert res["status"] == "rate_limited"
+        assert "quota" in res["error_message"].lower() or "429" in res["error_message"]
+        assert res["citations"] == []
+
+    asyncio.run(_test())
+
+
+def test_gemini_provider_auth_error_400():
+    async def _test():
+        provider = GeminiSearchProvider(api_key="invalid_gemini_key")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 400
+        mock_resp.text = json.dumps({"error": {"message": "API key not valid. Please pass a valid API key."}})
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Test Query",
+            client=mock_client,
+        )
+
+        assert res["status"] == "auth_failed"
+        assert "API key" in res["error_message"] or "invalid" in res["error_message"].lower() or "400" in res["error_message"]
+
+    asyncio.run(_test())
+
+
+def test_gemini_provider_timeout_and_redaction():
+    async def _test():
+        secret_key = "secret_gemini_token_99999"
+        provider = GeminiSearchProvider(api_key=secret_key, timeout_seconds=5)
+
+        mock_client = MagicMock()
+        async def async_timeout(*args, **kwargs):
+            raise httpx.TimeoutException("Timed out contacting https://generativelanguage.googleapis.com?key=" + secret_key)
+        mock_client.post = async_timeout
+
+        res = await provider.execute_query(
+            "Test Query",
+            client=mock_client,
+        )
+
+        assert res["status"] == "timeout"
+        assert secret_key not in res["error_message"]
+        assert "[REDACTED_API_KEY]" in res["error_message"]
+
+    asyncio.run(_test())
+
+
+# ── 11. OpenRouter Provider Tests (Chat Completions & 402/429) ─────────────────
+
+def test_openrouter_provider_success():
+    async def _test():
+        provider = OpenRouterAgentProvider(
+            api_key="mock_openrouter_sk_key",
+            model="meta-llama/llama-3.3-70b-instruct:free",
+            enable_web_search=False,
+        )
+
+        mock_or_response = {
+            "id": "gen-12345",
+            "model": "meta-llama/llama-3.3-70b-instruct:free",
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "For reliable car repair, Car Medic Motors (https://carmedicmotors.in) offers trusted services in Lucknow.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 30,
+                "completion_tokens": 25,
+                "total_tokens": 55,
+            },
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = mock_or_response
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Car repair lucknow",
+            client=mock_client,
+        )
+
+        assert res["status"] == "success"
+        assert res["engine"] == "OpenRouter"
+        assert "meta-llama/llama-3.3-70b-instruct:free" in res["model"]
+        assert len(res["citations"]) >= 1
+        assert res["citations"][0]["domain"] == "carmedicmotors.in"
+        assert res["usage"]["total_tokens"] == 55
+
+    asyncio.run(_test())
+
+
+def test_openrouter_provider_payment_required_402():
+    async def _test():
+        provider = OpenRouterAgentProvider(
+            api_key="mock_openrouter_free_only_key",
+            enable_web_search=True,
+        )
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 402
+        mock_resp.text = json.dumps({"error": {"message": "Requires paid credit balance for web search plugins."}})
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Car repair",
+            client=mock_client,
+        )
+
+        assert res["status"] == "payment_required"
+        assert "payment" in res["error_message"].lower() or "credit" in res["error_message"].lower() or "402" in res["error_message"]
+
+    asyncio.run(_test())
+
+
+def test_openrouter_provider_rate_limited_429():
+    async def _test():
+        provider = OpenRouterAgentProvider(api_key="mock_openrouter_key")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 429
+        mock_resp.text = json.dumps({"error": {"message": "Free tier rate limit exceeded."}})
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Car repair",
+            client=mock_client,
+        )
+
+        assert res["status"] == "rate_limited"
+
+
+def test_openrouter_provider_malformed_json():
+    async def _test():
+        provider = OpenRouterAgentProvider(api_key="mock_openrouter_key")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+        mock_resp.text = "<html>502 Bad Gateway</html>"
+
+        mock_client = MagicMock()
+        async def async_post(*args, **kwargs):
+            return mock_resp
+        mock_client.post = async_post
+
+        res = await provider.execute_query(
+            "Car repair",
+            client=mock_client,
+        )
+
+        assert res["status"] == "malformed_response"
+
+
+# ── 12. Multi-Provider Status & Priority Selection ─────────────────────────────
+
+def test_multi_provider_monitoring_status():
+    svc = AiSearchMonitoringService(
+        gemini_api_key="mock_gemini_key",
+        openrouter_api_key="mock_or_key",
+        provider_api_key="",
+        provider_name="gemini",
+    )
+
+    status = svc.get_visibility_monitoring_status()
+    assert status["monitoring_enabled"] is True
+    assert status["active_provider"] == "gemini"
+    assert status["providers"]["gemini"]["configured"] is True
+    assert status["providers"]["openrouter"]["configured"] is True
+    assert status["providers"]["perplexity"]["configured"] is False
+
+    # Check tier info and cost risks are properly reported
+    assert "Free Tier" in status["providers"]["gemini"]["tier_info"]
+    assert "zero charge" in status["providers"]["gemini"]["cost_risk"].lower() or "free" in status["providers"]["gemini"]["cost_risk"].lower()
+    assert status["providers"]["gemini"]["requires_paid_credits"] is False
+    assert status["providers"]["openrouter"]["requires_paid_credits"] is True
+
+
+def test_multi_provider_execution_switching():
+    async def _test():
+        svc = AiSearchMonitoringService(
+            gemini_api_key="mock_gemini_key",
+            openrouter_api_key="mock_or_key",
+            provider_api_key="mock_pplx_key",
+        )
+
+        async def mock_gemini_fetcher(query: str):
+            return {
+                "status": "success",
+                "engine": "Google Gemini API",
+                "model": "gemini-2.0-flash",
+                "answer_text": "Car Medic Motors is located in Lucknow.",
+                "citations": [{"url": "https://carmedicmotors.in", "domain": "carmedicmotors.in", "title": "Home"}],
+                "grounding_active": True,
+                "usage": {"total_tokens": 100},
+            }
+
+        res = await svc.execute_visibility_run(
+            lead_id="test-lead-gemini",
+            brand_name="Car Medic Motors",
+            domain="carmedicmotors.in",
+            queries=[{"intent": "brand", "query": "Car Medic Motors"}],
+            provider_client=mock_gemini_fetcher,
+            provider_name="gemini",
+        )
+
+        assert res["status"] == "completed"
+        assert res["provider"] == "Google Gemini API"
+        assert res["model"] == "gemini-2.0-flash"
+        assert res["evidence"][0]["grounding_used"] is True
+        assert res["brand_mention_rate"] == 1.0
+        assert res["citation_rate"] == 1.0
 
     asyncio.run(_test())
 

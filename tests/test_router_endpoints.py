@@ -115,20 +115,33 @@ def test_ai_search_run_endpoint_lifecycle(client):
     from app.routers.ai_search import _ai_search_service
 
     # 1. When unconfigured, POST /ai-search/run returns 400 Bad Request
+    _ai_search_service.gemini_provider.api_key = ""
+    _ai_search_service.openrouter_provider.api_key = ""
+    _ai_search_service.perplexity_provider.api_key = ""
     _ai_search_service.provider.api_key = ""
+
     bad_resp = client.post("/ai-search/run", json={"domain": "carmedicmotors.in", "brand_name": "Car Medic"})
     assert bad_resp.status_code == 400
-    assert "provider is not configured" in bad_resp.json()["detail"]
+    assert "not configured" in bad_resp.json()["detail"]
+
+    # 1b. When requesting specific unconfigured provider, returns 400 Bad Request
+    bad_prov_resp = client.post("/ai-search/run", json={
+        "domain": "carmedicmotors.in",
+        "brand_name": "Car Medic",
+        "provider": "openrouter",
+    })
+    assert bad_prov_resp.status_code == 400
+    assert "OPENROUTER" in bad_prov_resp.json()["detail"] or "not configured" in bad_prov_resp.json()["detail"]
 
     # 2. When configured, POST /ai-search/run executes and records history
-    _ai_search_service.provider.api_key = "test_perplexity_secret_key"
+    _ai_search_service.gemini_provider.api_key = "test_gemini_secret_key"
     mock_run_res = {
         "run_id": "test-run-endpoint-uuid",
         "lead_id": "lead-endpoint-123",
         "target_domain": "carmedicmotors.in",
         "brand_name": "Car Medic Motors",
-        "provider": "Perplexity Agent API",
-        "model": "sonar",
+        "provider": "Google Gemini API",
+        "model": "gemini-2.0-flash",
         "status": "completed",
         "queries_attempted": 2,
         "queries_succeeded": 2,
@@ -148,7 +161,7 @@ def test_ai_search_run_endpoint_lifecycle(client):
                 "citations": [{"url": "https://carmedicmotors.in", "domain": "carmedicmotors.in", "title": "Home"}],
             }
         ],
-        "uncertainty_note": "Observations recorded via Perplexity Agent API.",
+        "uncertainty_note": "Observations recorded via Google Gemini API.",
     }
 
     with patch.object(_ai_search_service, "execute_visibility_run", new_callable=AsyncMock) as mock_exec:
@@ -158,6 +171,7 @@ def test_ai_search_run_endpoint_lifecycle(client):
             "domain": "carmedicmotors.in",
             "brand_name": "Car Medic Motors",
             "query_budget": 2,
+            "provider": "gemini",
         })
         assert run_resp.status_code == 200
         run_data = run_resp.json()
@@ -166,7 +180,7 @@ def test_ai_search_run_endpoint_lifecycle(client):
         assert run_data["brand_mention_rate"] == 1.0
         assert run_data["citation_rate"] == 0.5
         # Redaction: secret key must never be in returned JSON
-        assert "test_perplexity_secret_key" not in str(run_data)
+        assert "test_gemini_secret_key" not in str(run_data)
 
     # 3. History and Latest retrieval
     _ai_search_service._runs_by_lead["lead-endpoint-123"] = [mock_run_res]
@@ -179,7 +193,10 @@ def test_ai_search_run_endpoint_lifecycle(client):
     assert latest_resp.status_code == 200
     assert latest_resp.json()["run_id"] == "test-run-endpoint-uuid"
 
-    # Reset API key to unconfigured
+    # Reset API keys to unconfigured
+    _ai_search_service.gemini_provider.api_key = ""
+    _ai_search_service.openrouter_provider.api_key = ""
+    _ai_search_service.perplexity_provider.api_key = ""
     _ai_search_service.provider.api_key = ""
 
 
@@ -187,18 +204,19 @@ def test_ai_search_duplicate_run_conflict(client):
     from unittest.mock import patch, AsyncMock
     from app.routers.ai_search import _ai_search_service
 
-    _ai_search_service.provider.api_key = "test_key"
+    _ai_search_service.gemini_provider.api_key = "test_key"
     with patch.object(_ai_search_service, "execute_visibility_run", new_callable=AsyncMock) as mock_exec:
         mock_exec.side_effect = RuntimeError("A visibility check is already running for carmedicmotors.in.")
 
         conflict_resp = client.post("/ai-search/run", json={
             "domain": "carmedicmotors.in",
             "brand_name": "Car Medic Motors",
+            "provider": "gemini",
         })
         assert conflict_resp.status_code == 409
         assert "already running" in conflict_resp.json()["detail"]
 
-    _ai_search_service.provider.api_key = ""
+    _ai_search_service.gemini_provider.api_key = ""
 
 
 def test_proposals_workflow_api(client):

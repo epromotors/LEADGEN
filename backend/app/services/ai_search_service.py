@@ -2,13 +2,17 @@
 backend/app/services/ai_search_service.py
 
 AI-Search Readiness and Visibility Monitoring Service.
+Supports Multi-Provider Visibility Monitoring:
+1. Google Gemini API with Google Search Grounding (free-tier eligible: 5,000 search queries/mo).
+2. OpenRouter API with free models and configurable web search tool.
+3. Perplexity Agent API (POST /v1/agent).
+
 Implements Domain A of docs/LEADGEN_MASTER_PRODUCT_PLAN.md:
 - Clearly separates AI-Search Readiness Heuristics from Actual Visibility Monitoring.
 - Evaluates crawler access (GPTBot, ClaudeBot, PerplexityBot, Google-Extended).
 - Evaluates llms.txt as an optional informational observation only (never a ranking guarantee).
 - Truthful disconnected state: Never fabricates AI citations or appearances without an authorized provider.
 - Structured query corpus definition for brand, service, and local intent.
-- Integrates the official Perplexity Agent API (POST https://api.perplexity.ai/v1/agent).
 - Measures brand mention rate, domain citation rate, competitor visibility, and share of voice.
 - Records engine, query, date, response excerpt, cited URLs, and volatility disclaimer.
 - Thread-safe persistence and history tracking without database mutations.
@@ -23,10 +27,14 @@ from typing import Any, Dict, List, Optional, Set
 
 from app.services.ai_search_provider import (
     PerplexityAgentProvider,
+    OpenRouterAgentProvider,
+    GeminiSearchProvider,
     normalize_domain,
     is_domain_match,
     is_brand_mentioned_in_text,
-    DEFAULT_MODEL,
+    DEFAULT_PERPLEXITY_MODEL,
+    DEFAULT_OPENROUTER_MODEL,
+    DEFAULT_GEMINI_MODEL,
     DEFAULT_TIMEOUT_SECONDS,
 )
 
@@ -46,7 +54,7 @@ MAX_QUERY_BUDGET = 10
 
 
 class AiSearchMonitoringService:
-    """Evaluates readiness heuristics and tracks observed AI-search engine citations."""
+    """Evaluates readiness heuristics and tracks observed AI-search engine citations across providers."""
 
     def __init__(
         self,
@@ -54,29 +62,62 @@ class AiSearchMonitoringService:
         model: Optional[str] = None,
         timeout_seconds: Optional[int] = None,
         storage_file: Optional[str] = None,
-        provider_adapter: Optional[PerplexityAgentProvider] = None,
+        provider_adapter: Optional[Any] = None,
+        gemini_api_key: Optional[str] = None,
+        gemini_model: Optional[str] = None,
+        openrouter_api_key: Optional[str] = None,
+        openrouter_model: Optional[str] = None,
+        provider_name: Optional[str] = None,
     ):
-        self.provider_api_key = (
-            provider_api_key
-            or os.environ.get("AI_SEARCH_PROVIDER_KEY", "")
-        ).strip()
-        self.model = model or os.environ.get("AI_SEARCH_MODEL", DEFAULT_MODEL)
-        self.timeout_seconds = timeout_seconds or DEFAULT_TIMEOUT_SECONDS
+        raw_timeout = timeout_seconds or os.environ.get("AI_SEARCH_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+        try:
+            self.timeout_seconds = max(5, min(60, int(raw_timeout)))
+        except (ValueError, TypeError):
+            self.timeout_seconds = DEFAULT_TIMEOUT_SECONDS
+
         self.storage_file = (
             storage_file
             or os.environ.get("AI_SEARCH_STORAGE_FILE", "")
             or "reports/.ai_search_runs.json"
         )
+        self.default_provider_name = provider_name or os.environ.get("AI_SEARCH_PROVIDER", "gemini")
 
-        # Provider instance
+        # 1. Perplexity Provider
+        self.perplexity_provider = PerplexityAgentProvider(
+            api_key=provider_api_key or os.environ.get("AI_SEARCH_PROVIDER_KEY", "") or os.environ.get("PERPLEXITY_API_KEY", ""),
+            model=model or os.environ.get("AI_SEARCH_MODEL", DEFAULT_PERPLEXITY_MODEL),
+            timeout_seconds=self.timeout_seconds,
+        )
+
+        # 2. OpenRouter Provider
+        self.openrouter_provider = OpenRouterAgentProvider(
+            api_key=openrouter_api_key or os.environ.get("OPENROUTER_API_KEY", ""),
+            model=openrouter_model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL),
+            enable_web_search=os.environ.get("OPENROUTER_ENABLE_WEB_SEARCH", "true").lower() in ("true", "1", "yes"),
+            timeout_seconds=self.timeout_seconds,
+        )
+
+        # 3. Google Gemini Provider
+        self.gemini_provider = GeminiSearchProvider(
+            api_key=gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
+            model=gemini_model or os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
+            enable_search_grounding=os.environ.get("GEMINI_ENABLE_SEARCH_GROUNDING", "true").lower() in ("true", "1", "yes"),
+            timeout_seconds=self.timeout_seconds,
+        )
+
+        self.providers: Dict[str, Any] = {
+            "gemini": self.gemini_provider,
+            "openrouter": self.openrouter_provider,
+            "perplexity": self.perplexity_provider,
+        }
+
+        # Backwards compatibility reference
         if provider_adapter is not None:
             self.provider = provider_adapter
+            pid = getattr(provider_adapter, "provider_id", "custom")
+            self.providers[pid] = provider_adapter
         else:
-            self.provider = PerplexityAgentProvider(
-                api_key=self.provider_api_key,
-                model=self.model,
-                timeout_seconds=self.timeout_seconds,
-            )
+            self.provider = self.perplexity_provider
 
         # In-memory history store keyed by lead_id (or domain)
         self._runs_by_lead: Dict[str, List[Dict[str, Any]]] = {}
@@ -85,9 +126,47 @@ class AiSearchMonitoringService:
 
         self._load_runs_from_disk()
 
-    def is_provider_configured(self) -> bool:
-        """Returns True only if an external AI-search provider API key is configured."""
-        return self.provider.is_configured()
+    def get_active_provider_id(self, preferred: Optional[str] = None) -> str:
+        """
+        Resolve the active provider ID.
+        Prioritizes user-specified provider, then configured Gemini / OpenRouter keys over Perplexity.
+        """
+        if preferred and preferred.lower() in self.providers:
+            return preferred.lower()
+
+        # Prioritize Google Gemini, then OpenRouter, then Perplexity
+        if self.gemini_provider.is_configured():
+            return "gemini"
+        if self.openrouter_provider.is_configured():
+            return "openrouter"
+        if self.perplexity_provider.is_configured():
+            return "perplexity"
+
+        # If a custom adapter was injected
+        if hasattr(self, "provider") and self.provider != self.perplexity_provider:
+            return getattr(self.provider, "provider_id", "custom")
+
+        # Fallback to configured default
+        cfg = os.environ.get("AI_SEARCH_PROVIDER", "gemini").lower()
+        if cfg in self.providers:
+            return cfg
+        return "gemini"
+
+    def get_provider(self, provider_id: Optional[str] = None) -> Any:
+        """Return the requested or active provider adapter."""
+        if hasattr(self, "provider") and self.provider not in self.providers.values() and not provider_id:
+            return self.provider
+        pid = self.get_active_provider_id(provider_id)
+        return self.providers.get(pid, self.gemini_provider)
+
+    def is_provider_configured(self, provider_id: Optional[str] = None) -> bool:
+        """
+        Returns True if the specified provider (or at least one provider) is configured.
+        """
+        if provider_id:
+            prov = self.providers.get(provider_id.lower())
+            return prov.is_configured() if prov else False
+        return any(p.is_configured() for p in self.providers.values())
 
     def _load_runs_from_disk(self) -> None:
         """Load stored historical visibility runs from persistent JSON storage."""
@@ -124,7 +203,6 @@ class AiSearchMonitoringService:
         Evaluate structural signals that facilitate indexing and citation by AI discovery engines.
         Readiness is strictly differentiated from observed live citations.
         """
-        # 1. Crawler permissions in robots.txt
         blocked_crawlers = []
         allowed_crawlers = []
         if robots_text:
@@ -145,7 +223,6 @@ class AiSearchMonitoringService:
             if bot not in blocked_crawlers:
                 allowed_crawlers.append(bot)
 
-        # 2. Entity and Structured Data
         has_schema = False
         onpage_schema = audit_results.get("onpage", {}).get("schema", {})
         if onpage_schema.get("status") == "PASS":
@@ -156,7 +233,6 @@ class AiSearchMonitoringService:
         if local_schema.get("status") == "PASS":
             has_local_entity = True
 
-        # 3. Direct Q&A Content / Heading hierarchy
         h1_ok = audit_results.get("onpage", {}).get("h1", {}).get("status") == "PASS"
         title_ok = audit_results.get("onpage", {}).get("page_title", {}).get("status") == "PASS"
 
@@ -194,7 +270,7 @@ class AiSearchMonitoringService:
 
     def get_visibility_monitoring_status(self) -> Dict[str, Any]:
         """
-        Return the truthful monitoring status.
+        Return the truthful monitoring status for all providers.
         Never fabricates citation data when disconnected.
         """
         total_queries = sum(
@@ -202,18 +278,38 @@ class AiSearchMonitoringService:
             for runs in self._runs_by_lead.values()
         )
 
-        if not self.is_provider_configured():
+        active_id = self.get_active_provider_id()
+        active_prov = self.get_provider(active_id)
+        any_configured = any(p.is_configured() for p in self.providers.values())
+
+        provider_summaries: Dict[str, Any] = {}
+        for pid, prov in self.providers.items():
+            t_info = prov.get_tier_info() if hasattr(prov, "get_tier_info") else {}
+            provider_summaries[pid] = {
+                "id": pid,
+                "name": getattr(prov, "provider_name", pid.capitalize()),
+                "model": getattr(prov, "model", "default"),
+                "configured": prov.is_configured(),
+                "tier_info": f"{t_info.get('tier', 'Standard Tier')}: {t_info.get('free_tier_limits', '')}".strip(": "),
+                "cost_risk": t_info.get("cost_risk", ""),
+                "requires_paid_credits": pid in ("openrouter", "perplexity"),
+                "details": t_info,
+            }
+
+        if not any_configured:
             return {
                 "monitoring_enabled": False,
                 "status": "unconfigured",
+                "active_provider": active_id,
                 "provider": None,
-                "model": self.model,
+                "model": active_prov.model,
                 "max_queries_budget": DEFAULT_QUERY_BUDGET,
                 "timeout_seconds": self.timeout_seconds,
                 "reason": (
-                    "AI-search live visibility monitoring requires an authorized data provider. "
-                    "Set AI_SEARCH_PROVIDER_KEY to enable live citation tracking via the Perplexity Agent API."
+                    "No AI-search provider configured. "
+                    "Configure GEMINI_API_KEY (recommended free tier), OPENROUTER_API_KEY, or AI_SEARCH_PROVIDER_KEY."
                 ),
+                "providers": provider_summaries,
                 "total_monitored_queries": total_queries,
                 "observations": [],
             }
@@ -221,11 +317,13 @@ class AiSearchMonitoringService:
         return {
             "monitoring_enabled": True,
             "status": "connected",
-            "provider": "Perplexity Agent API",
-            "model": self.model,
+            "active_provider": active_id,
+            "provider": getattr(active_prov, "provider_name", "AI Provider"),
+            "model": active_prov.model,
             "max_queries_budget": DEFAULT_QUERY_BUDGET,
             "timeout_seconds": self.timeout_seconds,
-            "reason": "Authorized for real-time AI search citation sampling via Perplexity Agent API.",
+            "reason": f"Authorized for live AI search citation sampling via {getattr(active_prov, 'provider_name', active_id)} ({active_prov.model}).",
+            "providers": provider_summaries,
             "total_monitored_queries": total_queries,
             "observations": [],
         }
@@ -268,7 +366,6 @@ class AiSearchMonitoringService:
                 "query": f"Top rated automotive services in {city}",
             })
 
-        # Add generic local discovery queries if room exists
         if city and len(corpus) < DEFAULT_QUERY_BUDGET:
             corpus.append({
                 "intent": "local_recommendations",
@@ -288,27 +385,34 @@ class AiSearchMonitoringService:
         competitors: Optional[List[Dict[str, str]]] = None,
         query_budget: int = DEFAULT_QUERY_BUDGET,
         queries: Optional[List[Dict[str, str]]] = None,
+        provider_name: Optional[str] = None,
         provider_client: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         Execute an on-demand AI-search visibility check across bounded queries using
-        the official Perplexity Agent API.
+        the selected or active provider (Google Gemini, OpenRouter, or Perplexity).
         Extracts real answer text, source citations, and computes verifiable visibility metrics.
         """
         lead_key = str(lead_id) if lead_id else normalize_domain(domain)
 
-        # 1. Check duplicate run lock
         if lead_key in self._active_runs:
             raise RuntimeError(f"A visibility check is already running for {lead_key}.")
 
-        # 2. Check provider configuration
-        if not self.is_provider_configured() and provider_client is None:
+        active_provider = self.get_provider(provider_name)
+        active_provider_id = getattr(active_provider, "provider_id", "custom")
+        active_provider_name = getattr(active_provider, "provider_name", "AI Search Engine")
+        active_model = getattr(active_provider, "model", "default")
+
+        if not active_provider.is_configured() and provider_client is None:
             return {
                 "status": "unconfigured",
                 "lead_id": lead_id,
                 "target_domain": normalize_domain(domain),
                 "brand_name": brand_name,
-                "reason": "AI_SEARCH_PROVIDER_KEY is not configured.",
+                "provider_id": active_provider_id,
+                "provider": active_provider_name,
+                "model": active_model,
+                "reason": f"Provider '{active_provider_name}' is not configured with an API key.",
                 "queries_attempted": 0,
                 "queries_succeeded": 0,
                 "queries_failed": 0,
@@ -318,7 +422,6 @@ class AiSearchMonitoringService:
                 "evidence": [],
             }
 
-        # 3. Assemble bounded query list
         bounded_budget = min(MAX_QUERY_BUDGET, max(1, query_budget or DEFAULT_QUERY_BUDGET))
         if not queries:
             query_items = self.build_standard_query_corpus(
@@ -345,7 +448,6 @@ class AiSearchMonitoringService:
                 query_text = item["query"]
                 intent = item.get("intent", "general")
 
-                # If a mock provider_client function is passed directly
                 if callable(provider_client):
                     import inspect
                     if inspect.iscoroutinefunction(provider_client):
@@ -353,7 +455,7 @@ class AiSearchMonitoringService:
                     else:
                         raw_result = provider_client(query_text)
                 else:
-                    raw_result = await self.provider.execute_query(
+                    raw_result = await active_provider.execute_query(
                         query=query_text,
                         client=provider_client,
                     )
@@ -362,29 +464,26 @@ class AiSearchMonitoringService:
                 answer_text = raw_result.get("answer_text", "")
                 citations = raw_result.get("citations", [])
                 cited_urls = raw_result.get("cited_urls", [])
+                grounding_active = raw_result.get("grounding_active", False)
                 usage = raw_result.get("usage", {})
                 total_input_tokens += usage.get("input_tokens", 0)
                 total_output_tokens += usage.get("output_tokens", 0)
 
-                # Detection logic
                 brand_mentioned = False
                 domain_cited = False
                 competitor_results = []
 
                 if status == "success":
-                    # Check brand mention using safe word boundaries
                     brand_mentioned = is_brand_mentioned_in_text(
                         answer_text, brand_name, brand_aliases
                     )
 
-                    # Check domain citation
                     domain_cited = any(
                         is_domain_match(c.get("url", ""), target_norm_domain)
                         or is_domain_match(c.get("domain", ""), target_norm_domain)
                         for c in citations
                     )
 
-                    # Check configured competitors
                     for comp in competitors_list:
                         comp_name = comp.get("name", "")
                         comp_domain = comp.get("domain", "")
@@ -404,14 +503,16 @@ class AiSearchMonitoringService:
                 evidence.append({
                     "query": query_text,
                     "intent": intent,
-                    "engine": raw_result.get("engine", "Perplexity Agent API"),
-                    "model": raw_result.get("model", self.model),
+                    "engine": raw_result.get("engine", active_provider_name),
+                    "model": raw_result.get("model", active_model),
                     "status": status,
                     "error_message": raw_result.get("error_message"),
                     "latency_ms": raw_result.get("latency_ms", 0),
                     "answer_excerpt": answer_text,
                     "citations": citations,
                     "cited_urls": cited_urls,
+                    "grounding_active": grounding_active,
+                    "grounding_used": grounding_active,
                     "brand_mentioned": brand_mentioned,
                     "domain_cited": domain_cited,
                     "competitor_matches": competitor_results,
@@ -421,20 +522,19 @@ class AiSearchMonitoringService:
         finally:
             self._active_runs.discard(lead_key)
 
-        # Compute aggregate metrics
         queries_attempted = len(evidence)
         queries_succeeded = sum(1 for e in evidence if e["status"] == "success")
         queries_failed = queries_attempted - queries_succeeded
 
         if queries_succeeded == 0:
-            # When all queries fail, never invent a false 0.0 visibility score
             return {
                 "run_id": str(uuid.uuid4()),
                 "lead_id": lead_id,
                 "target_domain": target_norm_domain,
                 "brand_name": brand_name,
-                "provider": "Perplexity Agent API",
-                "model": self.model,
+                "provider_id": active_provider_id,
+                "provider": active_provider_name,
+                "model": active_model,
                 "status": "failed",
                 "created_at": start_ts,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -452,7 +552,8 @@ class AiSearchMonitoringService:
                     "total_tokens": total_input_tokens + total_output_tokens,
                 },
                 "uncertainty_note": (
-                    "Provider queries failed or were rate-limited. No visibility metrics were recorded."
+                    f"Provider '{active_provider_name}' queries failed or were rate-limited. "
+                    "No visibility metrics were recorded."
                 ),
             }
 
@@ -462,7 +563,6 @@ class AiSearchMonitoringService:
         brand_mention_rate = round(brand_mentions_count / queries_succeeded, 3)
         citation_rate = round(domain_citations_count / queries_succeeded, 3)
 
-        # Aggregate competitor metrics
         comp_summary = {}
         for comp in competitors_list:
             cname = comp.get("name", "")
@@ -497,7 +597,6 @@ class AiSearchMonitoringService:
                 "citation_rate": round(cdata["citations_count"] / queries_succeeded, 3),
             })
 
-        # Share of voice calculation: brand mentions divided by all detected brand + competitor mentions
         total_voice_mentions = brand_mentions_count + total_competitor_mentions
         share_of_voice = (
             round(brand_mentions_count / total_voice_mentions, 3)
@@ -510,8 +609,9 @@ class AiSearchMonitoringService:
             "lead_id": lead_id,
             "target_domain": target_norm_domain,
             "brand_name": brand_name,
-            "provider": "Perplexity Agent API",
-            "model": self.model,
+            "provider_id": active_provider_id,
+            "provider": active_provider_name,
+            "model": active_model,
             "status": "completed" if queries_failed == 0 else "partial",
             "created_at": start_ts,
             "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -531,16 +631,14 @@ class AiSearchMonitoringService:
                 "total_tokens": total_input_tokens + total_output_tokens,
             },
             "uncertainty_note": (
-                "Observations recorded via the official Perplexity Agent API. Generative AI answers "
-                "vary across users, regions, and dates; these results represent dated point-in-time samples."
+                f"Observations recorded via {active_provider_name} ({active_model}). "
+                "Generative AI answers vary across users, regions, and dates; these results represent dated point-in-time samples."
             ),
         }
 
-        # Store in historical log
         if lead_key not in self._runs_by_lead:
             self._runs_by_lead[lead_key] = []
         self._runs_by_lead[lead_key].append(run_record)
-        # Cap historical runs per lead to last 20
         self._runs_by_lead[lead_key] = self._runs_by_lead[lead_key][-20:]
         self._save_runs_to_disk()
 
@@ -558,7 +656,6 @@ class AiSearchMonitoringService:
             return history[-1]
         return None
 
-    # Maintain existing backwards compatibility for evaluate_live_citations
     def evaluate_live_citations(
         self,
         queries: List[Dict[str, str]],
@@ -566,7 +663,7 @@ class AiSearchMonitoringService:
         provider_fetcher: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
-        Legacy synchronous citation evaluation interface preserved for existing tests/consumers.
+        Legacy synchronous citation evaluation interface preserved for backwards compatibility.
         """
         if not self.is_provider_configured() and provider_fetcher is None:
             return {

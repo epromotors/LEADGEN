@@ -632,6 +632,7 @@ function AuditRow({ lead }) {
   const [loadingAiData, setLoadingAiData] = useState(false)
   const [runningAiCheck, setRunningAiCheck] = useState(false)
   const [expandedQueryIdx, setExpandedQueryIdx] = useState(null)
+  const [selectedProvider, setSelectedProvider] = useState('gemini')
 
   async function loadAiData() {
     setLoadingAiData(true)
@@ -640,7 +641,13 @@ function AuditRow({ lead }) {
         getAiSearchStatus(),
         getAiReadiness(lead.id),
       ])
-      if (statusRes.status === 'fulfilled') setAiStatus(statusRes.value.data)
+      if (statusRes.status === 'fulfilled') {
+        const statusData = statusRes.value.data
+        setAiStatus(statusData)
+        if (statusData?.active_provider) {
+          setSelectedProvider(statusData.active_provider)
+        }
+      }
       if (readinessRes.status === 'fulfilled') setAiReadiness(readinessRes.value.data)
 
       try {
@@ -664,8 +671,10 @@ function AuditRow({ lead }) {
   }
 
   async function handleRunAiVisibilityCheck() {
-    if (!aiStatus?.monitoring_enabled) {
-      toast.error('AI-Search provider is not configured. Set AI_SEARCH_PROVIDER_KEY in server environment.')
+    const provConfig = aiStatus?.providers?.[selectedProvider]
+    const isConfigured = provConfig ? provConfig.configured : aiStatus?.monitoring_enabled
+    if (!isConfigured) {
+      toast.error(`Provider "${selectedProvider.toUpperCase()}" is not configured. Add its API key to backend .env.`)
       return
     }
     setRunningAiCheck(true)
@@ -675,9 +684,10 @@ function AuditRow({ lead }) {
         brand_name: lead.business_name,
         domain: lead.website,
         query_budget: 10,
+        provider: selectedProvider,
       })
       setAiLatestRun(res.data)
-      toast.success('Live AI-search visibility check completed!')
+      toast.success(`Live AI-search visibility check completed via ${selectedProvider.toUpperCase()}!`)
       try {
         const histRes = await getAiSearchHistory(lead.id)
         setAiHistory(histRes.data?.runs || [])
@@ -1236,6 +1246,7 @@ function AuditRow({ lead }) {
                   {/* Tab 5: AI-Search & GSC Readiness */}
                   {activeTab === 'ai_search' && (
                     <div className="card-elevated p-6">
+                      {/* Tab 5 Header */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <Bot size={22} style={{ color: '#10b981' }} />
@@ -1244,7 +1255,7 @@ function AuditRow({ lead }) {
                               AI-Search Live Visibility & Diagnostics
                             </h3>
                             <span style={{ fontSize: 12, color: '#64748b' }}>
-                              Real-time citation tracking via Perplexity Agent API & indexing readiness for {lead.business_name}
+                              Multi-engine citation tracking & indexing readiness for {lead.business_name}
                             </span>
                           </div>
                         </div>
@@ -1252,7 +1263,7 @@ function AuditRow({ lead }) {
                         <div>
                           <button
                             onClick={handleRunAiVisibilityCheck}
-                            disabled={runningAiCheck || !aiStatus?.monitoring_enabled}
+                            disabled={runningAiCheck || !aiStatus?.providers?.[selectedProvider]?.configured}
                             className="btn btn-primary"
                             style={{
                               display: 'inline-flex',
@@ -1261,38 +1272,139 @@ function AuditRow({ lead }) {
                               padding: '8px 16px',
                               fontSize: 13,
                               fontWeight: 700,
-                              cursor: (runningAiCheck || !aiStatus?.monitoring_enabled) ? 'not-allowed' : 'pointer',
-                              opacity: (runningAiCheck || !aiStatus?.monitoring_enabled) ? 0.6 : 1,
+                              cursor: (runningAiCheck || !aiStatus?.providers?.[selectedProvider]?.configured) ? 'not-allowed' : 'pointer',
+                              opacity: (runningAiCheck || !aiStatus?.providers?.[selectedProvider]?.configured) ? 0.6 : 1,
                             }}
-                            title={!aiStatus?.monitoring_enabled ? 'Set AI_SEARCH_PROVIDER_KEY to enable live sampling' : 'Execute 10-query Perplexity check'}
+                            title={!aiStatus?.providers?.[selectedProvider]?.configured ? `Configure ${selectedProvider.toUpperCase()} key in backend .env to enable` : `Execute 10-query ${selectedProvider.toUpperCase()} check`}
                           >
                             <RefreshCw size={14} className={runningAiCheck ? 'spin' : ''} />
-                            {runningAiCheck ? 'Checking Visibility...' : 'Run Visibility Check'}
+                            {runningAiCheck ? 'Checking Visibility...' : `Run Check (${selectedProvider.toUpperCase()})`}
                           </button>
                         </div>
                       </div>
 
+                      {/* Provider Selector Bar */}
+                      <div style={{
+                        background: '#070b13', border: '1px solid #1e293b', borderRadius: 10,
+                        padding: '12px 16px', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Select AI-Search Engine Provider
+                          </span>
+                          <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                            Active default: <strong style={{ color: '#38bdf8' }}>{aiStatus?.active_provider || 'gemini'}</strong>
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+                          {[
+                            {
+                              id: 'gemini',
+                              name: 'Google Gemini',
+                              tag: 'Free Grounding',
+                              icon: '✦',
+                              conf: aiStatus?.providers?.gemini,
+                              desc: 'Google Search grounding (5k free queries/mo)',
+                            },
+                            {
+                              id: 'openrouter',
+                              name: 'OpenRouter',
+                              tag: 'Free Inference',
+                              icon: '⚡',
+                              conf: aiStatus?.providers?.openrouter,
+                              desc: 'Open weights (:free). Web search incurs ~$0.007/query.',
+                            },
+                            {
+                              id: 'perplexity',
+                              name: 'Perplexity',
+                              tag: 'Sonar Agent',
+                              icon: '🔍',
+                              conf: aiStatus?.providers?.perplexity,
+                              desc: 'Standard Agent API ($5/1k queries)',
+                            },
+                          ].map((p) => {
+                            const isSelected = selectedProvider === p.id
+                            const isConfigured = !!p.conf?.configured
+                            return (
+                              <div
+                                key={p.id}
+                                onClick={() => setSelectedProvider(p.id)}
+                                style={{
+                                  border: `1px solid ${isSelected ? '#3b82f6' : '#1e293b'}`,
+                                  background: isSelected ? 'rgba(59, 130, 246, 0.08)' : '#0a101d',
+                                  borderRadius: 8,
+                                  padding: '10px 14px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 4,
+                                  transition: 'border-color 0.15s ease',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13, color: isSelected ? '#93c5fd' : '#f1f5f9' }}>
+                                    <span>{p.icon}</span>
+                                    <span>{p.name}</span>
+                                  </div>
+                                  <span className={`badge ${isConfigured ? 'badge-green' : 'badge-grey'}`} style={{ fontSize: 9 }}>
+                                    {isConfigured ? 'Configured' : 'No Key'}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 11, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>{p.conf?.model || 'default'}</span>
+                                  <span style={{ color: isSelected ? '#60a5fa' : '#94a3b8', fontWeight: 600 }}>{p.tag}</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Selected Provider Capabilities & Cost Disclosure */}
+                        {aiStatus?.providers?.[selectedProvider] && (
+                          <div style={{
+                            background: '#0b1322', border: '1px solid #1e3a5f', borderRadius: 6,
+                            padding: '8px 12px', fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4,
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ color: '#93c5fd', fontWeight: 700 }}>
+                                {aiStatus.providers[selectedProvider].tier_info}
+                              </span>
+                              <span style={{
+                                color: aiStatus.providers[selectedProvider].requires_paid_credits ? '#f59e0b' : '#10b981',
+                                fontWeight: 600,
+                              }}>
+                                {aiStatus.providers[selectedProvider].requires_paid_credits ? '⚠ Requires Credit Balance' : '✓ Safe Free Tier (0 Cost)'}
+                              </span>
+                            </div>
+                            <div style={{ color: '#94a3b8', lineHeight: 1.4 }}>
+                              <strong>Note: </strong>{aiStatus.providers[selectedProvider].cost_risk}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {/* 1. Status Overview Grid */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 24 }}>
-                        {/* Provider Status */}
+                        {/* Selected Provider Status Card */}
                         <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              Perplexity Agent API
+                              Engine: {selectedProvider.toUpperCase()}
                             </span>
-                            {aiStatus?.monitoring_enabled ? (
+                            {aiStatus?.providers?.[selectedProvider]?.configured ? (
                               <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
                             ) : (
                               <span className="badge badge-grey" style={{ fontSize: 10 }}>Unconfigured</span>
                             )}
                           </div>
                           <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
-                            {aiStatus?.monitoring_enabled ? `Active Model: ${aiStatus.model || 'sonar'}` : 'Disconnected'}
+                            Model: {aiStatus?.providers?.[selectedProvider]?.model || 'default'}
                           </div>
                           <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 8, lineHeight: 1.5, margin: 0 }}>
-                            {aiStatus?.monitoring_enabled
-                              ? 'Authenticated live citation discovery enabled (conservative 10-query budget cap).'
-                              : 'External provider key missing. Set AI_SEARCH_PROVIDER_KEY to enable automated sampling.'}
+                            {aiStatus?.providers?.[selectedProvider]?.configured
+                              ? `Live sampling ready via ${selectedProvider.toUpperCase()} (10 queries/run).`
+                              : `Provider secret missing. Configure ${selectedProvider === 'gemini' ? 'GEMINI_API_KEY' : selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'AI_SEARCH_PROVIDER_KEY'} in server .env.`}
                           </p>
                         </div>
 
@@ -1345,10 +1457,10 @@ function AuditRow({ lead }) {
                         }}>
                           <RefreshCw size={28} className="spin" style={{ color: '#3b82f6', margin: '0 auto 12px auto' }} />
                           <h4 style={{ fontSize: 15, fontWeight: 800, color: '#f8fafc', margin: '0 0 6px 0' }}>
-                            Sampling Perplexity Agent API...
+                            Sampling {selectedProvider.toUpperCase()} ({aiStatus?.providers?.[selectedProvider]?.model || 'model'})...
                           </h4>
                           <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>
-                            Evaluating brand mentions, citations, and source URLs across 10 business queries.
+                            Evaluating brand mentions, citations, and search grounding across 10 business queries.
                           </p>
                         </div>
                       )}
@@ -1370,6 +1482,14 @@ function AuditRow({ lead }) {
                               <span className={`badge ${aiLatestRun.status === 'completed' ? 'badge-green' : aiLatestRun.status === 'partial' ? 'badge-yellow' : 'badge-red'}`} style={{ fontSize: 10 }}>
                                 {aiLatestRun.status?.toUpperCase()}
                               </span>
+                              <span className="badge badge-blue" style={{ fontSize: 10 }}>
+                                {aiLatestRun.provider?.toUpperCase()} ({aiLatestRun.model})
+                              </span>
+                              {aiLatestRun.evidence?.[0]?.grounding_used && (
+                                <span className="badge badge-purple" style={{ fontSize: 10 }}>
+                                  Search Grounded
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: 12, color: '#94a3b8' }}>
                               <span>Queries: <strong style={{ color: '#f8fafc' }}>{aiLatestRun.queries_succeeded}</strong> succeeded of {aiLatestRun.queries_attempted} attempted</span>
@@ -1420,7 +1540,7 @@ function AuditRow({ lead }) {
                             {/* Provider & Usage */}
                             <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
                               <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                API Tokens & Engine
+                                Engine & Tokens
                               </span>
                               <div style={{ fontSize: 24, fontWeight: 900, color: '#facc15', marginTop: 6, lineHeight: 1 }}>
                                 {aiLatestRun.usage?.total_tokens ? aiLatestRun.usage.total_tokens.toLocaleString() : '—'}
@@ -1438,7 +1558,7 @@ function AuditRow({ lead }) {
                                 Query Evidence & Extracted Citations ({aiLatestRun.evidence?.length || 0})
                               </h4>
                               <span style={{ fontSize: 11, color: '#64748b' }}>
-                                Target Domain: {aiLatestRun.target_domain}
+                                Engine: {aiLatestRun.provider} | Domain: {aiLatestRun.target_domain}
                               </span>
                             </div>
 
@@ -1536,7 +1656,7 @@ function AuditRow({ lead }) {
                           }}>
                             <AlertCircle size={16} style={{ color: '#facc15', flexShrink: 0, marginTop: 2 }} />
                             <span style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
-                              {aiLatestRun.uncertainty_note || 'Observations recorded via Perplexity Agent API. Generative AI answers vary dynamically across users, time, and regions; citations represent point-in-time test samples.'}
+                              {aiLatestRun.uncertainty_note || `Observations recorded via ${aiLatestRun.provider?.toUpperCase()} API. Generative AI answers vary dynamically across users, time, and regions; citations represent point-in-time test samples.`}
                             </span>
                           </div>
                         </div>
@@ -1550,14 +1670,14 @@ function AuditRow({ lead }) {
                         }}>
                           <Bot size={36} style={{ color: '#64748b', margin: '0 auto 12px auto' }} />
                           <h4 style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
-                            {aiStatus?.monitoring_enabled ? 'No Visibility Checks Run Yet' : 'AI-Search Visibility Unconfigured'}
+                            {aiStatus?.providers?.[selectedProvider]?.configured ? 'No Visibility Checks Run Yet' : `${selectedProvider.toUpperCase()} Not Configured`}
                           </h4>
                           <p style={{ color: '#94a3b8', fontSize: 12, maxWidth: 500, margin: '0 auto 16px auto', lineHeight: 1.6 }}>
-                            {aiStatus?.monitoring_enabled
-                              ? `Click "Run Visibility Check" above to query the Perplexity Agent API across 10 business queries and observe actual brand citations for ${lead.business_name}.`
-                              : 'To track whether AI search engines cite this business, configure AI_SEARCH_PROVIDER_KEY in your environment with a valid Perplexity API key.'}
+                            {aiStatus?.providers?.[selectedProvider]?.configured
+                              ? `Click "Run Check (${selectedProvider.toUpperCase()})" above to query ${aiStatus.providers[selectedProvider].model} across 10 business queries and observe actual brand citations for ${lead.business_name}.`
+                              : `To test visibility with ${selectedProvider.toUpperCase()}, configure ${selectedProvider === 'gemini' ? 'GEMINI_API_KEY' : selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'AI_SEARCH_PROVIDER_KEY'} in your server environment.`}
                           </p>
-                          {aiStatus?.monitoring_enabled && (
+                          {aiStatus?.providers?.[selectedProvider]?.configured && (
                             <button
                               onClick={handleRunAiVisibilityCheck}
                               className="btn btn-primary"
