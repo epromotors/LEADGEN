@@ -83,12 +83,12 @@ class Settings(BaseSettings):
 
     # OpenRouter
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
-    OPENROUTER_ENABLE_WEB_SEARCH: bool = True
+    OPENROUTER_MODEL: str = "nvidia/nemotron-3.5-lightning:free"
+    OPENROUTER_ENABLE_WEB_SEARCH: bool = False
 
     # Google Gemini API
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_ENABLE_SEARCH_GROUNDING: bool = True
 
     class Config:

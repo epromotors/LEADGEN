@@ -34,8 +34,8 @@ DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_MAX_RETRIES = 2
 
 DEFAULT_PERPLEXITY_MODEL = "sonar"
-DEFAULT_OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-lightning:free"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 
 def normalize_domain(domain_or_url: str) -> str:
@@ -125,7 +125,7 @@ def extract_urls_from_text(text: str) -> List[Dict[str, str]]:
     # Markdown links: [Title](URL)
     md_pattern = r"\[([^\]]+)\]\((https?://[^\s\)]+)\)"
     for title, url in re.findall(md_pattern, text):
-        clean_url = url.strip().rstrip(".,;:)")
+        clean_url = url.strip().rstrip(".,;:)】》」'\"")
         if clean_url not in seen_urls:
             seen_urls.add(clean_url)
             citations.append({
@@ -137,7 +137,7 @@ def extract_urls_from_text(text: str) -> List[Dict[str, str]]:
     # Standalone URLs: https://...
     raw_pattern = r"(https?://[^\s\(\)\[\]<>\"]+)"
     for url in re.findall(raw_pattern, text):
-        clean_url = url.strip().rstrip(".,;:)")
+        clean_url = url.strip().rstrip(".,;:)】》」'\"")
         if clean_url not in seen_urls:
             seen_urls.add(clean_url)
             citations.append({
@@ -626,6 +626,11 @@ class OpenRouterAgentProvider:
                     }
 
                 if status_code == 402:
+                    if "tools" in payload:
+                        logger.info("OpenRouter returned 402 for web search tool; retrying with model base knowledge")
+                        payload.pop("tools", None)
+                        retries = 0
+                        continue
                     return {
                         "status": "payment_required",
                         "query": query,
@@ -890,8 +895,8 @@ class GeminiSearchProvider:
                 "parts": [
                     {
                         "text": instructions or (
-                            "You are an objective search analyst. Provide a factual summary "
-                            "grounded in real-time web search and reference relevant sources."
+                            "You are an objective AI search visibility evaluator. Provide a factual, comprehensive overview "
+                            "answering the user query thoroughly based on your knowledge and any grounded web context."
                         )
                     }
                 ]
@@ -947,7 +952,18 @@ class GeminiSearchProvider:
                         "error_message": f"Gemini API authentication failed (HTTP {status_code}). Verify GEMINI_API_KEY.",
                     }
 
+                if status_code == 400 and "tools" in payload and "search" in response.text.lower():
+                    logger.info("Gemini returned 400 for search tool; retrying with model base knowledge")
+                    payload.pop("tools", None)
+                    retries = 0
+                    continue
+
                 if status_code == 429:
+                    if "tools" in payload:
+                        logger.info("Gemini search grounding quota exceeded (429); retrying with model base knowledge")
+                        payload.pop("tools", None)
+                        retries = 0
+                        continue
                     retries += 1
                     if retries <= DEFAULT_MAX_RETRIES:
                         import asyncio
@@ -1064,8 +1080,14 @@ class GeminiSearchProvider:
             parts = content.get("parts", [])
             text_blocks = []
             for p in parts:
-                if isinstance(p, dict) and "text" in p:
-                    text_blocks.append(p["text"])
+                if isinstance(p, dict):
+                    if "text" in p and p["text"]:
+                        text_blocks.append(p["text"])
+                    elif "functionCall" in p:
+                        fc = p["functionCall"]
+                        args = fc.get("args", {})
+                        if "queries" in args and isinstance(args["queries"], list):
+                            search_queries.extend([str(q) for q in args["queries"]])
             answer_text = "\n\n".join(text_blocks).strip()
 
             # 2. Google Search Grounding metadata extraction

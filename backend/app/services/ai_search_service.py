@@ -611,7 +611,7 @@ class AiSearchMonitoringService:
             "brand_name": brand_name,
             "provider_id": active_provider_id,
             "provider": active_provider_name,
-            "model": active_model,
+            "model": (evidence[0].get("model") if evidence and evidence[0].get("model") else active_model),
             "status": "completed" if queries_failed == 0 else "partial",
             "created_at": start_ts,
             "completed_at": datetime.now(timezone.utc).isoformat(),
