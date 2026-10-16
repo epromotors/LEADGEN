@@ -1863,6 +1863,14 @@ function AuditRow({ lead }) {
                               desc: 'Google Search grounding (5k free queries/mo)',
                             },
                             {
+                              id: 'groq',
+                              name: 'Groq Cloud',
+                              tag: 'Inference Only',
+                              icon: '⚡',
+                              conf: aiStatus?.providers?.groq,
+                              desc: 'High-speed LPU inference (internal model knowledge; no live web search citations).',
+                            },
+                            {
                               id: 'openrouter',
                               name: 'OpenRouter',
                               tag: 'Free Inference',
@@ -1959,7 +1967,7 @@ function AuditRow({ lead }) {
                           <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 8, lineHeight: 1.5, margin: 0 }}>
                             {aiStatus?.providers?.[selectedProvider]?.configured
                               ? `Live sampling ready via ${selectedProvider.toUpperCase()} (10 queries/run).`
-                              : `Provider secret missing. Configure ${selectedProvider === 'gemini' ? 'GEMINI_API_KEY' : selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'AI_SEARCH_PROVIDER_KEY'} in server .env.`}
+                              : `Provider secret missing. Configure ${selectedProvider === 'gemini' ? 'GEMINI_API_KEY' : selectedProvider === 'groq' ? 'GROQ_API_KEY_1' : selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'AI_SEARCH_PROVIDER_KEY'} in server .env.`}
                           </p>
                         </div>
 
@@ -2040,9 +2048,13 @@ function AuditRow({ lead }) {
                               <span className="badge badge-blue" style={{ fontSize: 10 }}>
                                 {aiLatestRun.provider?.toUpperCase()} ({aiLatestRun.model})
                               </span>
-                              {aiLatestRun.evidence?.[0]?.grounding_used && (
+                              {aiLatestRun.grounding_active || aiLatestRun.evidence?.[0]?.grounding_used ? (
                                 <span className="badge badge-purple" style={{ fontSize: 10 }}>
                                   Search Grounded
+                                </span>
+                              ) : (
+                                <span className="badge badge-grey" style={{ fontSize: 10, border: '1px solid #475569' }}>
+                                  Inference Only (Ungrounded)
                                 </span>
                               )}
                             </div>
@@ -2072,10 +2084,14 @@ function AuditRow({ lead }) {
                                 Domain Citation Rate
                               </span>
                               <div style={{ fontSize: 28, fontWeight: 900, color: '#3b82f6', marginTop: 6, lineHeight: 1 }}>
-                                {aiLatestRun.citation_rate != null ? `${Math.round(aiLatestRun.citation_rate * 100)}%` : '—'}
+                                {aiLatestRun.inference_only
+                                  ? 'N/A'
+                                  : aiLatestRun.citation_rate != null ? `${Math.round(aiLatestRun.citation_rate * 100)}%` : '—'}
                               </div>
                               <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginTop: 8 }}>
-                                {aiLatestRun.domain_citations_count || 0} of {aiLatestRun.queries_succeeded} queries cited {aiLatestRun.target_domain}
+                                {aiLatestRun.inference_only
+                                  ? 'Inference only (no web citations)'
+                                  : `${aiLatestRun.domain_citations_count || 0} of ${aiLatestRun.queries_succeeded} queries cited ${aiLatestRun.target_domain}`}
                               </span>
                             </div>
 

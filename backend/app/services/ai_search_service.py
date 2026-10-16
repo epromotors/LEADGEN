@@ -29,12 +29,14 @@ from app.services.ai_search_provider import (
     PerplexityAgentProvider,
     OpenRouterAgentProvider,
     GeminiSearchProvider,
+    GroqSearchProvider,
     normalize_domain,
     is_domain_match,
     is_brand_mentioned_in_text,
     DEFAULT_PERPLEXITY_MODEL,
     DEFAULT_OPENROUTER_MODEL,
     DEFAULT_GEMINI_MODEL,
+    DEFAULT_GROQ_MODEL,
     DEFAULT_TIMEOUT_SECONDS,
 )
 
@@ -67,6 +69,8 @@ class AiSearchMonitoringService:
         gemini_model: Optional[str] = None,
         openrouter_api_key: Optional[str] = None,
         openrouter_model: Optional[str] = None,
+        groq_api_key: Optional[str] = None,
+        groq_model: Optional[str] = None,
         provider_name: Optional[str] = None,
     ):
         raw_timeout = timeout_seconds or os.environ.get("AI_SEARCH_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
@@ -105,8 +109,16 @@ class AiSearchMonitoringService:
             timeout_seconds=self.timeout_seconds,
         )
 
+        # 4. Groq Provider (Two-Key Rotation)
+        self.groq_provider = GroqSearchProvider(
+            api_key=groq_api_key or os.environ.get("GROQ_API_KEY", ""),
+            model=groq_model or os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL),
+            timeout_seconds=self.timeout_seconds,
+        )
+
         self.providers: Dict[str, Any] = {
             "gemini": self.gemini_provider,
+            "groq": self.groq_provider,
             "openrouter": self.openrouter_provider,
             "perplexity": self.perplexity_provider,
         }
@@ -129,14 +141,16 @@ class AiSearchMonitoringService:
     def get_active_provider_id(self, preferred: Optional[str] = None) -> str:
         """
         Resolve the active provider ID.
-        Prioritizes user-specified provider, then configured Gemini / OpenRouter keys over Perplexity.
+        Prioritizes user-specified provider, then configured Gemini / Groq / OpenRouter keys over Perplexity.
         """
         if preferred and preferred.lower() in self.providers:
             return preferred.lower()
 
-        # Prioritize Google Gemini, then OpenRouter, then Perplexity
+        # Prioritize Google Gemini, then Groq, then OpenRouter, then Perplexity
         if self.gemini_provider.is_configured():
             return "gemini"
+        if self.groq_provider.is_configured():
+            return "groq"
         if self.openrouter_provider.is_configured():
             return "openrouter"
         if self.perplexity_provider.is_configured():
@@ -448,7 +462,7 @@ class AiSearchMonitoringService:
                 query_text = item["query"]
                 intent = item.get("intent", "general")
 
-                if callable(provider_client):
+                if callable(provider_client) and not hasattr(provider_client, "post") and not hasattr(provider_client, "send"):
                     import inspect
                     if inspect.iscoroutinefunction(provider_client):
                         raw_result = await provider_client(query_text)
@@ -513,6 +527,7 @@ class AiSearchMonitoringService:
                     "cited_urls": cited_urls,
                     "grounding_active": grounding_active,
                     "grounding_used": grounding_active,
+                    "inference_only": raw_result.get("inference_only", False),
                     "brand_mentioned": brand_mentioned,
                     "domain_cited": domain_cited,
                     "competitor_matches": competitor_results,
@@ -526,6 +541,8 @@ class AiSearchMonitoringService:
         queries_succeeded = sum(1 for e in evidence if e["status"] == "success")
         queries_failed = queries_attempted - queries_succeeded
 
+        is_inference_only = (active_provider_id == "groq") or any(e.get("inference_only") for e in evidence)
+
         if queries_succeeded == 0:
             return {
                 "run_id": str(uuid.uuid4()),
@@ -536,6 +553,8 @@ class AiSearchMonitoringService:
                 "provider": active_provider_name,
                 "model": active_model,
                 "status": "failed",
+                "inference_only": is_inference_only,
+                "grounding_active": False,
                 "created_at": start_ts,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
                 "queries_attempted": queries_attempted,
@@ -604,6 +623,15 @@ class AiSearchMonitoringService:
             else None
         )
 
+        grounding_active = (not is_inference_only) and any(e.get("grounding_active") for e in evidence)
+        uncertainty_note = (
+            f"Observations recorded via {active_provider_name} ({active_model}) in ungrounded inference-only mode. "
+            "Results reflect internal model synthesis and do NOT represent verified live search visibility or web citations."
+            if is_inference_only else
+            f"Observations recorded via {active_provider_name} ({active_model}). "
+            "Generative AI answers vary across users, regions, and dates; these results represent dated point-in-time samples."
+        )
+
         run_record: Dict[str, Any] = {
             "run_id": str(uuid.uuid4()),
             "lead_id": lead_id,
@@ -613,6 +641,8 @@ class AiSearchMonitoringService:
             "provider": active_provider_name,
             "model": (evidence[0].get("model") if evidence and evidence[0].get("model") else active_model),
             "status": "completed" if queries_failed == 0 else "partial",
+            "inference_only": is_inference_only,
+            "grounding_active": grounding_active,
             "created_at": start_ts,
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "queries_attempted": queries_attempted,
@@ -630,10 +660,7 @@ class AiSearchMonitoringService:
                 "output_tokens": total_output_tokens,
                 "total_tokens": total_input_tokens + total_output_tokens,
             },
-            "uncertainty_note": (
-                f"Observations recorded via {active_provider_name} ({active_model}). "
-                "Generative AI answers vary across users, regions, and dates; these results represent dated point-in-time samples."
-            ),
+            "uncertainty_note": uncertainty_note,
         }
 
         if lead_key not in self._runs_by_lead:

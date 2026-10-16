@@ -36,6 +36,7 @@ from urllib.parse import unquote, urlparse
 
 import aiohttp
 from app.config import settings
+from app.services.provider_key_manager import get_key_manager, ProviderKeyManager
 from app.utils.csv_parser import clean_business_name as app_clean_business_name
 
 logger = logging.getLogger(__name__)
@@ -165,6 +166,22 @@ def clean_website(url: Any) -> str:
     except Exception:
         return ""
     return u
+
+
+async def _extract_resp_text(resp: Any) -> str:
+    """Safely extract string text from an HTTP response, including handling mocks/coroutines."""
+    if resp is None:
+        return ""
+    try:
+        raw = resp.text
+        if callable(raw):
+            raw = raw()
+        if hasattr(raw, "__await__"):
+            raw = await raw
+        return raw if isinstance(raw, str) else ""
+    except Exception:
+        return ""
+
 
 
 def audit_website_is_old_or_dead(
@@ -363,50 +380,67 @@ class LeadDiscoveryService:
         self,
         storage_path: Optional[str] = None,
         allow_test_loopback: bool = False,
+        key_manager: Optional[Any] = None,
     ):
         self.storage_path = storage_path or settings.DISCOVERY_STORAGE_FILE
         self.allow_test_loopback = allow_test_loopback
+        self.key_manager = key_manager or get_key_manager(settings)
         self._provider_status: Dict[str, Dict[str, Any]] = {}
         self._init_providers()
         self._jobs: Dict[str, Dict[str, Any]] = self._load_jobs()
 
     def _init_providers(self):
-        """Initialize provider statuses based on environment settings."""
+        """Initialize provider statuses based on environment settings and key pools."""
+        km = getattr(self, "key_manager", None) or get_key_manager(settings)
+        serper_pool = km.get_pool("serper")
+        treg_pool = km.get_pool("treg")
+        serpapi_pool = km.get_pool("serpapi")
+        hasdata_pool = km.get_pool("hasdata")
+        outscraper_pool = km.get_pool("outscraper")
+        hunter_pool = km.get_pool("hunter")
+
+        serper_conf = (serper_pool.is_configured() if serper_pool else False) or bool(getattr(settings, "SERPER_API_KEY", ""))
+        treg_conf = (treg_pool.is_configured() if treg_pool else False) or bool(getattr(settings, "TREG_API_TOKEN", "") or getattr(settings, "TREG_API_KEY", ""))
+        serpapi_conf = (serpapi_pool.is_configured() if serpapi_pool else False) or bool(getattr(settings, "SERPAPI_API_KEY", ""))
+        hasdata_conf = (hasdata_pool.is_configured() if hasdata_pool else False) or bool(getattr(settings, "HASDATA_API_KEY", ""))
+        outscraper_conf = (outscraper_pool.is_configured() if outscraper_pool else False) or bool(getattr(settings, "OUTSCRAPER_API_KEY", ""))
+        hunter_conf = (hunter_pool.is_configured() if hunter_pool else False) or bool(getattr(settings, "HUNTER_API_KEY", ""))
+
         self._provider_status = {
             "serper": {
-                "status": ProviderStatus.AVAILABLE if getattr(settings, "SERPER_API_KEY", "") else ProviderStatus.DISABLED,
-                "configured": bool(getattr(settings, "SERPER_API_KEY", "")),
-                "key_masked": self._mask_key(getattr(settings, "SERPER_API_KEY", "")),
+                "status": ProviderStatus.AVAILABLE if serper_conf else ProviderStatus.DISABLED,
+                "configured": serper_conf,
+                "key_masked": self._mask_key(getattr(settings, "SERPER_API_KEY", "") or (serper_pool.keys[0].secret if serper_pool and serper_pool.keys else "")),
                 "last_error": None,
             },
             "serpapi": {
-                "status": ProviderStatus.AVAILABLE if getattr(settings, "SERPAPI_API_KEY", "") else ProviderStatus.DISABLED,
-                "configured": bool(getattr(settings, "SERPAPI_API_KEY", "")),
+                "status": ProviderStatus.AVAILABLE if serpapi_conf else ProviderStatus.DISABLED,
+                "configured": serpapi_conf,
                 "key_masked": self._mask_key(getattr(settings, "SERPAPI_API_KEY", "")),
                 "last_error": None,
             },
             "hasdata": {
-                "status": ProviderStatus.AVAILABLE if getattr(settings, "HASDATA_API_KEY", "") else ProviderStatus.DISABLED,
-                "configured": bool(getattr(settings, "HASDATA_API_KEY", "")),
+                "status": ProviderStatus.AVAILABLE if hasdata_conf else ProviderStatus.DISABLED,
+                "configured": hasdata_conf,
                 "key_masked": self._mask_key(getattr(settings, "HASDATA_API_KEY", "")),
                 "last_error": None,
             },
             "outscraper": {
-                "status": ProviderStatus.AVAILABLE if getattr(settings, "OUTSCRAPER_API_KEY", "") else ProviderStatus.DISABLED,
-                "configured": bool(getattr(settings, "OUTSCRAPER_API_KEY", "")),
+                "status": ProviderStatus.AVAILABLE if outscraper_conf else ProviderStatus.DISABLED,
+                "configured": outscraper_conf,
                 "key_masked": self._mask_key(getattr(settings, "OUTSCRAPER_API_KEY", "")),
                 "last_error": None,
             },
             "hunter": {
-                "status": ProviderStatus.AVAILABLE if getattr(settings, "HUNTER_API_KEY", "") else ProviderStatus.DISABLED,
-                "configured": bool(getattr(settings, "HUNTER_API_KEY", "")),
+                "status": ProviderStatus.AVAILABLE if hunter_conf else ProviderStatus.DISABLED,
+                "configured": hunter_conf,
                 "key_masked": self._mask_key(getattr(settings, "HUNTER_API_KEY", "")),
                 "last_error": None,
             },
             "treg": {
-                "status": ProviderStatus.AVAILABLE if getattr(settings, "TREG_API_TOKEN", "") else ProviderStatus.DISABLED,
-                "configured": bool(getattr(settings, "TREG_API_TOKEN", "")),
-                "key_masked": self._mask_key(getattr(settings, "TREG_API_TOKEN", "")),
+                "status": ProviderStatus.AVAILABLE if treg_conf else ProviderStatus.DISABLED,
+                "configured": treg_conf,
+                "key_masked": self._mask_key(getattr(settings, "TREG_API_TOKEN", "") or (treg_pool.keys[0].secret if treg_pool and treg_pool.keys else "")),
                 "last_error": None,
             },
             "http_direct": {
@@ -438,16 +472,35 @@ class LeadDiscoveryService:
         return f"{key[:3]}...{key[-3:]}"
 
     def get_provider_statuses(self) -> Dict[str, Any]:
-        """Return provider configuration status and availability."""
-        return {
-            k: {
-                "status": v["status"].value if isinstance(v["status"], ProviderStatus) else str(v["status"]),
-                "configured": v["configured"],
+        """Return provider configuration status, health, and sanitized slot diagnostics."""
+        km = getattr(self, "key_manager", None) or get_key_manager(settings)
+        pool_diags = km.get_all_diagnostics()
+
+        result = {}
+        for k, v in self._provider_status.items():
+            pool_diag = pool_diags.get(k, {})
+            pool_conf = pool_diag.get("configured", False)
+            configured = v["configured"] or pool_conf
+
+            status_val = v["status"]
+            status_str = status_val.value if isinstance(status_val, ProviderStatus) else str(status_val)
+
+            if k == "google_maps_direct":
+                status_str = "disabled"
+            elif pool_conf:
+                status_str = pool_diag.get("status", status_str)
+
+            result[k] = {
+                "status": status_str,
+                "configured": configured,
                 "key_masked": v["key_masked"],
                 "last_error": v["last_error"],
+                "total_slots": pool_diag.get("total_slots", 1 if configured else 0),
+                "available_slots": pool_diag.get("available_slots", 1 if (configured and status_str == "available") else 0),
+                "shared_quota_exhausted": pool_diag.get("shared_quota_exhausted", False),
+                "slots": pool_diag.get("slots", []),
             }
-            for k, v in self._provider_status.items()
-        }
+        return result
 
     # ─── Job Persistence ──────────────────────────────────────────────────────
 
@@ -540,46 +593,172 @@ class LeadDiscoveryService:
     ) -> Tuple[List[Dict[str, Any]], str, str]:
         """
         Search businesses across authorized providers with automatic fallback.
+        Priority:
+        1. Treg (Catalog Proxied Google Maps API)
+        2. Serper Maps API (with Two-Key Rotation)
+        3. SerpApi Direct
+        4. HasData Google Maps
+        5. Outscraper Maps
+        6. Compliant fallback or honest empty/none
         Returns: (places_list, selected_source, method)
         """
         if fetcher_mock is not None:
             return fetcher_mock(keyword, city)
 
         query = f"{keyword} in {city}"
+        km = getattr(self, "key_manager", None) or get_key_manager(settings)
 
-        # 1. Serper Maps
-        serper_key = getattr(settings, "SERPER_API_KEY", "")
-        if serper_key and self._provider_status["serper"]["status"] == ProviderStatus.AVAILABLE:
-            try:
-                url = "https://google.serper.dev/maps"
-                headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
-                async with session.post(url, json={"q": query}, headers=headers, timeout=20) as resp:
-                    if resp.status != 200:
-                        st = self._classify_http_status(resp.status)
-                        self._provider_status["serper"]["status"] = st
-                        self._provider_status["serper"]["last_error"] = f"HTTP {resp.status}"
-                    else:
-                        data = await resp.json()
-                        places = data.get("places", [])
-                        if places:
-                            return [
-                                {
-                                    "name": p.get("title", "").strip(),
-                                    "website": clean_website(p.get("website", "")),
-                                    "phone": p.get("phoneNumber"),
-                                    "email": None,
-                                    "source": "serper",
-                                    "method": "api_maps",
-                                }
-                                for p in places
-                            ], "serper", "api_maps"
-            except Exception as exc:
-                self._provider_status["serper"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
-                self._provider_status["serper"]["last_error"] = str(exc)
+        # 1. Treg Proxied Google Maps API (Catalog endpoint)
+        treg_pool = km.get_pool("treg")
+        treg_enabled = getattr(getattr(km, "settings", None) or settings, "TREG_ENABLE_PAID_ENDPOINTS", False)
+        if treg_pool and treg_pool.is_configured() and not treg_pool.shared_quota_exhausted and treg_enabled:
+            attempts = 0
+            max_treg_attempts = max(1, len(treg_pool.keys))
+            while attempts < max_treg_attempts:
+                attempts += 1
+                key_item = await treg_pool.get_next_key()
+                if not key_item:
+                    break
+                prov_key, slot_id = key_item
+                try:
+                    url = "https://treg.to/call/serpapi.google.maps"
+                    headers = {"X-Treg-Token": prov_key.secret, "Accept": "application/json"}
+                    async with session.get(url, params={"q": query, "type": "search"}, headers=headers, timeout=20) as resp:
+                        retry_after = resp.headers.get("Retry-After")
+                        ra_val = float(retry_after) if retry_after and retry_after.isdigit() else None
+                        err_text = ""
+                        if resp.status != 200:
+                            err_text = await _extract_resp_text(resp)
+                        is_quota = (resp.status == 402) or any(
+                            q in err_text.lower() for q in ("insufficient_quota", "not enough credits", "quota", "credit")
+                        )
+                        treg_pool.report_result(
+                            prov_key,
+                            resp.status,
+                            retry_after=ra_val,
+                            error_message=err_text,
+                            quota_exhausted=is_quota,
+                        )
 
-        # 2. SerpApi
-        serpapi_key = getattr(settings, "SERPAPI_API_KEY", "")
-        if serpapi_key and self._provider_status["serpapi"]["status"] == ProviderStatus.AVAILABLE:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            items = data.get("local_results", data.get("results", data.get("places", [])))
+                            if items:
+                                return [
+                                    {
+                                        "name": (i.get("title") or i.get("name", "")).strip(),
+                                        "website": clean_website(i.get("website") or i.get("link", "")),
+                                        "phone": i.get("phone") or i.get("phoneNumber"),
+                                        "email": extract_email(json.dumps(i)),
+                                        "source": "treg",
+                                        "endpoint": "serpapi.google.maps",
+                                        "key_slot": slot_id,
+                                        "account_id": prov_key.account_id,
+                                        "quota_scope": prov_key.quota_scope.scope_id,
+                                        "method": "api_proxy_maps",
+                                    }
+                                    for i in items
+                                ], "treg", "api_proxy_maps"
+                            break
+
+                        if resp.status == 401 or (resp.status == 403 and prov_key.is_auth_failed):
+                            continue
+                        if resp.status == 402 or is_quota:
+                            if treg_pool.shared_quota_exhausted:
+                                break
+                            continue
+                        if resp.status == 403:
+                            continue
+                except Exception as exc:
+                    treg_pool.report_result(prov_key, 500, error_message=str(exc))
+                    break
+
+        # 2. Serper Maps API (with Two-Key Rotation)
+        serper_pool = km.get_pool("serper")
+        serper_key_legacy = getattr(settings, "SERPER_API_KEY", "")
+        if (serper_pool and serper_pool.is_configured() and not serper_pool.shared_quota_exhausted) or (serper_key_legacy and self._provider_status.get("serper", {}).get("status") == ProviderStatus.AVAILABLE):
+            attempts = 0
+            max_serper_attempts = max(1, len(serper_pool.keys)) if serper_pool and serper_pool.keys else 1
+            while attempts < max_serper_attempts:
+                attempts += 1
+                slot_id = 1
+                if serper_pool and serper_pool.is_configured():
+                    key_item = await serper_pool.get_next_key()
+                    if not key_item:
+                        break
+                    prov_key, slot_id = key_item
+                    current_key = prov_key.secret
+                else:
+                    prov_key = None
+                    current_key = serper_key_legacy
+
+                try:
+                    url = "https://google.serper.dev/maps"
+                    headers = {"X-API-KEY": current_key, "Content-Type": "application/json"}
+                    async with session.post(url, json={"q": query}, headers=headers, timeout=20) as resp:
+                        retry_after = resp.headers.get("Retry-After")
+                        ra_val = float(retry_after) if retry_after and retry_after.isdigit() else None
+                        err_text = ""
+                        if resp.status != 200:
+                            err_text = await _extract_resp_text(resp)
+                        is_quota = (resp.status == 402) or any(
+                            q in err_text.lower() for q in ("insufficient_quota", "not enough credits", "quota", "credit")
+                        )
+                        if prov_key and serper_pool:
+                            serper_pool.report_result(
+                                prov_key,
+                                resp.status,
+                                retry_after=ra_val,
+                                error_message=err_text,
+                                quota_exhausted=is_quota,
+                            )
+
+                        if resp.status != 200:
+                            st = self._classify_http_status(resp.status)
+                            if "serper" in self._provider_status:
+                                self._provider_status["serper"]["status"] = st
+                                self._provider_status["serper"]["last_error"] = f"HTTP {resp.status}"
+
+                            if (resp.status == 401 or (resp.status == 403 and getattr(prov_key, "is_auth_failed", False))) and serper_pool:
+                                continue
+                            if (resp.status == 402 or is_quota):
+                                if serper_pool and serper_pool.shared_quota_exhausted:
+                                    break
+                                continue
+                            if resp.status == 403 and serper_pool:
+                                continue
+                        else:
+                            data = await resp.json()
+                            places = data.get("places", [])
+                            if places:
+                                return [
+                                    {
+                                        "name": p.get("title", "").strip(),
+                                        "website": clean_website(p.get("website", "")),
+                                        "phone": p.get("phoneNumber"),
+                                        "email": None,
+                                        "source": "serper",
+                                        "endpoint": "maps",
+                                        "key_slot": slot_id,
+                                        "account_id": prov_key.account_id if prov_key else "serper_legacy",
+                                        "quota_scope": prov_key.quota_scope.scope_id if prov_key else "serper_account_1",
+                                        "method": "api_maps",
+                                    }
+                                    for p in places
+                                ], "serper", "api_maps"
+                            break
+                except Exception as exc:
+                    if prov_key and serper_pool:
+                        serper_pool.report_result(prov_key, 500, error_message=str(exc))
+                    if "serper" in self._provider_status:
+                        self._provider_status["serper"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
+                        self._provider_status["serper"]["last_error"] = str(exc)
+                    break
+
+        # 3. SerpApi Direct
+        serpapi_pool = km.get_pool("serpapi")
+        serpapi_key = getattr(settings, "SERPAPI_API_KEY", "") or (serpapi_pool.keys[0].secret if serpapi_pool and serpapi_pool.keys else "")
+        if serpapi_key and self._provider_status.get("serpapi", {}).get("status") == ProviderStatus.AVAILABLE:
             try:
                 url = "https://serpapi.com/search.json"
                 params = {"engine": "google_maps", "q": query, "api_key": serpapi_key}
@@ -599,6 +778,8 @@ class LeadDiscoveryService:
                                     "phone": p.get("phone"),
                                     "email": None,
                                     "source": "serpapi",
+                                    "endpoint": "google_maps",
+                                    "key_slot": 1,
                                     "method": "api_maps",
                                 }
                                 for p in places
@@ -607,9 +788,10 @@ class LeadDiscoveryService:
                 self._provider_status["serpapi"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
                 self._provider_status["serpapi"]["last_error"] = str(exc)
 
-        # 3. HasData
-        hasdata_key = getattr(settings, "HASDATA_API_KEY", "")
-        if hasdata_key and self._provider_status["hasdata"]["status"] == ProviderStatus.AVAILABLE:
+        # 4. HasData Google Maps API
+        hasdata_pool = km.get_pool("hasdata")
+        hasdata_key = getattr(settings, "HASDATA_API_KEY", "") or (hasdata_pool.keys[0].secret if hasdata_pool and hasdata_pool.keys else "")
+        if hasdata_key and self._provider_status.get("hasdata", {}).get("status") == ProviderStatus.AVAILABLE:
             try:
                 url = "https://api.hasdata.com/scrape/google-maps/search"
                 headers = {"x-api-key": hasdata_key, "Accept": "application/json"}
@@ -629,6 +811,8 @@ class LeadDiscoveryService:
                                     "phone": p.get("phone"),
                                     "email": None,
                                     "source": "hasdata",
+                                    "endpoint": "scrape/google-maps/search",
+                                    "key_slot": 1,
                                     "method": "api_maps",
                                 }
                                 for p in places
@@ -637,9 +821,10 @@ class LeadDiscoveryService:
                 self._provider_status["hasdata"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
                 self._provider_status["hasdata"]["last_error"] = str(exc)
 
-        # 4. Outscraper
-        outscraper_key = getattr(settings, "OUTSCRAPER_API_KEY", "")
-        if outscraper_key and self._provider_status["outscraper"]["status"] == ProviderStatus.AVAILABLE:
+        # 5. Outscraper Maps API
+        outscraper_pool = km.get_pool("outscraper")
+        outscraper_key = getattr(settings, "OUTSCRAPER_API_KEY", "") or (outscraper_pool.keys[0].secret if outscraper_pool and outscraper_pool.keys else "")
+        if outscraper_key and self._provider_status.get("outscraper", {}).get("status") == ProviderStatus.AVAILABLE:
             try:
                 url = "https://api.app.outscraper.com/maps/search-v3"
                 headers = {"X-API-KEY": outscraper_key}
@@ -661,6 +846,8 @@ class LeadDiscoveryService:
                                     "phone": p.get("phone"),
                                     "email": clean_email(p.get("email_1", "")),
                                     "source": "outscraper",
+                                    "endpoint": "maps/search-v3",
+                                    "key_slot": 1,
                                     "method": "api_maps",
                                 }
                                 for p in places
@@ -682,17 +869,66 @@ class LeadDiscoveryService:
         fetcher_mock: Optional[Any] = None,
     ) -> Tuple[Optional[str], str, str]:
         """
-        Enrich email candidate using Hunter, Serper search snippet, or DuckDuckGo fallback.
+        Enrich email candidate using Treg Hunter proxy, Hunter Direct, Serper search snippet, or DuckDuckGo fallback.
         Returns: (email, source, method)
         """
         if fetcher_mock is not None:
             return fetcher_mock(name, city, website)
 
         domain = urlparse(website).netloc.lower().lstrip("www.") if website else ""
+        km = getattr(self, "key_manager", None) or get_key_manager(settings)
 
-        # 1. Hunter API
-        hunter_key = getattr(settings, "HUNTER_API_KEY", "")
-        if domain and hunter_key and self._provider_status["hunter"]["status"] == ProviderStatus.AVAILABLE:
+        # 1. Treg Hunter proxy
+        treg_pool = km.get_pool("treg")
+        treg_enabled = getattr(getattr(km, "settings", None) or settings, "TREG_ENABLE_PAID_ENDPOINTS", False)
+        if domain and treg_pool and treg_pool.is_configured() and not treg_pool.shared_quota_exhausted and treg_enabled:
+            attempts = 0
+            max_attempts = max(1, len(treg_pool.keys))
+            while attempts < max_attempts:
+                attempts += 1
+                key_item = await treg_pool.get_next_key()
+                if not key_item:
+                    break
+                prov_key, slot_id = key_item
+                try:
+                    url = "https://treg.to/call/https://api.hunter.io/v2/domain-search"
+                    headers = {"X-Treg-Token": prov_key.secret}
+                    async with session.get(url, params={"domain": domain}, headers=headers, timeout=15) as resp:
+                        err_text = ""
+                        if resp.status != 200:
+                            err_text = await _extract_resp_text(resp)
+                        is_quota = (resp.status == 402) or any(
+                            q in err_text.lower() for q in ("insufficient_quota", "not enough credits", "quota", "credit")
+                        )
+                        treg_pool.report_result(
+                            prov_key,
+                            resp.status,
+                            error_message=err_text,
+                            quota_exhausted=is_quota,
+                        )
+                        if resp.status == 200:
+                            data = await resp.json()
+                            for e in data.get("data", {}).get("emails", []):
+                                cleaned = clean_email(e.get("value", ""))
+                                if cleaned:
+                                    return cleaned, "treg", "api_proxy_hunter"
+                            break
+                        if resp.status == 401 or (resp.status == 403 and prov_key.is_auth_failed):
+                            continue
+                        if resp.status == 402 or is_quota:
+                            if treg_pool.shared_quota_exhausted:
+                                break
+                            continue
+                        if resp.status == 403:
+                            continue
+                except Exception as exc:
+                    treg_pool.report_result(prov_key, 500, error_message=str(exc))
+                    break
+
+        # 2. Hunter API direct
+        hunter_pool = km.get_pool("hunter")
+        hunter_key = getattr(settings, "HUNTER_API_KEY", "") or (hunter_pool.keys[0].secret if hunter_pool and hunter_pool.keys else "")
+        if domain and hunter_key and self._provider_status.get("hunter", {}).get("status") == ProviderStatus.AVAILABLE:
             try:
                 url = "https://api.hunter.io/v2/domain-search"
                 async with session.get(url, params={"domain": domain, "api_key": hunter_key}, timeout=15) as resp:
@@ -710,23 +946,61 @@ class LeadDiscoveryService:
                 self._provider_status["hunter"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
                 self._provider_status["hunter"]["last_error"] = str(exc)
 
-        # 2. Serper Search snippet
-        serper_key = getattr(settings, "SERPER_API_KEY", "")
-        if serper_key and self._provider_status["serper"]["status"] == ProviderStatus.AVAILABLE:
-            try:
-                url = "https://google.serper.dev/search"
-                payload = {"q": f'"{name}" {city} email OR contact'}
-                headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
-                async with session.post(url, json=payload, headers=headers, timeout=15) as resp:
-                    if resp.status == 200:
-                        found = extract_email(await resp.text())
-                        if found:
-                            return found, "serper", "api_search_snippet"
-            except Exception:
-                pass
+        # 3. Serper Search snippet (with Two-Key Rotation)
+        serper_pool = km.get_pool("serper")
+        serper_key_legacy = getattr(settings, "SERPER_API_KEY", "")
+        if (serper_pool and serper_pool.is_configured() and not serper_pool.shared_quota_exhausted) or (serper_key_legacy and self._provider_status.get("serper", {}).get("status") == ProviderStatus.AVAILABLE):
+            attempts = 0
+            max_serper_attempts = max(1, len(serper_pool.keys)) if serper_pool and serper_pool.keys else 1
+            while attempts < max_serper_attempts:
+                attempts += 1
+                slot_id = 1
+                if serper_pool and serper_pool.is_configured():
+                    key_item = await serper_pool.get_next_key()
+                    if not key_item:
+                        break
+                    prov_key, slot_id = key_item
+                    current_key = prov_key.secret
+                else:
+                    prov_key = None
+                    current_key = serper_key_legacy
 
-        # 3. DuckDuckGo public HTML search fallback (permitted)
-        if self._provider_status["duckduckgo_fallback"]["status"] == ProviderStatus.AVAILABLE:
+                try:
+                    url = "https://google.serper.dev/search"
+                    payload = {"q": f'"{name}" {city} email OR contact'}
+                    headers = {"X-API-KEY": current_key, "Content-Type": "application/json"}
+                    async with session.post(url, json=payload, headers=headers, timeout=15) as resp:
+                        err_text = ""
+                        if resp.status != 200:
+                            err_text = await _extract_resp_text(resp)
+                        is_quota = (resp.status == 402) or any(
+                            q in err_text.lower() for q in ("insufficient_quota", "not enough credits", "quota", "credit")
+                        )
+                        if prov_key and serper_pool:
+                            serper_pool.report_result(
+                                prov_key,
+                                resp.status,
+                                error_message=err_text,
+                                quota_exhausted=is_quota,
+                            )
+                        if resp.status == 200:
+                            found = extract_email(await resp.text())
+                            if found:
+                                return found, "serper", "api_search_snippet"
+                            break
+                        if (resp.status == 401 or (resp.status == 403 and getattr(prov_key, "is_auth_failed", False))) and serper_pool:
+                            continue
+                        if resp.status == 402 or is_quota:
+                            if serper_pool and serper_pool.shared_quota_exhausted:
+                                break
+                            continue
+                        if resp.status == 403 and serper_pool:
+                            continue
+                except Exception:
+                    break
+
+        # 4. DuckDuckGo public HTML search fallback (permitted)
+        if self._provider_status.get("duckduckgo_fallback", {}).get("status") == ProviderStatus.AVAILABLE:
             try:
                 q = f'"{name}" {city} email contact'
                 url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(q)}"

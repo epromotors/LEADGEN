@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 PERPLEXITY_AGENT_API_URL = "https://api.perplexity.ai/v1/agent"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_MAX_RETRIES = 2
@@ -36,6 +37,8 @@ DEFAULT_MAX_RETRIES = 2
 DEFAULT_PERPLEXITY_MODEL = "sonar"
 DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-lightning:free"
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+
 
 
 def normalize_domain(domain_or_url: str) -> str:
@@ -67,14 +70,28 @@ def redact_sensitive_credentials(text: str, secrets: Optional[List[str]] = None)
     if not text:
         return ""
     redacted = str(text)
+
+    # First scrub known pool secrets from ProviderKeyManager if available
+    try:
+        from app.services.provider_key_manager import get_key_manager
+        km = get_key_manager()
+        for s in km.get_all_secrets():
+            if s and len(s) >= 4:
+                redacted = redacted.replace(s, "[REDACTED_API_KEY]")
+    except Exception:
+        pass
+
     if secrets:
         for s in secrets:
             if s and len(s) >= 4:
                 redacted = redacted.replace(s, "[REDACTED_API_KEY]")
-    # Also redact generic patterns matching key=... or Bearer ...
-    redacted = re.sub(r'(key=)[^\s&"\']+', r'\1[REDACTED_API_KEY]', redacted, flags=re.IGNORECASE)
+    # Also redact generic patterns matching key=..., Bearer ..., X-API-KEY, X-Treg-Token
+    redacted = re.sub(r'([?&]key=)[^\s&"\']+', r'\1[REDACTED_API_KEY]', redacted, flags=re.IGNORECASE)
     redacted = re.sub(r'(Bearer\s+)[^\s"\']+', r'\1[REDACTED_API_KEY]', redacted, flags=re.IGNORECASE)
+    redacted = re.sub(r'(X-API-KEY["\']?\s*:\s*["\']?)[^\s"\']+', r'\1[REDACTED_API_KEY]', redacted, flags=re.IGNORECASE)
+    redacted = re.sub(r'(X-Treg-Token["\']?\s*:\s*["\']?)[^\s"\']+', r'\1[REDACTED_API_KEY]', redacted, flags=re.IGNORECASE)
     return redacted
+
 
 
 def is_domain_match(citation_url_or_domain: str, target_domain: str) -> bool:
@@ -1142,4 +1159,273 @@ class GeminiSearchProvider:
             },
             "latency_ms": latency_ms,
             "error_message": None,
+        }
+
+
+# ─── 4. Groq API Provider (Two-Key Rotation) ──────────────────────────────────
+
+class GroqSearchProvider:
+    """
+    Client adapter for Groq API (POST https://api.groq.com/openai/v1/chat/completions).
+    Uses ProviderKeyPool with two-key rotation (GROQ_API_KEY_1, GROQ_API_KEY_2, GROQ_API_KEY).
+    Separates AI inference results from grounded web search results.
+    """
+
+    provider_id: str = "groq"
+    provider_name: str = "Groq"
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
+        client: Optional[httpx.AsyncClient] = None,
+        key_pool: Optional[Any] = None,
+    ):
+        self.model = model or os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+        raw_timeout = timeout_seconds or os.environ.get("AI_SEARCH_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+        try:
+            self.timeout_seconds = max(5, min(60, int(raw_timeout)))
+        except (ValueError, TypeError):
+            self.timeout_seconds = DEFAULT_TIMEOUT_SECONDS
+
+        self._external_client = client
+
+        # Key pool integration
+        if key_pool is not None:
+            self.key_pool = key_pool
+        else:
+            from app.services.provider_key_manager import get_key_manager
+            km = get_key_manager()
+            if api_key:
+                self.key_pool = km.get_or_create_pool("groq", [api_key])
+            else:
+                self.key_pool = km.get_pool("groq")
+
+    def is_configured(self) -> bool:
+        """True ONLY when at least one valid key is configured in the key pool."""
+        return self.key_pool.is_configured() if self.key_pool else False
+
+    def get_tier_info(self) -> Dict[str, Any]:
+        pool_status = self.key_pool.get_status() if self.key_pool else {}
+        total_slots = pool_status.get("total_slots", 0)
+        avail_slots = pool_status.get("available_slots", 0)
+        return {
+            "tier": "Free-Tier AI Inference",
+            "model": self.model,
+            "free_tier_limits": "High-throughput free token allowance on Groq Cloud LPUs",
+            "cost_risk": "Zero cost within Groq free-tier rate limits. Stops on shared quota exhaustion.",
+            "grounding_method": "Groq LPU Inference (Model Internal Knowledge — Inference Only)",
+            "key_slots": total_slots,
+            "available_key_slots": avail_slots,
+            "shared_quota_exhausted": pool_status.get("shared_quota_exhausted", False),
+        }
+
+    async def execute_query(
+        self,
+        query: str,
+        instructions: Optional[str] = None,
+        client: Optional[httpx.AsyncClient] = None,
+    ) -> Dict[str, Any]:
+        if not self.is_configured():
+            return {
+                "status": "unconfigured",
+                "query": query,
+                "engine": self.provider_name,
+                "model": self.model,
+                "answer_text": "",
+                "citations": [],
+                "cited_urls": [],
+                "search_results": [],
+                "grounding_active": False,
+                "inference_only": True,
+                "usage": {},
+                "latency_ms": 0,
+                "error_message": "Groq API key is not configured. Set GROQ_API_KEY_1 and GROQ_API_KEY_2.",
+                "provenance": {"provider": "groq", "key_slot": None},
+            }
+
+        start_time = time.perf_counter()
+        active_client = client or self._external_client
+
+        # Maximum retries: rotation across available keys plus transient retry
+        max_attempts = max(2, len(self.key_pool.keys) if self.key_pool else 2)
+        attempts = 0
+        last_error_msg = ""
+        last_status_code = 0
+        used_slot: Optional[int] = None
+
+        while attempts < max_attempts:
+            attempts += 1
+            key_item = await self.key_pool.get_next_key() if self.key_pool else None
+            if not key_item:
+                # No eligible keys available (either all exhausted or quota exhausted)
+                reason = "quota_exhausted" if (self.key_pool and self.key_pool.shared_quota_exhausted) else "no_eligible_keys"
+                return {
+                    "status": "error",
+                    "query": query,
+                    "engine": self.provider_name,
+                    "model": self.model,
+                    "answer_text": "",
+                    "citations": [],
+                    "cited_urls": [],
+                    "search_results": [],
+                    "grounding_active": False,
+                    "inference_only": True,
+                    "usage": {},
+                    "latency_ms": int((time.perf_counter() - start_time) * 1000),
+                    "error_message": f"Groq request halted: {reason}.",
+                    "provenance": {"provider": "groq", "key_slot": used_slot, "error_category": reason},
+                }
+
+            prov_key, slot_id = key_item
+            used_slot = slot_id
+
+            headers = {
+                "Authorization": f"Bearer {prov_key.secret}",
+                "Content-Type": "application/json",
+                "User-Agent": "LEADGEN-AiSearch/1.0",
+            }
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": instructions or (
+                            "You are an objective research assistant. Analyze the query using internal synthesis. "
+                            "Note that you are performing AI inference without live web browsing."
+                        ),
+                    },
+                    {"role": "user", "content": query},
+                ],
+                "temperature": 0.2,
+            }
+
+            async def _do_req(c: httpx.AsyncClient) -> httpx.Response:
+                return await c.post(
+                    GROQ_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=self.timeout_seconds,
+                )
+
+            try:
+                if active_client:
+                    resp = await _do_req(active_client)
+                else:
+                    async with httpx.AsyncClient() as session_client:
+                        resp = await _do_req(session_client)
+
+                last_status_code = resp.status_code
+
+                if resp.status_code == 200:
+                    self.key_pool.report_result(prov_key, 200)
+                    data = resp.json()
+                    latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+                    answer_text = ""
+                    choices = data.get("choices", [])
+                    if choices and isinstance(choices, list):
+                        msg = choices[0].get("message", {})
+                        answer_text = msg.get("content", "")
+
+                    if len(answer_text) > 2000:
+                        answer_text = answer_text[:2000] + "... [truncated]"
+
+                    usage = data.get("usage", {})
+
+                    return {
+                        "status": "success",
+                        "query": query,
+                        "engine": self.provider_name,
+                        "model": data.get("model", self.model),
+                        "answer_text": answer_text,
+                        "citations": [],
+                        "cited_urls": [],
+                        "search_results": [],
+                        "grounding_active": False,
+                        "inference_only": True,
+                        "usage": {
+                            "input_tokens": usage.get("prompt_tokens", 0),
+                            "output_tokens": usage.get("completion_tokens", 0),
+                            "total_tokens": usage.get("total_tokens", 0),
+                        },
+                        "latency_ms": latency_ms,
+                        "error_message": None,
+                        "provenance": {
+                            "provider": "groq",
+                            "key_slot": slot_id,
+                            "account_id": prov_key.account_id,
+                            "quota_scope": prov_key.quota_scope.scope_id,
+                            "method": "groq_lpu_inference",
+                        },
+                    }
+
+                # Handle failure status codes
+                retry_after_hdr = resp.headers.get("Retry-After")
+                retry_after_secs = float(retry_after_hdr) if retry_after_hdr and retry_after_hdr.isdigit() else None
+                err_body = ""
+                try:
+                    err_body = resp.text
+                except Exception:
+                    pass
+                is_quota = (resp.status_code == 402) or any(
+                    q in err_body.lower() for q in ("insufficient_quota", "exceeded your current quota", "not enough credits", "credit balance")
+                )
+                self.key_pool.report_result(
+                    prov_key,
+                    resp.status_code,
+                    retry_after=retry_after_secs,
+                    error_message=err_body,
+                    quota_exhausted=is_quota,
+                )
+                last_error_msg = f"HTTP {resp.status_code}: {err_body[:200]}"
+
+                if resp.status_code == 401 or (resp.status_code == 403 and prov_key.is_auth_failed):
+                    # Key-specific authentication failure: try next available key slot
+                    continue
+
+                if resp.status_code == 402 or is_quota:
+                    # Account quota exhausted for this account scope:
+                    if self.key_pool.shared_quota_exhausted:
+                        break
+                    continue
+
+                if resp.status_code == 403:
+                    # Permission / plan / endpoint restriction: try next available key
+                    continue
+
+                if resp.status_code == 429:
+                    # Rate limit: try next key if available and allowed
+                    continue
+
+            except httpx.TimeoutException:
+                self.key_pool.report_result(prov_key, 0, error_message="timeout")
+                last_error_msg = "Request timed out"
+                continue
+            except Exception as exc:
+                self.key_pool.report_result(prov_key, 500, error_message=str(exc))
+                last_error_msg = str(exc)
+                continue
+
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        return {
+            "status": "error",
+            "query": query,
+            "engine": self.provider_name,
+            "model": self.model,
+            "answer_text": "",
+            "citations": [],
+            "cited_urls": [],
+            "search_results": [],
+            "grounding_active": False,
+            "inference_only": True,
+            "usage": {},
+            "latency_ms": latency_ms,
+            "error_message": redact_sensitive_credentials(f"Groq API call failed: {last_error_msg}"),
+            "provenance": {
+                "provider": "groq",
+                "key_slot": used_slot,
+                "status_code": last_status_code,
+            },
         }

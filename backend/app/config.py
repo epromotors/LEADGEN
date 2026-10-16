@@ -91,13 +91,31 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_ENABLE_SEARCH_GROUNDING: bool = True
 
+    # Groq API (AI Inference & Visibility)
+    GROQ_API_KEY_1: str = ""
+    GROQ_API_KEY_2: str = ""
+    GROQ_API_KEY: str = ""
+    GROQ_QUOTA_SCOPE_1: str = ""
+    GROQ_QUOTA_SCOPE_2: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
     # Lead Discovery & Search Providers
+    SERPER_API_KEY_1: str = ""
+    SERPER_API_KEY_2: str = ""
     SERPER_API_KEY: str = ""
+    SERPER_QUOTA_SCOPE_1: str = ""
+    SERPER_QUOTA_SCOPE_2: str = ""
     SERPAPI_API_KEY: str = ""
     HASDATA_API_KEY: str = ""
     OUTSCRAPER_API_KEY: str = ""
     HUNTER_API_KEY: str = ""
+    TREG_API_KEY_1: str = ""
+    TREG_API_KEY_2: str = ""
+    TREG_API_KEY: str = ""
     TREG_API_TOKEN: str = ""
+    TREG_QUOTA_SCOPE_1: str = ""
+    TREG_QUOTA_SCOPE_2: str = ""
+    TREG_ENABLE_PAID_ENDPOINTS: bool = False
     DISCOVERY_MAX_FILE_SIZE_BYTES: int = 1_048_576
     DISCOVERY_MAX_ENTRIES_PER_FILE: int = 250
     DISCOVERY_MAX_COMBINATIONS_LIMIT: int = 500
