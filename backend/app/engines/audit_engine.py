@@ -233,6 +233,7 @@ def _run_audit_sync(
     url: str,
     max_pages: int | None = None,
     requested_url: str | None = None,
+    target_keywords: list[str] | None = None,
 ) -> dict:
     """
     Run all 55+ SEO checks + multi-page crawl synchronously.
@@ -408,9 +409,15 @@ def _run_audit_sync(
     logger.info("[audit_engine] Starting multi-page crawl for %s (max_pages=%d)", url, crawl_max_pages)
     t_crawl_start = time.perf_counter()
     try:
-        crawled      = crawl_site(url, session, max_pages=crawl_max_pages)
-        page_audits  = [audit_page_seo(p) for p in crawled]
-        site_summary = aggregate_site_issues(page_audits)
+        crawled      = crawl_site(url, session, max_pages=crawl_max_pages, target_keywords=target_keywords)
+        page_audits  = [audit_page_seo(p, target_keywords=target_keywords) for p in crawled]
+        crawl_meta   = crawled[0].get("_crawl_meta") if crawled else None
+        site_summary = aggregate_site_issues(page_audits, crawl_meta=crawl_meta)
+        try:
+            from auditor.keyword_density import analyze_target_keywords_site
+            site_summary["keyword_analysis"] = analyze_target_keywords_site(crawled, target_keywords)
+        except Exception as _kwe:
+            logger.warning(f"[audit_engine] analyze_target_keywords_site failed: {_kwe}")
         failed_pages = [page for page in crawled if not page.get("ok")]
         crawl_coverage.update({
             "discovered": len(crawled),
@@ -794,7 +801,7 @@ async def _db_micro(callback):
             raise
 
 
-async def run_audit(lead_id: str) -> None:
+async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> None:
     """
     Main audit entry point. Called as a FastAPI background task.
     Signature is identical to v3.x — the router does not need to change.
@@ -931,7 +938,11 @@ async def run_audit(lead_id: str) -> None:
     try:
         data = await loop.run_in_executor(
             None,
-            lambda: _run_audit_sync(audit_target, requested_url=requested_url),
+            lambda: _run_audit_sync(
+                audit_target,
+                requested_url=requested_url,
+                target_keywords=target_keywords,
+            ),
         )
     except Exception as e:
         logger.error(f"[audit_engine] _run_audit_sync failed for {audit_target}: {e}")
@@ -1152,6 +1163,7 @@ async def run_audit(lead_id: str) -> None:
                 site_summary=site_summary,
                 page_audits=page_audits,
                 url_info=data.get("url_info"),
+                target_keywords=target_keywords,
             )
         )
         logger.info(f"[audit_engine] PDF saved: {pdf_output_path}")

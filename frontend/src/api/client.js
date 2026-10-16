@@ -126,8 +126,12 @@ export const cancelDiscoveryJob = (jobId) =>
 export const getDiscoveryExportUrl = (jobId, format = 'leadgen') =>
   `/api/leads/discovery/jobs/${jobId}/export?format=${format}`
 
-// ─── Audits ────────────────────────────────────────────────────────────────
-export const triggerAudit     = (leadId) => api.post(`/audits/trigger/${leadId}`)
+export const triggerAudit     = (leadId, targetKeywords = null) => {
+  if (targetKeywords && targetKeywords.length) {
+    return api.post(`/audits/trigger/${leadId}`, { target_keywords: targetKeywords })
+  }
+  return api.post(`/audits/trigger/${leadId}`)
+}
 // mode: 'new_only' | 'not_emailed' | 'force_all'
 export const triggerAllAudits = (mode = 'new_only') =>
   api.post('/audits/trigger-all', null, { params: { mode } })

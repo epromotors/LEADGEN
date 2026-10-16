@@ -78,68 +78,61 @@ def read_response_text(
     portion if a chunk exceeds the remaining budget).
     Returns BoundedText with .is_truncated and .is_timed_out metadata.
     """
-    if not hasattr(resp, "iter_content"):
-        raw_text = getattr(resp, "text", "")
-        raw_encoded = raw_text.encode("utf-8", errors="replace")
-        if len(raw_encoded) > max_bytes:
-            sliced = raw_encoded[:max_bytes].decode("utf-8", errors="replace")
-            return BoundedText(sliced, is_truncated=True, bytes_read=max_bytes)
-        return BoundedText(raw_text, is_truncated=False, bytes_read=len(raw_encoded))
-
     is_truncated = False
     is_timed_out = False
     chunks = []
     total_bytes = 0
     start = time.perf_counter()
 
-    try:
-        iterator = resp.iter_content(chunk_size=65536)
-        if hasattr(iterator, "__iter__"):
-            for chunk in iterator:
-                if not chunk:
-                    continue
-                if not isinstance(chunk, (bytes, bytearray)):
-                    break
-
-                remaining = max_bytes - total_bytes
-                if remaining <= 0:
-                    is_truncated = True
-                    break
-
-                if len(chunk) > remaining:
-                    chunks.append(chunk[:remaining])
-                    total_bytes += remaining
-                    is_truncated = True
-                    break
-
-                chunks.append(chunk)
-                total_bytes += len(chunk)
-
-                if total_bytes >= max_bytes:
-                    is_truncated = True
-                    break
-
-                if (time.perf_counter() - start) >= max_elapsed:
-                    is_timed_out = True
-                    break
-
+    if hasattr(resp, "iter_content"):
         try:
-            resp.is_truncated = is_truncated
-            resp.is_timed_out = is_timed_out
-            resp.bytes_read = total_bytes
+            iterator = resp.iter_content(chunk_size=65536)
+            if hasattr(iterator, "__iter__"):
+                for chunk in iterator:
+                    if not chunk:
+                        continue
+                    if not isinstance(chunk, (bytes, bytearray)):
+                        break
+
+                    remaining = max_bytes - total_bytes
+                    if remaining <= 0:
+                        is_truncated = True
+                        break
+
+                    if len(chunk) > remaining:
+                        chunks.append(chunk[:remaining])
+                        total_bytes += remaining
+                        is_truncated = True
+                        break
+
+                    chunks.append(chunk)
+                    total_bytes += len(chunk)
+
+                    if total_bytes >= max_bytes:
+                        is_truncated = True
+                        break
+
+                    if (time.perf_counter() - start) >= max_elapsed:
+                        is_timed_out = True
+                        break
+
+            try:
+                resp.is_truncated = is_truncated
+                resp.is_timed_out = is_timed_out
+                resp.bytes_read = total_bytes
+            except Exception:
+                pass
+
+            if chunks:
+                raw = b"".join(chunks)
+                encoding = getattr(resp, "encoding", None) or "utf-8"
+                try:
+                    decoded = raw.decode(encoding, errors="replace")
+                except Exception:
+                    decoded = raw.decode("utf-8", errors="replace")
+                return BoundedText(decoded, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
         except Exception:
             pass
-
-        if chunks:
-            raw = b"".join(chunks)
-            encoding = getattr(resp, "encoding", None) or "utf-8"
-            try:
-                decoded = raw.decode(encoding, errors="replace")
-            except Exception:
-                decoded = raw.decode("utf-8", errors="replace")
-            return BoundedText(decoded, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
-    except Exception:
-        pass
 
     if chunks:
         raw = b"".join(chunks)
@@ -150,8 +143,18 @@ def read_response_text(
             decoded = raw.decode("utf-8", errors="replace")
         return BoundedText(decoded, is_truncated=True, is_timed_out=is_timed_out, bytes_read=total_bytes)
 
-    fallback_text = getattr(resp, "text", "")
-    return BoundedText(fallback_text, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
+    # Fallback to .text or .content if iter_content was missing or produced no chunks
+    raw_text = getattr(resp, "text", "")
+    if not isinstance(raw_text, str) or not raw_text:
+        if hasattr(resp, "content") and isinstance(resp.content, (bytes, bytearray)):
+            raw_text = resp.content.decode("utf-8", errors="replace")
+        else:
+            raw_text = ""
+    raw_encoded = raw_text.encode("utf-8", errors="replace")
+    if len(raw_encoded) > max_bytes:
+        sliced = raw_encoded[:max_bytes].decode("utf-8", errors="replace")
+        return BoundedText(sliced, is_truncated=True, is_timed_out=is_timed_out, bytes_read=max_bytes)
+    return BoundedText(raw_text, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=len(raw_encoded))
 
 
 def read_response_bytes(
@@ -165,68 +168,68 @@ def read_response_bytes(
     portion if a chunk exceeds the remaining budget).
     Returns BoundedBytes with .is_truncated and .is_timed_out metadata.
     """
-    if not hasattr(resp, "iter_content"):
-        raw_bytes = getattr(resp, "content", b"")
-        if len(raw_bytes) > max_bytes:
-            return BoundedBytes(raw_bytes[:max_bytes], is_truncated=True, bytes_read=max_bytes)
-        return BoundedBytes(raw_bytes, is_truncated=False, bytes_read=len(raw_bytes))
-
     is_truncated = False
     is_timed_out = False
     chunks = []
     total_bytes = 0
     start = time.perf_counter()
 
-    try:
-        iterator = resp.iter_content(chunk_size=16384)
-        if hasattr(iterator, "__iter__"):
-            for chunk in iterator:
-                if not chunk:
-                    continue
-                if not isinstance(chunk, (bytes, bytearray)):
-                    break
-
-                remaining = max_bytes - total_bytes
-                if remaining <= 0:
-                    is_truncated = True
-                    break
-
-                if len(chunk) > remaining:
-                    chunks.append(chunk[:remaining])
-                    total_bytes += remaining
-                    is_truncated = True
-                    break
-
-                chunks.append(chunk)
-                total_bytes += len(chunk)
-
-                if total_bytes >= max_bytes:
-                    is_truncated = True
-                    break
-
-                if (time.perf_counter() - start) >= max_elapsed:
-                    is_timed_out = True
-                    break
-
+    if hasattr(resp, "iter_content"):
         try:
-            resp.is_truncated = is_truncated
-            resp.is_timed_out = is_timed_out
-            resp.bytes_read = total_bytes
+            iterator = resp.iter_content(chunk_size=16384)
+            if hasattr(iterator, "__iter__"):
+                for chunk in iterator:
+                    if not chunk:
+                        continue
+                    if not isinstance(chunk, (bytes, bytearray)):
+                        break
+
+                    remaining = max_bytes - total_bytes
+                    if remaining <= 0:
+                        is_truncated = True
+                        break
+
+                    if len(chunk) > remaining:
+                        chunks.append(chunk[:remaining])
+                        total_bytes += remaining
+                        is_truncated = True
+                        break
+
+                    chunks.append(chunk)
+                    total_bytes += len(chunk)
+
+                    if total_bytes >= max_bytes:
+                        is_truncated = True
+                        break
+
+                    if (time.perf_counter() - start) >= max_elapsed:
+                        is_timed_out = True
+                        break
+
+            try:
+                resp.is_truncated = is_truncated
+                resp.is_timed_out = is_timed_out
+                resp.bytes_read = total_bytes
+            except Exception:
+                pass
+
+            if chunks:
+                return BoundedBytes(b"".join(chunks), is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
         except Exception:
             pass
-
-        if chunks:
-            return BoundedBytes(b"".join(chunks), is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=total_bytes)
-    except Exception:
-        pass
 
     if chunks:
         return BoundedBytes(b"".join(chunks), is_truncated=True, is_timed_out=is_timed_out, bytes_read=total_bytes)
 
-    fallback_bytes = getattr(resp, "content", b"")
-    if len(fallback_bytes) > max_bytes:
-        return BoundedBytes(fallback_bytes[:max_bytes], is_truncated=True, bytes_read=max_bytes)
-    return BoundedBytes(fallback_bytes, is_truncated=is_truncated, is_timed_out=is_timed_out, bytes_read=len(fallback_bytes))
+    # Fallback to .content
+    raw_bytes = getattr(resp, "content", b"")
+    if not isinstance(raw_bytes, (bytes, bytearray)):
+        raw_bytes = b""
+    if len(raw_bytes) > max_bytes:
+        return BoundedBytes(raw_bytes[:max_bytes], is_truncated=True, bytes_read=max_bytes)
+    return BoundedBytes(raw_bytes, is_truncated=False, bytes_read=len(raw_bytes))
+
+
 
 
 def make_session() -> requests.Session:

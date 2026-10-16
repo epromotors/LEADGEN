@@ -9,7 +9,7 @@ import os
 
 from app.database import get_db
 from app.models import Audit, Lead, AuditStatus, ActivityLog
-from app.schemas import AuditResponse
+from app.schemas import AuditResponse, AuditTriggerRequest
 from app.engines.audit_engine import run_audit
 
 logger = logging.getLogger(__name__)
@@ -100,6 +100,8 @@ async def run_batched(
 async def trigger_audit(
     lead_id: uuid.UUID,
     background_tasks: BackgroundTasks,
+    payload: AuditTriggerRequest | None = None,
+    keywords: str | None = Query(None, description="Optional comma-separated target keywords"),
     db: AsyncSession = Depends(get_db),
 ):
     lead = await db.get(Lead, lead_id)
@@ -127,7 +129,13 @@ async def trigger_audit(
         await db.commit()
         await db.refresh(audit)
 
-    background_tasks.add_task(run_audit, str(lead_id))
+    kw_list = None
+    if payload and payload.target_keywords:
+        kw_list = [str(k).strip() for k in payload.target_keywords if str(k).strip()]
+    elif keywords:
+        kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+
+    background_tasks.add_task(run_audit, str(lead_id), target_keywords=kw_list)
 
     log = ActivityLog(
         event_type="audit_triggered",

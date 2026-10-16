@@ -361,7 +361,16 @@ def _test_card(test_id: str, result: dict, styles) -> list:
     if result.get("value") is not None and str(result.get("value")).strip() != "":
         val_str = str(result.get("value"))
         unit = str(result.get("unit") or "")
-        content.append(Paragraph(f"<b>Observed Value:</b> <font color='#1e3a8a'>{_safe(_trunc(val_str, 90))}</font> {unit}", styles["body_small"]))
+        # Clarify alt text when 0 missing
+        if test_id in ("images.alt_text", "alt_text") and result.get("status") == "PASS" and val_str == "0":
+            content.append(Paragraph(f"<b>Observed Value:</b> <font color='#1e3a8a'>0 missing alt text</font> (100% alt coverage)", styles["body_small"]))
+        elif test_id in ("links.broken_links", "broken_links"):
+            if val_str == "0":
+                content.append(Paragraph(f"<b>Observed Value:</b> <font color='#1e3a8a'>0 confirmed broken links</font>", styles["body_small"]))
+            else:
+                content.append(Paragraph(f"<b>Observed Value:</b> <font color='#dc2626'>{_safe(val_str)} confirmed broken link(s)</font>", styles["body_small"]))
+        else:
+            content.append(Paragraph(f"<b>Observed Value:</b> <font color='#1e3a8a'>{_safe(_trunc(val_str, 90))}</font> {unit}".strip(), styles["body_small"]))
     if result.get("fix"):
         content.append(Paragraph(f"<b>Recommended Action:</b> {_safe(result['fix'])}", styles["fix"]))
     if result.get("detail"):
@@ -392,6 +401,34 @@ def _crawl_stats(site_summary, styles):
     ss    = site_summary
     total = ss.get("total_pages", 0)
     sc    = ss.get("status_counts", {})
+    sitemap_count = ss.get("sitemap_url_count", 0)
+    link_discovered = ss.get("link_discovered_count", 0)
+    total_discovered = ss.get("total_discovered_count", total)
+
+    story = []
+
+    # Multi-source discovery strip
+    if sitemap_count > 0 or link_discovered > 0:
+        disc_cells = [
+            [Paragraph(str(sitemap_count), styles["score_num"]),
+             Paragraph(str(link_discovered), styles["score_num"]),
+             Paragraph(str(total_discovered), styles["score_num"]),
+             Paragraph(str(total), styles["score_num"])],
+            [Paragraph("Sitemap URLs", styles["score_of"]),
+             Paragraph("Link Discovered", styles["score_of"]),
+             Paragraph("Total Discovered", styles["score_of"]),
+             Paragraph("Pages Crawled", styles["score_of"])],
+        ]
+        t_disc = Table(disc_cells, colWidths=[(CONTENT_W/4)]*4)
+        t_disc.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,-1), C_DARK),
+            ("ALIGN",         (0,0), (-1,-1), "CENTER"),
+            ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING",    (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ]))
+        story.append(t_disc)
+        story.append(Spacer(1, 3*mm))
 
     data = [
         [Paragraph(str(total),          styles["score_num"]),
@@ -414,7 +451,17 @@ def _crawl_stats(site_summary, styles):
         ("TOPPADDING",    (0,0), (-1,-1), 8),
         ("BOTTOMPADDING", (0,0), (-1,-1), 8),
     ]))
-    return [t, Spacer(1, 5*mm)]
+    story.append(t)
+
+    if ss.get("discovery_explanation"):
+        story.append(Spacer(1, 2.5*mm))
+        story.append(Paragraph(
+            f"<b>Crawl Discovery Notes:</b> {_safe(ss['discovery_explanation'])}",
+            styles["body_small"]
+        ))
+
+    story.append(Spacer(1, 4*mm))
+    return story
 
 
 # ── Common issues table ───────────────────────────────────────────────────────
@@ -459,17 +506,21 @@ def _common_issues_table(top_issues, total_pages, styles):
 
 # ── Worst pages table ─────────────────────────────────────────────────────────
 def _worst_pages_table(worst, base_url, styles):
+    clean_worst = [
+        p for p in worst
+        if not (p.get("url") or "").lower().startswith("/cdn-cgi/")
+        and "/cdn-cgi/l/email-protection" not in (p.get("url") or "").lower()
+    ]
     header = [
         Paragraph("Page Path",      styles["th"]),
         Paragraph("Issues Found",   styles["th"]),
         Paragraph("Status",         styles["th"]),
     ]
     rows = [header]
-    for p in worst[:20]:
+    for p in clean_worst[:20]:
         short_url = p["url"].replace(base_url, "") or "/"
         short_url = _trunc(short_url, 65)
         icon  = u"\u2718" if p["status"] == "FAIL" else (u"\u26a0" if p["status"] == "WARN" else u"\u2714")
-        color = C_DANGER if p["status"] == "FAIL" else (C_WARN if p["status"] == "WARN" else C_PASS)
         rows.append([
             Paragraph(_safe(short_url),              styles["td_url"]),
             Paragraph(str(p.get("issue_count", 0)),  styles["td_center"]),
@@ -499,6 +550,11 @@ def _page_detail_table(page_audits, base_url, styles):
     Each crawled page gets its own row.
     Issues are listed as clean bullet points — no more cramming on one line.
     """
+    clean_pages = [
+        p for p in page_audits
+        if not (p.get("url") or "").lower().startswith("/cdn-cgi/")
+        and "/cdn-cgi/l/email-protection" not in (p.get("url") or "").lower()
+    ]
     header = [
         Paragraph("#",          styles["th"]),
         Paragraph("Page Path",  styles["th"]),
@@ -508,7 +564,7 @@ def _page_detail_table(page_audits, base_url, styles):
     rows = [header]
     row_styles = []
 
-    for i, p in enumerate(page_audits, 1):
+    for i, p in enumerate(clean_pages, 1):
         short_url = (p["url"].replace(base_url, "") or "/")
         short_url = _trunc(short_url, 55)
 
@@ -518,7 +574,6 @@ def _page_detail_table(page_audits, base_url, styles):
         if not issues:
             issue_cell = Paragraph("\u2714 No issues", styles["td"])
         else:
-            # Build bullet lines: [F] Missing Title, [W] No Alt Text...
             bullet_lines = []
             for iss in issues[:6]:
                 sev_tag = iss.get("severity", "WARN")[0]  # F or W or P
@@ -535,7 +590,6 @@ def _page_detail_table(page_audits, base_url, styles):
             issue_cell,
         ])
 
-        # Row background colour based on worst issue
         has_fail = any(iss.get("severity","") == "FAIL" for iss in issues)
         has_warn = any(iss.get("severity","") == "WARN" for iss in issues)
         if has_fail:
@@ -552,12 +606,105 @@ def _page_detail_table(page_audits, base_url, styles):
         ("BOTTOMPADDING", (0,0), (-1,-1), 5),
         ("LEFTPADDING",   (0,0), (-1,-1), 6),
         ("VALIGN",        (0,0), (-1,-1), "TOP"),
-        ("ALIGN",         (0,0), (0,-1), "CENTER"),    # # column centred
+        ("ALIGN",         (0,0), (0,-1), "CENTER"),
     ] + row_styles
 
     t = Table(rows, colWidths=[9*mm, 52*mm, 44*mm, 57*mm], repeatRows=1)
     t.setStyle(TableStyle(base_style))
     return [t, Spacer(1, 5*mm)]
+
+
+# ── Target keyword and density section ────────────────────────────────────────
+def _keyword_analysis_section(keyword_analysis: dict, styles) -> list:
+    story = []
+    story.append(Paragraph("Target Keyword & Content Density Diagnostics", styles["h2"]))
+
+    if not keyword_analysis or not keyword_analysis.get("configured"):
+        msg = (
+            "<b>Status: Target keywords not configured.</b><br/>"
+            "<font color='#555566' size=8>"
+            "To evaluate exact-phrase frequency, visible-text density, and key element placement "
+            "(Title, H1, Meta Description, Image Alt Text, and Body Content) across internal pages, "
+            "provide target keywords when initiating the audit."
+            "</font>"
+        )
+        inferred = (keyword_analysis or {}).get("inferred_topics", [])
+        if inferred:
+            topic_str = ", ".join([f"{t['topic']} ({t['frequency']}x)" for t in inferred[:5]])
+            msg += f"<br/><br/><b>Inferred Content Topics (detected from visible text):</b> {topic_str}"
+
+        callout = Table([[Paragraph(msg, styles["body"])]], colWidths=[CONTENT_W])
+        callout.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), _c(0.96, 0.97, 0.99)),
+            ("BOX", (0,0), (-1,-1), 0.5, _c(0.80, 0.85, 0.95)),
+            ("TOPPADDING", (0,0), (-1,-1), 8),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+            ("LEFTPADDING", (0,0), (-1,-1), 10),
+            ("RIGHTPADDING", (0,0), (-1,-1), 10),
+        ]))
+        story.append(callout)
+        story.append(Spacer(1, 4*mm))
+        return story
+
+    summaries = keyword_analysis.get("keyword_summaries", [])
+    header = [
+        Paragraph("Target Keyword", styles["th"]),
+        Paragraph("Occurrences", styles["th"]),
+        Paragraph("Avg Density", styles["th"]),
+        Paragraph("Page Coverage", styles["th"]),
+        Paragraph("Key Placements", styles["th"]),
+    ]
+    rows = [header]
+    for s in summaries:
+        kw = s.get("keyword", "")
+        exact = s.get("total_exact_occurrences", 0)
+        variant = s.get("total_variant_occurrences", 0)
+        density = s.get("average_density_pct", 0.0)
+        coverage = s.get("page_coverage_pct", 0)
+        pages_cov = s.get("pages_covering_any", 0)
+
+        pl = s.get("placement_occurrences", {})
+        places = []
+        if pl.get("title"): places.append(f"Title ({pl['title']})")
+        if pl.get("h1"): places.append(f"H1 ({pl['h1']})")
+        if pl.get("meta_description"): places.append(f"Meta ({pl['meta_description']})")
+        if pl.get("alt_text"): places.append(f"Alt ({pl['alt_text']})")
+        place_str = ", ".join(places) if places else "Body text only"
+
+        occ_str = f"{exact} exact"
+        if variant > 0:
+            occ_str += f" (+{variant} var)"
+
+        rows.append([
+            Paragraph(f"<b>{_safe(kw)}</b>", styles["body"]),
+            Paragraph(occ_str, styles["td_center"]),
+            Paragraph(f"{density}%", styles["td_center"]),
+            Paragraph(f"{coverage}% ({pages_cov} pgs)", styles["td_center"]),
+            Paragraph(_safe(place_str), styles["body_small"]),
+        ])
+
+    col_w = [48*mm, 28*mm, 22*mm, 28*mm, 44*mm]
+    t = Table(rows, colWidths=col_w, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+        ("FONTSIZE",      (0,0), (-1,-1), 8),
+        ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+        ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+        ("TOPPADDING",    (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ("LEFTPADDING",   (0,0), (-1,-1), 6),
+        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 2*mm))
+    story.append(Paragraph(
+        "<font size=7 color='#64748b'><b>Methodology:</b> Keyword Density (%) = (Exact Occurrences * Keyword Word Count / Visible Body Words) * 100. "
+        "Measured across visible body content; navigation boilerplate, scripts, and hidden text are excluded. "
+        "Density is reported as diagnostic evidence and is not treated as a rigid ranking threshold.</font>",
+        styles["caption"]
+    ))
+    story.append(Spacer(1, 4*mm))
+    return story
 
 
 def _resolve_priority_label(factor_id: str, status: str, result: dict) -> str:
@@ -712,6 +859,8 @@ def build_pdf(
     site_summary: dict = None,
     page_audits: list = None,
     url_info: dict = None,
+    target_keywords: list = None,
+    keyword_analysis: dict = None,
 ):
     styles = _styles()
     report_date = datetime.datetime.now().strftime("%B %d, %Y")
@@ -798,6 +947,16 @@ def build_pdf(
     # ─── Technical Diagnostics Advisory ──────────────────────────────────────
     story.append(PageBreak())
     story += _diagnostics_section(header_url, effective_url_info, audit_results, styles)
+
+    # ─── Target Keyword & Content Density Diagnostics ────────────────────────
+    kw_analysis = keyword_analysis or (site_summary.get("keyword_analysis") if site_summary else None)
+    if not kw_analysis:
+        try:
+            from auditor.keyword_density import analyze_target_keywords_site
+            kw_analysis = analyze_target_keywords_site(page_audits or [], target_keywords)
+        except Exception:
+            kw_analysis = {"configured": False, "status": "not_configured", "message": "Target keywords not configured"}
+    story += _keyword_analysis_section(kw_analysis, styles)
 
     # ─── Site-Wide Crawl Section (optional) ───────────────────────────────────
     if site_summary and site_summary.get("total_pages", 0) > 0:

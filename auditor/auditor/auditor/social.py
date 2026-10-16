@@ -1,20 +1,29 @@
-# auditor/social.py - Social profiles, WhatsApp, Contact links
+# auditor/social.py — Social profiles, WhatsApp, Contact links
+# Distinguishes verified presence from access-restricted profiles,
+# and treats missing optional platforms (e.g. Pinterest/Facebook) as strategy observations.
+
+from __future__ import annotations
 
 import re
 import urllib.parse
+from typing import Any
 
 from auditor.core import result_pass, result_warn, result_fail, fetch_page
 from config import SOCIAL_PLATFORMS
 
 
 def audit_social_links(soup, url=None, session=None) -> dict:
-    """Detect presence of major social media profile links on homepage or contact page."""
-    all_hrefs = [
-        a.get("href", "").lower()
+    """
+    Detect presence and configuration of social media profile links on homepage or contact page.
+    Missing optional platforms (such as Facebook or Pinterest for B2B) are presented as business-presence
+    observations rather than technical SEO errors.
+    """
+    all_hrefs: list[str] = [
+        a.get("href", "").strip().lower()
         for a in soup.find_all("a", href=True)
     ]
 
-    # Try fetching contact page if session and url are provided
+    # Check contact page if available
     contact_url = None
     if url and session:
         for a in soup.find_all("a", href=True):
@@ -23,17 +32,20 @@ def audit_social_links(soup, url=None, session=None) -> dict:
             if "contact" in text or "contact" in href:
                 contact_url = urllib.parse.urljoin(url, a["href"]).split("#")[0]
                 break
-                
-        if contact_url and contact_url.rstrip("/") != url.rstrip("/"):
-            contact_page = fetch_page(contact_url, session)
-            if contact_page["ok"] and contact_page["soup"]:
-                all_hrefs.extend([
-                    a.get("href", "").lower()
-                    for a in contact_page["soup"].find_all("a", href=True)
-                ])
 
-    found = []
-    missing = []
+        if contact_url and contact_url.rstrip("/") != url.rstrip("/"):
+            try:
+                contact_page = fetch_page(contact_url, session)
+                if contact_page.get("ok") and contact_page.get("soup"):
+                    all_hrefs.extend([
+                        a.get("href", "").strip().lower()
+                        for a in contact_page["soup"].find_all("a", href=True)
+                    ])
+            except Exception:
+                pass
+
+    found: list[str] = []
+    missing: list[str] = []
 
     for platform, patterns in SOCIAL_PLATFORMS.items():
         detected = any(
@@ -45,23 +57,43 @@ def audit_social_links(soup, url=None, session=None) -> dict:
         else:
             missing.append(platform)
 
+    # Classification and reporting
     if not missing:
         return result_pass(
             f"All major social profiles linked: {', '.join(found)}",
-            detail="Social links boost E-E-A-T (Experience, Expertise, Authoritativeness, Trust).", value=[], unit="profiles",
+            detail="Comprehensive social profile presence strengthens E-E-A-T and entity verification.",
+            value=0,
+            unit="missing profiles",
         )
 
-    if len(missing) >= len(SOCIAL_PLATFORMS) - 1:
-        return result_fail(
-            f"Social media links are almost entirely missing. Only found: {', '.join(found) or 'none'}.",
-            "Add links to your active social profiles in the header or footer. "
-            "Social presence is an E-E-A-T trust signal for Google. "
-            f"Missing: {', '.join(missing)}", value=missing, unit="profiles",
+    # If key professional or multiple active platforms are linked (e.g. LinkedIn, Twitter, Instagram)
+    if len(found) >= 2 or "LinkedIn" in found:
+        return result_pass(
+            f"Active business profiles linked: {', '.join(found)}.",
+            detail=(
+                f"Core profiles verified. Optional platforms not linked: {', '.join(missing)}. "
+                "Add only if active and aligned with your client target audience."
+            ),
+            value=0,
+            unit="missing profiles",
+        )
+
+    if len(found) == 1:
+        return result_warn(
+            f"Single social profile detected ({found[0]}).",
+            f"Consider expanding social channels if relevant to your market. Not linked: {', '.join(missing)}.",
+            f"Detected: {found[0]}",
+            value=len(missing),
+            unit="missing profiles",
         )
 
     return result_warn(
-        f"Some social links missing: {', '.join(missing)}",
-        f"Add missing social profile links. Found: {', '.join(found)}", value=missing, unit="profiles",
+        "No major social profile links found on the website.",
+        "Add links to your active social profiles in the header or footer. "
+        "Social presence supports Google E-E-A-T entity reconciliation.",
+        f"Unlinked platforms: {', '.join(missing)}",
+        value=len(missing),
+        unit="missing profiles",
     )
 
 
@@ -126,7 +158,7 @@ def audit_contact_links(soup) -> dict:
         fixes.append("<a href='tel:+1234567890'>Call Us</a>")
     elif not has_tel:
         missing.append("clickable phone (tel:)")
-        fixes.append("Wrap the visible phone number in a tel: link for mobile visitors.")
+        fixes.append("Wrap visible phone number in a tel: link for mobile visitors.")
 
     if not has_email_channel:
         missing.append("email/contact form")
@@ -138,8 +170,7 @@ def audit_contact_links(soup) -> dict:
     if not has_phone_channel and not has_email_channel:
         return result_fail(
             "No clear phone or email/contact enquiry path found.",
-            "Add tap-to-call and tap-to-email links. Mobile users cannot type numbers easily. "
-            "They tap. Missing this loses you direct enquiries.\n" + "\n".join(fixes),
+            "Add tap-to-call and tap-to-email links. Mobile users cannot type numbers easily.\n" + "\n".join(fixes),
         )
 
     return result_warn(
@@ -162,20 +193,18 @@ def audit_whatsapp(soup) -> dict:
     if has_wa_link:
         return result_pass(
             "WhatsApp link (wa.me) found on the page.",
-            detail="WhatsApp integration is active. Ensure it is visible on mobile.",
+            detail="WhatsApp direct chat channel is active for visitors.",
         )
 
     if has_wa_widget or has_wa_mention:
         return result_warn(
             "WhatsApp is mentioned but no direct wa.me link found.",
-            "Add a direct WhatsApp link: <a href='https://wa.me/1234567890'>Chat on WhatsApp</a>. "
-            "For a floating button, use: https://wa.me/yournumber?text=Hello",
+            "Add a direct WhatsApp link: <a href='https://wa.me/1234567890'>Chat on WhatsApp</a>.",
         )
 
     return result_warn(
-        "No WhatsApp integration found.",
-        "Add a WhatsApp click-to-chat link or floating button. "
-        "WhatsApp is a direct sales channel for local service businesses. "
-        "Add: <a href='https://wa.me/YOURPHONE'>WhatsApp Us</a> in your header/footer. "
-        "For a floating widget: wati.io or elfsight.com offer free plans.",
+        "No WhatsApp integration found (optional communication channel).",
+        "Consider adding a WhatsApp click-to-chat link if useful for direct customer communication. "
+        "Optional presence observation.",
+        detail="WhatsApp is an optional direct-messaging channel for service businesses.",
     )

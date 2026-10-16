@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
-  getLeads, getAudit, getPdfUrl, getProposal, approveProposal, sendProposal,
+  getLeads, getAudit, getPdfUrl, triggerAudit, getProposal, approveProposal, sendProposal,
   getAiSearchStatus, getAiReadiness, runAiVisibilityCheck, getAiSearchHistory, getLatestAiSearchRun
 } from '../api/client'
 import BrowserEvidence from '../components/BrowserEvidence'
@@ -583,6 +583,28 @@ function AuditRow({ lead }) {
   const [loadingProposal, setLoadingProposal] = useState(false)
   const [approving, setApproving] = useState(false)
   const [sendingSimulation, setSendingSimulation] = useState(false)
+
+  const [kwInput, setKwInput] = useState('')
+  const [retriggering, setRetriggering] = useState(false)
+
+  async function handleRetriggerWithKeywords(customKws = null) {
+    const raw = customKws || kwInput
+    const kws = Array.isArray(raw) ? raw : raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+    if (!kws.length) {
+      toast.error('Please enter at least one target keyword')
+      return
+    }
+    setRetriggering(true)
+    try {
+      await triggerAudit(lead.id, kws)
+      toast.success(`Audit re-triggered with keywords: ${kws.join(', ')}`)
+      setOpen(false)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to trigger audit')
+    } finally {
+      setRetriggering(false)
+    }
+  }
 
   async function loadProposal() {
     setLoadingProposal(true)
@@ -1160,73 +1182,247 @@ function AuditRow({ lead }) {
                     </div>
                   )}
 
-                  {/* Tab 3: Crawl Coverage */}
+                  {/* Tab 3: Crawl Coverage & Target Keyword Diagnostics */}
                   {activeTab === 'crawl' && (
                     <div className="card-elevated p-6">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                        <Compass size={20} style={{ color: '#a855f7' }} />
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
-                          Crawl Coverage & Discovered Pages
-                        </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Compass size={20} style={{ color: '#a855f7' }} />
+                          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                            Crawl Coverage & Keyword Analysis
+                          </h3>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                          Bounded Multi-Source Crawler (Sitemaps + Internal Links)
+                        </span>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
-                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '14px' }}>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>Total Pages Visited</span>
-                          <p style={{ fontSize: 24, fontWeight: 900, color: '#f1f5f9', marginTop: 4 }}>
-                            {audit.site_summary?.total_pages || 1}
+                      {/* Multi-Source Crawl Metrics Strip */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 8, padding: '12px 14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Total Crawled</span>
+                          <p style={{ fontSize: 20, fontWeight: 900, color: '#f1f5f9', marginTop: 4, marginBottom: 0 }}>
+                            {audit.site_summary?.total_pages || (audit.page_audits?.length || 1)} Pages
                           </p>
                         </div>
-                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '14px' }}>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>Crawl Depth Limit</span>
-                          <p style={{ fontSize: 24, fontWeight: 900, color: '#f1f5f9', marginTop: 4 }}>
-                            3 Levels Max
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 8, padding: '12px 14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Declared Sitemap URLs</span>
+                          <p style={{ fontSize: 20, fontWeight: 900, color: '#38bdf8', marginTop: 4, marginBottom: 0 }}>
+                            {audit.site_summary?.sitemap_url_count ?? (audit.has_sitemap ? 'Available' : 0)}
                           </p>
                         </div>
-                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '14px' }}>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>Max Crawl Budget</span>
-                          <p style={{ fontSize: 24, fontWeight: 900, color: '#f1f5f9', marginTop: 4 }}>
-                            10 Pages
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 8, padding: '12px 14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Link-Discovered Pages</span>
+                          <p style={{ fontSize: 20, fontWeight: 900, color: '#a855f7', marginTop: 4, marginBottom: 0 }}>
+                            {audit.site_summary?.link_discovered_count ?? (audit.page_audits?.length || 1)}
+                          </p>
+                        </div>
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 8, padding: '12px 14px' }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Crawl Bound Status</span>
+                          <p style={{ fontSize: 13, fontWeight: 800, color: audit.site_summary?.crawl_limit_hit ? '#fb923c' : '#34d399', marginTop: 8, marginBottom: 0 }}>
+                            {audit.site_summary?.crawl_limit_hit ? 'Budget Cap Reached' : 'Complete Coverage'}
                           </p>
                         </div>
                       </div>
 
-                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>
-                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                          <thead style={{ background: '#0e1626', borderBottom: '1px solid #1e293b' }}>
-                            <tr>
-                              <th style={{ padding: '10px 14px', fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Page URL</th>
-                              <th style={{ padding: '10px 14px', fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Status</th>
-                              <th style={{ padding: '10px 14px', fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Scope</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td style={{ padding: '10px 14px', fontSize: 12, color: '#e2e8f0', fontFamily: 'monospace' }}>
-                                {finalUrl}
-                              </td>
-                              <td style={{ padding: '10px 14px' }}>
-                                <span className="badge badge-green">200 OK</span>
-                              </td>
-                              <td style={{ padding: '10px 14px', fontSize: 12, color: '#94a3b8' }}>
-                                Primary Root Target
-                              </td>
-                            </tr>
-                            {canonicalUrl && canonicalUrl !== '—' && canonicalUrl !== finalUrl && (
-                              <tr style={{ borderTop: '1px solid #1e293b' }}>
-                                <td style={{ padding: '10px 14px', fontSize: 12, color: '#e2e8f0', fontFamily: 'monospace' }}>
-                                  {canonicalUrl}
-                                </td>
-                                <td style={{ padding: '10px 14px' }}>
-                                  <span className="badge badge-blue">Canonical</span>
-                                </td>
-                                <td style={{ padding: '10px 14px', fontSize: 12, color: '#94a3b8' }}>
-                                  Declared Canonical Target
-                                </td>
-                              </tr>
+                      {/* Discovery Explanation Banner */}
+                      {audit.site_summary?.discovery_explanation && (
+                        <div style={{
+                          background: '#0e1626', border: '1px solid #1e3a8a', borderRadius: 8,
+                          padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#93c5fd', display: 'flex', alignItems: 'center', gap: 8
+                        }}>
+                          <Compass size={14} style={{ flexShrink: 0 }} />
+                          <span>{audit.site_summary.discovery_explanation}</span>
+                        </div>
+                      )}
+
+                      {/* ── TARGET KEYWORDS & DENSITY SECTION ── */}
+                      <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                          <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>🎯 Target Keywords & Content Density</span>
+                          </h4>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>
+                            Formula: (Exact Count × Words / Body Words) × 100
+                          </span>
+                        </div>
+
+                        {/* Keyword Analysis Results Table or Not Configured Notice */}
+                        {audit.site_summary?.keyword_analysis?.configured ? (
+                          <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                                <tr>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Keyword</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Exact Count</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Avg Density</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Page Coverage</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Key Placements</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {audit.site_summary.keyword_analysis.keyword_summaries?.map((ks, idx) => (
+                                  <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#f8fafc' }}>
+                                      {ks.keyword}
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#e2e8f0' }}>
+                                      {ks.total_exact_occurrences} {ks.total_variant_occurrences > 0 ? `(+${ks.total_variant_occurrences} var)` : ''}
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#38bdf8', fontWeight: 700 }}>
+                                      {ks.average_density_pct}%
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#34d399' }}>
+                                      {ks.page_coverage_pct}% ({ks.pages_covering_any || 0} pgs)
+                                    </td>
+                                    <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 11 }}>
+                                      {[
+                                        ks.placement_occurrences?.title ? `Title (${ks.placement_occurrences.title})` : null,
+                                        ks.placement_occurrences?.h1 ? `H1 (${ks.placement_occurrences.h1})` : null,
+                                        ks.placement_occurrences?.meta_description ? `Meta (${ks.placement_occurrences.meta_description})` : null,
+                                        ks.placement_occurrences?.alt_text ? `Alt (${ks.placement_occurrences.alt_text})` : null,
+                                      ].filter(Boolean).join(', ') || 'Body text only'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div style={{ background: '#0e1626', border: '1px solid #1e293b', borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                            <p style={{ margin: 0, fontWeight: 700, color: '#facc15', fontSize: 13 }}>
+                              Target keywords not configured
+                            </p>
+                            <p style={{ margin: '4px 0 8px', color: '#94a3b8', fontSize: 12 }}>
+                              Enter target keywords below to calculate exact-phrase density, placement hierarchy, and internal-page coverage.
+                            </p>
+                            {audit.site_summary?.keyword_analysis?.inferred_topics?.length > 0 && (
+                              <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+                                <strong style={{ color: '#cbd5e1' }}>Inferred Topic Terms (from visible text): </strong>
+                                {audit.site_summary.keyword_analysis.inferred_topics.slice(0, 5).map(t => `${t.topic} (${t.frequency}x)`).join(', ')}
+                              </div>
                             )}
-                          </tbody>
-                        </table>
+                          </div>
+                        )}
+
+                        {/* Keyword Input & Action Form */}
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            placeholder="e.g. video editor, channel management, marketing"
+                            value={kwInput}
+                            onChange={e => setKwInput(e.target.value)}
+                            style={{
+                              flex: 1, minWidth: 260, padding: '7px 12px', background: '#090e18',
+                              border: '1px solid #24344d', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none'
+                            }}
+                          />
+                          <button
+                            onClick={() => handleRetriggerWithKeywords()}
+                            disabled={retriggering}
+                            className="btn btn-primary"
+                            style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <RefreshCw size={13} className={retriggering ? 'animate-spin' : ''} />
+                            {retriggering ? 'Auditing...' : 'Run Keyword & Density Audit'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ── SITE-WIDE CRAWLED PAGES TABLE ── */}
+                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 16px', background: '#0e1626', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
+                            All Crawled Internal Pages ({(audit.page_audits || []).filter(p => !p.url?.toLowerCase().includes('/cdn-cgi/')).length || 1})
+                          </h4>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>
+                            Clean, non-content endpoints excluded
+                          </span>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead style={{ background: '#0b111e', borderBottom: '1px solid #1e293b' }}>
+                              <tr>
+                                <th style={{ padding: '10px 14px', color: '#64748b', textTransform: 'uppercase' }}>Page Path & Title</th>
+                                <th style={{ padding: '10px 14px', color: '#64748b', textTransform: 'uppercase' }}>Status</th>
+                                <th style={{ padding: '10px 14px', color: '#64748b', textTransform: 'uppercase' }}>Words</th>
+                                <th style={{ padding: '10px 14px', color: '#64748b', textTransform: 'uppercase' }}>Images & Alt</th>
+                                <th style={{ padding: '10px 14px', color: '#64748b', textTransform: 'uppercase' }}>Links</th>
+                                <th style={{ padding: '10px 14px', color: '#64748b', textTransform: 'uppercase' }}>Issues</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(audit.page_audits || []).filter(p => !p.url?.toLowerCase().includes('/cdn-cgi/')).length > 0 ? (
+                                (audit.page_audits || []).filter(p => !p.url?.toLowerCase().includes('/cdn-cgi/')).map((p, idx) => {
+                                  const path = p.url ? (new URL(p.url, requestedUrl).pathname || '/') : '/'
+                                  const issueList = p.issues || []
+                                  const hasFail = issueList.some(i => i.severity === 'FAIL')
+                                  return (
+                                    <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid #1e293b' : 'none' }}>
+                                      <td style={{ padding: '10px 14px', maxWidth: 300 }}>
+                                        <div style={{ fontFamily: 'monospace', color: '#38bdf8', fontWeight: 600 }}>
+                                          {path}
+                                        </div>
+                                        <div style={{ color: '#94a3b8', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {p.title || '(No title)'}
+                                        </div>
+                                      </td>
+                                      <td style={{ padding: '10px 14px' }}>
+                                        <span className={`badge ${p.status_code === 200 || p.status === 'PASS' ? 'badge-green' : 'badge-yellow'}`}>
+                                          {p.status_code || 200} {p.status || 'OK'}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '10px 14px', color: '#e2e8f0' }}>
+                                        {p.word_count ?? '—'}
+                                      </td>
+                                      <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 11 }}>
+                                        {p.images ? `${p.images.total_elements || 0} img (${p.images.missing_alt_count || 0} no alt)` : '—'}
+                                      </td>
+                                      <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 11 }}>
+                                        {p.links ? `${p.links.internal_outbound ?? 0} int / ${p.links.external_outbound ?? 0} ext` : '—'}
+                                      </td>
+                                      <td style={{ padding: '10px 14px' }}>
+                                        {issueList.length === 0 ? (
+                                          <span style={{ color: '#34d399', fontSize: 11, fontWeight: 700 }}>✓ Clean</span>
+                                        ) : (
+                                          <div>
+                                            <span style={{ color: hasFail ? '#f87171' : '#fbbf24', fontWeight: 700, fontSize: 11 }}>
+                                              {issueList.length} issue{issueList.length > 1 ? 's' : ''}
+                                            </span>
+                                            <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>
+                                              {issueList.slice(0, 2).map(i => i.check).join(', ')}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )
+                                })
+                              ) : (
+                                <tr>
+                                  <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: '#e2e8f0' }}>
+                                    {finalUrl}
+                                  </td>
+                                  <td style={{ padding: '10px 14px' }}>
+                                    <span className="badge badge-green">200 OK</span>
+                                  </td>
+                                  <td style={{ padding: '10px 14px', color: '#e2e8f0' }}>
+                                    {audit.word_count || '—'}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', color: '#94a3b8' }}>
+                                    {audit.missing_alt_count != null ? `${audit.missing_alt_count} missing alt` : '—'}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', color: '#94a3b8' }}>
+                                    {audit.internal_links_count ?? '—'}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', color: '#34d399' }}>
+                                    ✓ Root Audited
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   )}

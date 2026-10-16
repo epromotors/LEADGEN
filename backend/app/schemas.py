@@ -78,6 +78,10 @@ class LeadListResponse(BaseModel):
 
 # ─── Audits ───────────────────────────────────────────────────────────────────
 
+class AuditTriggerRequest(BaseModel):
+    target_keywords: Optional[List[str]] = None
+
+
 class AuditResponse(UTCBase):
     id: uuid.UUID
     lead_id: uuid.UUID
