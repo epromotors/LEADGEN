@@ -16,6 +16,7 @@ from typing import Any
 from auditor.core import fetch_page, get_domain, result_pass, result_warn, result_fail, read_response_text
 from auditor.images import get_image_inventory
 from auditor.keyword_density import extract_visible_text, count_visible_words, analyze_keyword_on_page
+from auditor.architecture import classify_page_architecture
 from config import TIMEOUT, REQUEST_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -443,6 +444,13 @@ def crawl_site(
 
     # Attach crawl discovery context to first page for site summary aggregation
     if pages:
+        homepage_soup = pages[0].get("soup")
+        arch_data = None
+        if homepage_soup:
+            try:
+                arch_data = classify_page_architecture(homepage_soup, norm_base, pages)
+            except Exception as _arch_err:
+                logger.warning("[crawler] classify_page_architecture error: %s", _arch_err)
         pages[0]["_crawl_meta"] = {
             "sitemap_url_count": len(sitemap_set),
             "link_discovered_count": len(discovered_via_links),
@@ -450,6 +458,7 @@ def crawl_site(
             "crawl_limit_hit": bool(queue),
             "max_pages": max_pages,
             "canonical_targets": canonical_targets,
+            "architecture": arch_data,
         }
 
     return pages
@@ -684,6 +693,8 @@ def aggregate_site_issues(page_audits: list[dict], crawl_meta: dict | None = Non
     if crawl_limit_hit:
         explanation += f" Crawl limit ({len(page_audits)} pages) prevented full coverage of all {total_discovered} discovered pages."
 
+    arch_data = crawl_meta.get("architecture") if crawl_meta else None
+
     return {
         "total_pages": len(page_audits),
         "status_counts": totals,
@@ -695,4 +706,5 @@ def aggregate_site_issues(page_audits: list[dict], crawl_meta: dict | None = Non
         "crawl_limit_hit": crawl_limit_hit,
         "discovery_explanation": explanation,
         "coverage_score": round(totals["PASS"] / max(len(page_audits), 1) * 100),
+        "architecture": arch_data,
     }

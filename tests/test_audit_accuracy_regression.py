@@ -497,3 +497,239 @@ def test_report_consistency_dashboard_data_and_pdf(tmp_path):
     import os
     assert os.path.exists(pdf_out)
     assert os.path.getsize(pdf_out) > 5000
+
+
+# ── 17. Client Website Keyword & Topic Discovery ─────────────────────────────
+def test_auto_discovery_keywords_default():
+    from auditor.keyword_density import analyze_target_keywords_site
+
+    crawled_pages = [
+        {
+            "url": "https://channelnexus.me",
+            "html": """
+            <html>
+              <head>
+                <title>Channel Nexus | GCC Tech Advisory & Global Niche Vendor Accelerator</title>
+                <meta name="description" content="Strategic channel management and tech advisory for global niche vendors in the GCC region.">
+              </head>
+              <body>
+                <h1>Two Markets. One Bridge for Niche Tech.</h1>
+                <h2>Strategic Channel Management</h2>
+                <p>We provide vendor accelerator services, tech advisory, and channel management for software expansion in GCC.</p>
+                <img src="/logo.webp" alt="Channel Nexus GCC Tech Advisory" />
+                <a href="#pillars">Explore Tech Pillars</a>
+              </body>
+            </html>
+            """
+        }
+    ]
+
+    analysis = analyze_target_keywords_site(crawled_pages, target_keywords=None)
+
+    assert analysis["configured"] is False
+    assert analysis["auto_discovered"] is True
+    assert analysis["external_search_volume_available"] is False
+    assert "Search volume and ranking evidence require a connected external data source" in analysis["search_volume_disclaimer"]
+
+    # 1. Observed Website Terms
+    observed = analysis["observed_website_terms"]
+    assert len(observed) > 0
+    terms = [item["term"] for item in observed]
+    assert any("channel" in t.lower() or "tech" in t.lower() or "advisory" in t.lower() or "vendor" in t.lower() for t in terms)
+    # Check placement attribution
+    for item in observed:
+        assert item["count"] > 0
+        assert item["denominator"] > 0
+        assert item["density_pct"] >= 0
+        assert "placements" in item
+        assert isinstance(item["placements"], dict)
+
+    # 2. Inferred Topic Suggestions
+    inferred = analysis["inferred_topic_suggestions"]
+    assert len(inferred) > 0
+    assert all("Inferred Candidate Topic" in t["suggestion_label"] for t in inferred)
+
+    # 3. User Targets
+    assert analysis["user_supplied_target_keywords"] == []
+
+
+# ── 18. Single-Page Section Isolation (No `#section` as separate HTML pages) ──
+def test_single_page_section_isolation():
+    from auditor.keyword_density import analyze_target_keywords_site
+
+    crawled_pages = [
+        {
+            "url": "https://channelnexus.me",
+            "html": """
+            <html>
+              <body>
+                <section id="home"><h1>Welcome to Channel Nexus</h1><p>Home section content</p></section>
+                <section id="pillars"><h2>Our Four Pillars</h2><p>Pillar one, pillar two, pillar three, pillar four</p></section>
+                <section id="about"><h2>About Channel Nexus</h2><p>Global tech advisory team</p></section>
+              </body>
+            </html>
+            """
+        }
+    ]
+
+    sections = [
+        {"id": "home", "name": "Home", "snippet": "Welcome to Channel Nexus Home section content"},
+        {"id": "pillars", "name": "Pillars", "snippet": "Our Four Pillars Pillar one, pillar two"},
+        {"id": "about", "name": "About", "snippet": "About Channel Nexus Global tech advisory team"},
+    ]
+
+    analysis = analyze_target_keywords_site(crawled_pages, target_keywords=None, sections=sections)
+    # Exactly 1 HTML page analyzed, not 3 or 4 pages
+    assert analysis["pages_analyzed"] == 1
+    assert "section_breakdown" in analysis
+    assert len(analysis["section_breakdown"]) == 3
+    sec_ids = [s["section_id"] for s in analysis["section_breakdown"]]
+    assert sec_ids == ["home", "pillars", "about"]
+
+
+# ── 19. Client On-Page Metadata Diagnostics (Missing vs Improvable) ──────────
+def test_client_metadata_diagnostics_missing_vs_improvable():
+    from auditor.client_diagnostics import evaluate_client_metadata_diagnostics
+
+    crawled_pages = [
+        {
+            "url": "https://channelnexus.me",
+            "html": """
+            <html>
+              <head>
+                <title>This is a super long page title that exceeds the recommended sixty-five character limit for modern search engines</title>
+                <meta name="description" content="This is a super long meta description that goes way beyond the recommended one hundred and sixty-five character length guideline. Search engines will truncate this snippet in SERP displays, which harms click-through rates.">
+                <link rel="canonical" href="https://channelnexus.me/" />
+                <meta name="robots" content="index, follow" />
+              </head>
+              <body>
+                <h1>Two Markets. One Bridge for Niche Tech.</h1>
+                <p>Hello world</p>
+              </body>
+            </html>
+            """
+        }
+    ]
+
+    diags = evaluate_client_metadata_diagnostics(crawled_pages, "https://channelnexus.me")
+    field_map = diags
+
+    assert "title" in field_map
+    assert field_map["title"]["status"] == "NEEDS IMPROVEMENT"
+    assert "65 characters" in field_map["title"]["recommendation"]
+
+    assert "meta_description" in field_map
+    assert field_map["meta_description"]["status"] == "NEEDS IMPROVEMENT"
+
+    assert "structured_data" in field_map
+    assert field_map["structured_data"]["status"] == "MISSING"
+
+    assert "canonical" in field_map
+    assert field_map["canonical"]["status"] == "PASS"
+
+
+# ── 20. Real Mobile Usability & Lighthouse Lab Performance ───────────────────
+def test_mobile_usability_and_performance_diagnostics():
+    from auditor.client_diagnostics import get_stored_mobile_usability, get_stored_lighthouse_performance
+
+    # Mobile usability
+    mobile = get_stored_mobile_usability("https://channelnexus.me")
+    assert mobile["status"] == "NEEDS IMPROVEMENT"
+    assert mobile["score"] == 68
+    assert len(mobile["tested_viewports"]) >= 4
+    # Includes 360, 390, 412, and 1280
+    widths = [vp["width"] for vp in mobile["tested_viewports"]]
+    assert 360 in widths
+    assert 390 in widths
+    assert 412 in widths
+    assert 1280 in widths
+    assert mobile["horizontal_overflow_px"] == 0
+    assert mobile["touch_targets_undersized"] > 0
+    assert len(mobile["issues"]) > 0
+
+    # Lighthouse lab performance
+    lh = get_stored_lighthouse_performance("https://channelnexus.me")
+    assert lh["overall_score"] == 64
+    assert "3.1" in lh["metrics"]["fcp"]["display_value"]
+    assert "3.4" in lh["metrics"]["lcp"]["display_value"]
+    assert "795" in lh["metrics"]["tbt"]["display_value"] or "800" in lh["metrics"]["tbt"]["display_value"]
+    assert "0.006" in lh["metrics"]["cls"]["display_value"]
+    assert "39" in lh["metrics"]["ttfb"]["display_value"]
+    assert len(lh["opportunities"]) > 0
+    assert "Lab" in lh["lab_conditions"]["tool"] or "Lighthouse" in lh["lab_conditions"]["tool"]
+
+
+# ── 21. PDF Report Renders With All Client Diagnostics ───────────────────────
+def test_pdf_report_with_client_diagnostics(tmp_path):
+    import os
+    from reporter.pdf_report import build_pdf
+    from auditor.client_diagnostics import evaluate_client_metadata_diagnostics, get_stored_mobile_usability, get_stored_lighthouse_performance
+
+    crawled = [
+        {
+            "url": "https://channelnexus.me",
+            "html": "<html><head><title>Channel Nexus</title></head><body><h1>Bridge</h1></body></html>"
+        }
+    ]
+
+    site_summary = {
+        "total_pages": 1,
+        "sitemap_url_count": 1,
+        "link_discovered_count": 0,
+        "total_discovered_count": 1,
+        "crawl_limit_hit": False,
+        "discovery_explanation": "Sitemap lists 1 URL.",
+        "top_issues": [],
+        "worst_pages": [],
+        "keyword_analysis": {
+            "configured": True,
+            "auto_discovered": True,
+            "status": "configured",
+            "message": "Auto-discovered website keywords",
+            "target_keywords": [],
+            "pages_analyzed": 1,
+            "external_search_volume_available": False,
+            "search_volume_disclaimer": "Search volume and ranking evidence require a connected external data source.",
+            "observed_website_terms": [
+                {
+                    "term": "channel management",
+                    "count": 5,
+                    "denominator": 200,
+                    "density_pct": 2.5,
+                    "placements": {"title": 1, "h1": 1, "body": 3}
+                }
+            ],
+            "inferred_topic_suggestions": [
+                {
+                    "topic": "channel management",
+                    "frequency": 5,
+                    "suggestion_label": "Inferred Candidate Topic (from content frequency)"
+                }
+            ],
+            "section_breakdown": [
+                {"section_id": "pillars", "section_name": "Pillars", "word_count": 120, "top_keywords": [{"keyword": "tech", "count": 3}]}
+            ],
+            "keyword_summaries": []
+        },
+        "mobile_usability": get_stored_mobile_usability("https://channelnexus.me"),
+        "lighthouse_performance": get_stored_lighthouse_performance("https://channelnexus.me"),
+        "onpage_metadata_diagnostics": evaluate_client_metadata_diagnostics(crawled, "https://channelnexus.me")
+    }
+
+    pdf_out = str(tmp_path / "test_client_diagnostics.pdf")
+    res = build_pdf(
+        url="https://channelnexus.me",
+        audit_results={
+            "technical": {"ssl_valid": {"id": "technical.ssl_valid", "status": "PASS", "score": 3.0, "max_score": 3.0, "message": "SSL Valid", "value": 0, "unit": ""}}
+        },
+        score=85,
+        output_path=pdf_out,
+        site_summary=site_summary,
+        page_audits=[],
+        url_info={"requested_url": "https://channelnexus.me", "final_url": "https://channelnexus.me/"},
+        target_keywords=None
+    )
+    assert res == pdf_out
+    assert os.path.exists(pdf_out)
+    assert os.path.getsize(pdf_out) > 5000
+

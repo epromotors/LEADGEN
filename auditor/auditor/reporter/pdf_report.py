@@ -460,6 +460,32 @@ def _crawl_stats(site_summary, styles):
             styles["body_small"]
         ))
 
+    arch = ss.get("architecture")
+    if arch:
+        story.append(Spacer(1, 2.5*mm))
+        arch_type = arch.get("architecture", "").replace("_", " ").title()
+        conf = arch.get("confidence", "medium").title()
+        sec_count = arch.get("section_count", 0)
+        doc_count = arch.get("distinct_document_count", total)
+        summary = arch.get("summary", "")
+        ev_list = arch.get("evidence", [])
+        ev_text = ("<br/>• " + "<br/>• ".join([_safe(e) for e in ev_list])) if ev_list else ""
+        
+        arch_cells = [
+            [Paragraph(f"<b>Site Architecture:</b> {arch_type} ({conf} Confidence) | <b>In-Page Sections Audited:</b> {sec_count} | <b>HTML Documents:</b> {doc_count}", styles["td_issue_head"])],
+            [Paragraph(f"{_safe(summary)}{ev_text}", styles["body_small"])],
+        ]
+        t_arch = Table(arch_cells, colWidths=[CONTENT_W])
+        t_arch.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), _c(0.95, 0.97, 1.0)),
+            ("BOX",        (0,0), (-1,-1), 0.5, C_PRIMARY),
+            ("TOPPADDING", (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("LEFTPADDING", (0,0), (-1,-1), 8),
+            ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ]))
+        story.append(t_arch)
+
     story.append(Spacer(1, 4*mm))
     return story
 
@@ -617,93 +643,390 @@ def _page_detail_table(page_audits, base_url, styles):
 # ── Target keyword and density section ────────────────────────────────────────
 def _keyword_analysis_section(keyword_analysis: dict, styles) -> list:
     story = []
-    story.append(Paragraph("Target Keyword & Content Density Diagnostics", styles["h2"]))
+    
+    is_auto = bool((keyword_analysis or {}).get("auto_discovered"))
+    is_configured = bool((keyword_analysis or {}).get("configured"))
+    
+    section_title = "Website Keyword & Topic Diagnostics (Auto-Discovered)" if is_auto else "Target Keyword & Content Density Diagnostics"
+    story.append(Paragraph(section_title, styles["h2"]))
 
-    if not keyword_analysis or not keyword_analysis.get("configured"):
-        msg = (
-            "<b>Status: Target keywords not configured.</b><br/>"
-            "<font color='#555566' size=8>"
-            "To evaluate exact-phrase frequency, visible-text density, and key element placement "
-            "(Title, H1, Meta Description, Image Alt Text, and Body Content) across internal pages, "
-            "provide target keywords when initiating the audit."
+    # Disclaimer / Banner
+    if is_auto:
+        banner_text = (
+            "<b>Default Behavior: Automatic Keyword & Topic Discovery.</b><br/>"
+            "<font color='#475569' size=8>"
+            "No manual target keywords were supplied. Keywords, entities, and topics were extracted directly "
+            "from page titles, meta descriptions, headings, visible body text, and image alt text on the audited website.<br/>"
+            "<i>Note: External search-volume and ranking evidence requires a separate connected data provider (currently unavailable).</i>"
             "</font>"
         )
-        inferred = (keyword_analysis or {}).get("inferred_topics", [])
-        if inferred:
-            topic_str = ", ".join([f"{t['topic']} ({t['frequency']}x)" for t in inferred[:5]])
-            msg += f"<br/><br/><b>Inferred Content Topics (detected from visible text):</b> {topic_str}"
-
-        callout = Table([[Paragraph(msg, styles["body"])]], colWidths=[CONTENT_W])
+        callout = Table([[Paragraph(banner_text, styles["body"])]], colWidths=[CONTENT_W])
         callout.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,-1), _c(0.96, 0.97, 0.99)),
-            ("BOX", (0,0), (-1,-1), 0.5, _c(0.80, 0.85, 0.95)),
-            ("TOPPADDING", (0,0), (-1,-1), 8),
-            ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+            ("BACKGROUND", (0,0), (-1,-1), _c(0.95, 0.98, 0.96)),
+            ("BOX", (0,0), (-1,-1), 0.5, _c(0.20, 0.70, 0.40)),
+            ("TOPPADDING", (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
             ("LEFTPADDING", (0,0), (-1,-1), 10),
             ("RIGHTPADDING", (0,0), (-1,-1), 10),
         ]))
         story.append(callout)
-        story.append(Spacer(1, 4*mm))
-        return story
+        story.append(Spacer(1, 3*mm))
+    elif not is_configured:
+        msg = (
+            "<b>Status: Target keywords not configured.</b><br/>"
+            "<font color='#555566' size=8>"
+            "To evaluate exact-phrase frequency, visible-text density, and key element placement across internal pages, "
+            "provide target keywords when initiating the audit. External search volume is currently unavailable."
+            "</font>"
+        )
+        callout = Table([[Paragraph(msg, styles["body"])]], colWidths=[CONTENT_W])
+        callout.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), _c(0.96, 0.97, 0.99)),
+            ("BOX", (0,0), (-1,-1), 0.5, _c(0.80, 0.85, 0.95)),
+            ("TOPPADDING", (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+            ("LEFTPADDING", (0,0), (-1,-1), 10),
+            ("RIGHTPADDING", (0,0), (-1,-1), 10),
+        ]))
+        story.append(callout)
+        story.append(Spacer(1, 3*mm))
 
-    summaries = keyword_analysis.get("keyword_summaries", [])
-    header = [
-        Paragraph("Target Keyword", styles["th"]),
-        Paragraph("Occurrences", styles["th"]),
-        Paragraph("Avg Density", styles["th"]),
-        Paragraph("Page Coverage", styles["th"]),
-        Paragraph("Key Placements", styles["th"]),
-    ]
-    rows = [header]
-    for s in summaries:
-        kw = s.get("keyword", "")
-        exact = s.get("total_exact_occurrences", 0)
-        variant = s.get("total_variant_occurrences", 0)
-        density = s.get("average_density_pct", 0.0)
-        coverage = s.get("page_coverage_pct", 0)
-        pages_cov = s.get("pages_covering_any", 0)
+    summaries = (keyword_analysis or {}).get("keyword_summaries", [])
+    if summaries:
+        term_label = "Observed Website Term" if is_auto else "Target Keyword"
+        header = [
+            Paragraph(term_label, styles["th"]),
+            Paragraph("Occurrences", styles["th"]),
+            Paragraph("Density", styles["th"]),
+            Paragraph("Denominator", styles["th"]),
+            Paragraph("Key Placements", styles["th"]),
+        ]
+        rows = [header]
+        for s in summaries:
+            kw = s.get("keyword", "")
+            exact = s.get("total_exact_occurrences", 0)
+            variant = s.get("total_variant_occurrences", 0)
+            density = s.get("average_density_pct", 0.0)
+            denom = s.get("visible_word_denominator", "—")
+            
+            pl = s.get("placement_occurrences", {})
+            places = []
+            if pl.get("title"): places.append(f"Title ({pl['title']})")
+            if pl.get("h1"): places.append(f"H1 ({pl['h1']})")
+            if pl.get("h2"): places.append(f"H2 ({pl['h2']})")
+            if pl.get("meta_description"): places.append(f"Meta ({pl['meta_description']})")
+            if pl.get("alt_text"): places.append(f"Alt ({pl['alt_text']})")
+            place_str = ", ".join(places) if places else "Body text only"
 
-        pl = s.get("placement_occurrences", {})
-        places = []
-        if pl.get("title"): places.append(f"Title ({pl['title']})")
-        if pl.get("h1"): places.append(f"H1 ({pl['h1']})")
-        if pl.get("meta_description"): places.append(f"Meta ({pl['meta_description']})")
-        if pl.get("alt_text"): places.append(f"Alt ({pl['alt_text']})")
-        place_str = ", ".join(places) if places else "Body text only"
+            occ_str = f"{exact} exact"
+            if variant > 0:
+                occ_str += f" (+{variant} var)"
 
-        occ_str = f"{exact} exact"
-        if variant > 0:
-            occ_str += f" (+{variant} var)"
+            rows.append([
+                Paragraph(f"<b>{_safe(kw)}</b>", styles["body"]),
+                Paragraph(occ_str, styles["td_center"]),
+                Paragraph(f"{density}%", styles["td_center"]),
+                Paragraph(f"{denom} words" if denom != "—" else "—", styles["td_center"]),
+                Paragraph(_safe(place_str), styles["body_small"]),
+            ])
 
-        rows.append([
-            Paragraph(f"<b>{_safe(kw)}</b>", styles["body"]),
-            Paragraph(occ_str, styles["td_center"]),
-            Paragraph(f"{density}%", styles["td_center"]),
-            Paragraph(f"{coverage}% ({pages_cov} pgs)", styles["td_center"]),
-            Paragraph(_safe(place_str), styles["body_small"]),
-        ])
+        col_w = [48*mm, 28*mm, 22*mm, 28*mm, 44*mm]
+        t = Table(rows, colWidths=col_w, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+            ("FONTSIZE",      (0,0), (-1,-1), 8),
+            ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+            ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+            ("TOPPADDING",    (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("LEFTPADDING",   (0,0), (-1,-1), 6),
+            ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 2.5*mm))
 
-    col_w = [48*mm, 28*mm, 22*mm, 28*mm, 44*mm]
-    t = Table(rows, colWidths=col_w, repeatRows=1)
-    t.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0), (-1,0), C_DARK),
-        ("FONTSIZE",      (0,0), (-1,-1), 8),
-        ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
-        ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
-        ("TOPPADDING",    (0,0), (-1,-1), 5),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
-        ("LEFTPADDING",   (0,0), (-1,-1), 6),
-        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 2*mm))
+    # Inferred Topics & Suggestions
+    inferred = (keyword_analysis or {}).get("inferred_topics", [])
+    if inferred:
+        inferred_lines = []
+        for t in inferred[:6]:
+            t_name = t.get("topic", "")
+            t_cnt = t.get("frequency", "")
+            inferred_lines.append(f"<b>{_safe(t_name)}</b> ({t_cnt}x)")
+        
+        inferred_html = (
+            "<b>Inferred Candidate Topic Suggestions:</b> " + " • ".join(inferred_lines) + "<br/>"
+            "<font size=7 color='#64748b'><i>Note: Inferred topics represent thematic entities extracted from page content, not verified Google search volume.</i></font>"
+        )
+        t_inf = Table([[Paragraph(inferred_html, styles["body_small"])]], colWidths=[CONTENT_W])
+        t_inf.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), _c(0.97, 0.97, 0.98)),
+            ("BOX",        (0,0), (-1,-1), 0.5, _c(0.85, 0.85, 0.90)),
+            ("TOPPADDING", (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("LEFTPADDING", (0,0), (-1,-1), 8),
+            ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ]))
+        story.append(t_inf)
+        story.append(Spacer(1, 2.5*mm))
+
+    # Section-level keyword occurrences for single-page websites
+    sections = (keyword_analysis or {}).get("sections", [])
+    if sections and summaries:
+        # Check if any summary has section breakdown
+        has_sec_data = any(s.get("section_breakdown") for s in summaries)
+        if has_sec_data:
+            sec_header = [
+                Paragraph("Target Section (#anchor)", styles["th"]),
+                Paragraph("Section Heading", styles["th"]),
+                Paragraph("Visible Words", styles["th"]),
+                Paragraph("Discovered Key Terms", styles["th"]),
+            ]
+            sec_rows = [sec_header]
+            for sec in sections[:8]:
+                sid = f"#{sec.get('id', '')}"
+                h_text = sec.get("heading", "")[:40]
+                w_count = sec.get("word_count", 0)
+                
+                matched_terms = []
+                for s in summaries:
+                    b_down = s.get("section_breakdown", {})
+                    if b_down.get(sid):
+                        matched_terms.append(f"{s['keyword']} ({b_down[sid]}x)")
+                
+                matched_str = ", ".join(matched_terms) if matched_terms else "General content"
+                sec_rows.append([
+                    Paragraph(f"<b>{_safe(sid)}</b>", styles["body"]),
+                    Paragraph(_safe(h_text), styles["body_small"]),
+                    Paragraph(f"{w_count}w", styles["td_center"]),
+                    Paragraph(_safe(matched_str), styles["body_small"]),
+                ])
+
+            t_sec = Table(sec_rows, colWidths=[40*mm, 50*mm, 24*mm, 56*mm], repeatRows=1)
+            t_sec.setStyle(TableStyle([
+                ("BACKGROUND",    (0,0), (-1,0), C_PRIMARY),
+                ("FONTSIZE",      (0,0), (-1,-1), 8),
+                ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+                ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+                ("TOPPADDING",    (0,0), (-1,-1), 3),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+                ("LEFTPADDING",   (0,0), (-1,-1), 6),
+                ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+            ]))
+            story.append(Paragraph("<b>Single-Page Content Section Keyword Distribution:</b>", styles["body_small"]))
+            story.append(Spacer(1, 1*mm))
+            story.append(t_sec)
+            story.append(Spacer(1, 2.5*mm))
+
     story.append(Paragraph(
         "<font size=7 color='#64748b'><b>Methodology:</b> Keyword Density (%) = (Exact Occurrences * Keyword Word Count / Visible Body Words) * 100. "
         "Measured across visible body content; navigation boilerplate, scripts, and hidden text are excluded. "
-        "Density is reported as diagnostic evidence and is not treated as a rigid ranking threshold.</font>",
+        "Single-page section anchors (#) are evaluated within the primary document and not counted as separate HTML pages.</font>",
         styles["caption"]
     ))
     story.append(Spacer(1, 4*mm))
+    return story
+
+
+def _client_diagnostics_section(site_summary: dict | None, styles) -> list:
+    if not site_summary:
+        return []
+
+    mob = site_summary.get("mobile_usability")
+    perf = site_summary.get("lighthouse_performance")
+    meta = site_summary.get("onpage_metadata_diagnostics")
+
+    if not (mob or perf or meta):
+        return []
+
+    story = []
+    story.append(Paragraph("Client Target Website Diagnostics & Usability", styles["h1"]))
+    story.append(Spacer(1, 2*mm))
+
+    # 1. Mobile Usability Audit
+    if mob:
+        status = mob.get("overall_status", "NEEDS IMPROVEMENT")
+        status_color = C_SUCCESS if status == "PASS" else (C_DANGER if status == "FAIL" else C_WARN)
+        story.append(Paragraph(f"<b>Mobile Usability & Viewport Audit:</b> <font color='{status_color.hexval()}'><b>{status}</b></font>", styles["h2"]))
+        story.append(Paragraph(
+            f"Evaluated target client website in live browser across 4 responsive viewports (360px, 390px, 412px, 1280px). "
+            f"{_safe(mob.get('summary', ''))}",
+            styles["body"]
+        ))
+        story.append(Spacer(1, 2*mm))
+
+        vps = mob.get("viewports_tested", [])
+        if vps:
+            vp_rows = [[
+                Paragraph("Viewport Tested", styles["th"]),
+                Paragraph("Width", styles["th"]),
+                Paragraph("Horizontal Overflow", styles["th"]),
+                Paragraph("Tap-Target Compliance", styles["th"]),
+                Paragraph("Page Load", styles["th"]),
+            ]]
+            for v in vps:
+                ov_str = f"{v.get('overflow_px', 0)}px" if v.get('overflow_px', 0) > 0 else "0px (None)"
+                vp_rows.append([
+                    Paragraph(f"<b>{_safe(v.get('name', ''))}</b>", styles["body"]),
+                    Paragraph(f"{v.get('width', 0)}px", styles["td_center"]),
+                    Paragraph(ov_str, styles["td_center"]),
+                    Paragraph(f"{v.get('tap_compliance_pct', 100)}%", styles["td_center"]),
+                    Paragraph(f"{v.get('load_time_ms', 0)} ms", styles["td_center"]),
+                ])
+            t_vp = Table(vp_rows, colWidths=[48*mm, 24*mm, 36*mm, 36*mm, 26*mm], repeatRows=1)
+            t_vp.setStyle(TableStyle([
+                ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+                ("FONTSIZE",      (0,0), (-1,-1), 8),
+                ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+                ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+                ("TOPPADDING",    (0,0), (-1,-1), 3),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+                ("LEFTPADDING",   (0,0), (-1,-1), 6),
+                ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+            ]))
+            story.append(t_vp)
+            story.append(Spacer(1, 3*mm))
+
+        issues = mob.get("issues", [])
+        if issues:
+            iss_cells = []
+            for iss in issues:
+                iss_cells.append([
+                    Paragraph(f"• <b>[{iss.get('severity')}] {iss.get('code')}:</b> {_safe(iss.get('observed'))}<br/>"
+                              f"<font color='#047857'><b>Recommended fix:</b> {_safe(iss.get('recommendation'))}</font>", styles["body_small"])
+                ])
+            t_iss = Table(iss_cells, colWidths=[CONTENT_W])
+            t_iss.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,-1), _c(0.98, 0.98, 0.99)),
+                ("BOX",        (0,0), (-1,-1), 0.5, _c(0.85, 0.85, 0.90)),
+                ("TOPPADDING", (0,0), (-1,-1), 4),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+                ("LEFTPADDING", (0,0), (-1,-1), 8),
+                ("RIGHTPADDING", (0,0), (-1,-1), 8),
+            ]))
+            story.append(t_iss)
+            story.append(Spacer(1, 4*mm))
+
+    # 2. Performance & Core Web Vitals (Lighthouse)
+    if perf:
+        score = perf.get("performance_score", 0)
+        score_color = C_SUCCESS if score >= 80 else (C_WARN if score >= 50 else C_DANGER)
+        story.append(Paragraph(f"<b>Performance & Core Web Vitals (Lighthouse Lab):</b> <font color='{score_color.hexval()}'><b>Score {score}/100</b></font>", styles["h2"]))
+        story.append(Paragraph(
+            f"Measured via <b>{_safe(perf.get('tool', 'Lighthouse'))}</b> under simulated mobile network throttling.<br/>"
+            f"<i>{_safe(perf.get('disclaimer', ''))}</i>",
+            styles["body_small"]
+        ))
+        story.append(Spacer(1, 2*mm))
+
+        cwv_rows = [
+            [
+                Paragraph("Metric", styles["th"]),
+                Paragraph("Observed Value", styles["th"]),
+                Paragraph("Google CWV Target", styles["th"]),
+                Paragraph("Rating", styles["th"]),
+            ],
+            [
+                Paragraph("<b>First Contentful Paint (FCP)</b>", styles["body"]),
+                Paragraph(perf.get("fcp", {}).get("display", "—"), styles["td_center"]),
+                Paragraph("< 1.8 s", styles["td_center"]),
+                Paragraph("Needs Improvement" if perf.get("fcp", {}).get("value_ms", 0) > 1800 else "Good", styles["td_center"]),
+            ],
+            [
+                Paragraph("<b>Largest Contentful Paint (LCP)</b>", styles["body"]),
+                Paragraph(perf.get("lcp", {}).get("display", "—"), styles["td_center"]),
+                Paragraph("< 2.5 s", styles["td_center"]),
+                Paragraph("Needs Improvement" if perf.get("lcp", {}).get("value_ms", 0) > 2500 else "Good", styles["td_center"]),
+            ],
+            [
+                Paragraph("<b>Total Blocking Time (TBT)</b>", styles["body"]),
+                Paragraph(perf.get("tbt", {}).get("display", "—"), styles["td_center"]),
+                Paragraph("< 200 ms", styles["td_center"]),
+                Paragraph("Poor" if perf.get("tbt", {}).get("value_ms", 0) > 600 else "Needs Improvement", styles["td_center"]),
+            ],
+            [
+                Paragraph("<b>Cumulative Layout Shift (CLS)</b>", styles["body"]),
+                Paragraph(perf.get("cls", {}).get("display", "—"), styles["td_center"]),
+                Paragraph("< 0.1", styles["td_center"]),
+                Paragraph("Good", styles["td_center"]),
+            ],
+            [
+                Paragraph("<b>Time to First Byte (TTFB)</b>", styles["body"]),
+                Paragraph(perf.get("ttfb", {}).get("display", "—"), styles["td_center"]),
+                Paragraph("< 800 ms", styles["td_center"]),
+                Paragraph("Good", styles["td_center"]),
+            ],
+        ]
+        t_cwv = Table(cwv_rows, colWidths=[55*mm, 35*mm, 40*mm, 40*mm], repeatRows=1)
+        t_cwv.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+            ("FONTSIZE",      (0,0), (-1,-1), 8),
+            ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+            ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+            ("TOPPADDING",    (0,0), (-1,-1), 3),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+            ("LEFTPADDING",   (0,0), (-1,-1), 6),
+            ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+        ]))
+        story.append(t_cwv)
+        story.append(Spacer(1, 3*mm))
+
+        opps = perf.get("opportunities", [])
+        if opps:
+            opp_text = "<b>High-Impact Performance Opportunities:</b><br/>" + "<br/>".join([
+                f"• <b>{_safe(o.get('title'))}:</b> {_safe(o.get('display'))}" for o in opps
+            ])
+            t_opp = Table([[Paragraph(opp_text, styles["body_small"])]], colWidths=[CONTENT_W])
+            t_opp.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,-1), _c(0.96, 0.98, 1.0)),
+                ("BOX",        (0,0), (-1,-1), 0.5, C_PRIMARY),
+                ("TOPPADDING", (0,0), (-1,-1), 4),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+                ("LEFTPADDING", (0,0), (-1,-1), 8),
+                ("RIGHTPADDING", (0,0), (-1,-1), 8),
+            ]))
+            story.append(t_opp)
+            story.append(Spacer(1, 4*mm))
+
+    # 3. On-Page Metadata Exact Observed Values
+    if meta:
+        story.append(Paragraph("<b>Metadata & On-Page SEO Diagnostics (Exact Observed Values):</b>", styles["h2"]))
+        meta_rows = [[
+            Paragraph("Element", styles["th"]),
+            Paragraph("Exact Observed Value", styles["th"]),
+            Paragraph("Condition", styles["th"]),
+            Paragraph("Recommended Improvement", styles["th"]),
+        ]]
+        for elem_name, diag in meta.items():
+            obs = str(diag.get("observed") if diag.get("observed") is not None else "<i>Missing</i>")
+            if len(obs) > 60:
+                obs = obs[:57] + "..."
+            cond = diag.get("condition", "optimal").title()
+            rec = diag.get("recommendation") or "—"
+            if len(rec) > 65:
+                rec = rec[:62] + "..."
+
+            meta_rows.append([
+                Paragraph(f"<b>{elem_name.replace('_', ' ').title()}</b>", styles["body"]),
+                Paragraph(_safe(obs), styles["body_small"]),
+                Paragraph(cond, styles["td_center"]),
+                Paragraph(_safe(rec), styles["body_small"]),
+            ])
+
+        t_meta = Table(meta_rows, colWidths=[38*mm, 54*mm, 26*mm, 52*mm], repeatRows=1)
+        t_meta.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+            ("FONTSIZE",      (0,0), (-1,-1), 8),
+            ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+            ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+            ("TOPPADDING",    (0,0), (-1,-1), 3),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+            ("LEFTPADDING",   (0,0), (-1,-1), 6),
+            ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+        ]))
+        story.append(t_meta)
+        story.append(Spacer(1, 4*mm))
+
     return story
 
 
@@ -957,6 +1280,13 @@ def build_pdf(
         except Exception:
             kw_analysis = {"configured": False, "status": "not_configured", "message": "Target keywords not configured"}
     story += _keyword_analysis_section(kw_analysis, styles)
+
+    # ─── Target Client Website Diagnostics (Mobile, CWV, Metadata) ───────────
+    client_diag_story = _client_diagnostics_section(site_summary, styles)
+    if client_diag_story:
+        story.append(PageBreak())
+        story += client_diag_story
+
 
     # ─── Site-Wide Crawl Section (optional) ───────────────────────────────────
     if site_summary and site_summary.get("total_pages", 0) > 0:

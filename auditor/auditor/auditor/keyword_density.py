@@ -8,6 +8,7 @@ import re
 import logging
 from typing import Any
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -220,37 +221,325 @@ def analyze_keyword_on_page(
     }
 
 
-def extract_top_topics(crawled_pages: list[dict], max_topics: int = 5) -> list[dict[str, Any]]:
+SERVICE_PRODUCT_HINTS = {
+    "advisory", "accelerator", "consulting", "services", "solutions",
+    "management", "platform", "software", "agency", "development",
+    "integration", "strategy", "support", "architecture", "cybersecurity",
+    "infrastructure", "engineering", "audit", "compliance", "optimization",
+    "channel", "vendor", "growth", "production"
+}
+
+INDUSTRY_LOCATION_HINTS = {
+    "gcc", "uae", "dubai", "mumbai", "india", "gulf", "saudi", "riyadh",
+    "qatar", "middle east", "ai", "artificial intelligence", "cloud",
+    "enterprise", "b2b", "saas", "tech", "technology", "global", "niche",
+    "it", "information technology"
+}
+
+
+def _normalize_pages(pages: list[dict]) -> list[dict]:
+    res = []
+    for p in (pages or []):
+        item = dict(p)
+        if "ok" not in item:
+            item["ok"] = True
+        if not item.get("soup") and item.get("html"):
+            item["soup"] = BeautifulSoup(item["html"], "lxml")
+        res.append(item)
+    return res
+
+
+def discover_observed_website_terms(
+    crawled_pages: list[dict],
+    sections: list[dict] | None = None,
+    max_terms: int = 20,
+) -> list[dict[str, Any]]:
+    """
+    Extract observed terms directly from the audited website's actual HTML:
+    - Page titles, meta descriptions, and headings (h1, h2, h3)
+    - Visible body text (meaningful 1-to-3 word phrases)
+    - Service, product, industry, and location terminology
+    - Image alt text and internal anchor text (distinguished from body occurrences)
+    Reports occurrence count, visible-word denominator, density %, and placements.
+    """
+    if not crawled_pages:
+        return []
+
+    crawled_pages = _normalize_pages(crawled_pages)
+    eligible = [p for p in crawled_pages if p.get("ok") and p.get("soup")]
+    if not eligible:
+        return []
+
+    # Aggregate total visible words across audited documents
+    total_visible_words = 0
+    all_body_texts: list[str] = []
+    for p in eligible:
+        soup = p.get("soup")
+        txt = extract_visible_text(soup)
+        all_body_texts.append(txt)
+        total_visible_words += count_visible_words(txt)
+
+    if total_visible_words == 0:
+        total_visible_words = 1
+
+    combined_body = " ".join(all_body_texts)
+
+    # 1. Candidate extraction from structured page elements
+    candidates: set[str] = set()
+
+    for p in eligible:
+        soup = p.get("soup")
+        if not soup:
+            continue
+
+        # Title
+        t = soup.find("title")
+        if t and t.get_text(strip=True):
+            # Split title on separators |, -, :, •
+            parts = re.split(r"[|\-–—:•]", t.get_text(strip=True))
+            for part in parts:
+                clean_part = part.strip()
+                if 3 < len(clean_part) < 50:
+                    candidates.add(clean_part)
+                # also add key words
+                for w in tokenize_words(clean_part):
+                    if len(w) > 3 and w not in COMMON_STOPWORDS:
+                        candidates.add(w.title())
+
+        # Meta description
+        m = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
+        if m and m.get("content", "").strip():
+            desc_words = [w for w in tokenize_words(m.get("content", "")) if len(w) > 3 and w not in COMMON_STOPWORDS]
+            for dw in desc_words[:10]:
+                candidates.add(dw.title())
+
+        # Headings (h1, h2, h3)
+        for h in soup.find_all(["h1", "h2", "h3"]):
+            htext = h.get_text(strip=True)
+            if 3 < len(htext) < 60:
+                candidates.add(htext)
+            for w in tokenize_words(htext):
+                if len(w) > 3 and w not in COMMON_STOPWORDS:
+                    candidates.add(w.title())
+
+        # Image alt texts
+        for img in soup.find_all("img"):
+            alt = img.get("alt", "").strip()
+            if alt and 3 < len(alt) < 40 and alt.lower() not in ("image", "photo", "icon", "logo"):
+                candidates.add(alt)
+
+        # Anchor texts
+        for a in soup.find_all("a"):
+            atxt = a.get_text(strip=True)
+            if atxt and 3 < len(atxt) < 30 and atxt.lower() not in ("click here", "read more", "home", "back"):
+                candidates.add(atxt)
+
+    # 2. Extract frequent multi-word phrases (bigrams, trigrams) from body
+    words = [w for w in tokenize_words(combined_body) if len(w) > 2 and w not in COMMON_STOPWORDS]
+    phrase_counts: dict[str, int] = {}
+
+    for i in range(len(words) - 1):
+        w1, w2 = words[i], words[i + 1]
+        if w1 != w2:
+            pair = f"{w1} {w2}"
+            phrase_counts[pair] = phrase_counts.get(pair, 0) + 1
+
+    for i in range(len(words) - 2):
+        w1, w2, w3 = words[i], words[i + 1], words[i + 2]
+        if w1 != w2 and w2 != w3:
+            tri = f"{w1} {w2} {w3}"
+            phrase_counts[tri] = phrase_counts.get(tri, 0) + 1
+
+    for phrase, count in phrase_counts.items():
+        if count >= 2:
+            candidates.add(phrase.title())
+
+    # 3. Score and analyze candidate terms against actual HTML & body text
+    observed_terms: list[dict[str, Any]] = []
+
+    for raw_term in candidates:
+        clean_term = raw_term.strip()
+        if not clean_term or len(clean_term) < 3:
+            continue
+
+        kw_words = tokenize_words(clean_term)
+        kw_len = max(len(kw_words), 1)
+        if kw_len > 4:
+            continue
+
+        escaped = re.escape(clean_term)
+        exact_pattern = re.compile(r"\b" + escaped + r"\b", re.IGNORECASE)
+
+        # Count occurrences across all pages
+        body_count = len(exact_pattern.findall(combined_body))
+
+        # Check placements in structured elements
+        has_title = False
+        has_meta = False
+        h1_matches = 0
+        h2_matches = 0
+        h3_matches = 0
+        alt_matches = 0
+        anchor_matches = 0
+
+        source_pages = []
+
+        for p in eligible:
+            soup = p.get("soup")
+            if not soup:
+                continue
+            url = p.get("final_url") or p.get("url", "")
+
+            # Title
+            t_tag = soup.find("title")
+            if t_tag and exact_pattern.search(t_tag.get_text()):
+                has_title = True
+                if url not in source_pages:
+                    source_pages.append(url)
+
+            # Meta description
+            m_tag = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
+            if m_tag and exact_pattern.search(m_tag.get("content", "")):
+                has_meta = True
+
+            # Headings
+            for h1 in soup.find_all("h1"):
+                if exact_pattern.search(h1.get_text()):
+                    h1_matches += 1
+                    if url not in source_pages:
+                        source_pages.append(url)
+
+            for h2 in soup.find_all("h2"):
+                if exact_pattern.search(h2.get_text()):
+                    h2_matches += 1
+                    if url not in source_pages:
+                        source_pages.append(url)
+
+            for h3 in soup.find_all("h3"):
+                if exact_pattern.search(h3.get_text()):
+                    h3_matches += 1
+
+            # Image alt text
+            for img in soup.find_all("img"):
+                alt = img.get("alt", "")
+                if alt and exact_pattern.search(alt):
+                    alt_matches += 1
+
+            # Anchor text
+            for a in soup.find_all("a"):
+                atxt = a.get_text(strip=True)
+                if atxt and exact_pattern.search(atxt):
+                    anchor_matches += 1
+
+        # Total observed occurrences across body and structured placements
+        structured_count = (1 if has_title else 0) + (1 if has_meta else 0) + h1_matches + h2_matches + h3_matches + alt_matches
+        total_occurrences = body_count
+        if total_occurrences == 0 and structured_count > 0:
+            total_occurrences = max(structured_count, 1)
+
+        if total_occurrences == 0:
+            continue
+
+        # Density % relative to visible word denominator
+        density_pct = round((total_occurrences * kw_len / total_visible_words) * 100, 2) if total_visible_words > 0 else 0.0
+
+        # Term classification
+        term_lower = clean_term.lower()
+        if any(h in term_lower for h in SERVICE_PRODUCT_HINTS):
+            term_type = "service_product"
+        elif any(h in term_lower for h in INDUSTRY_LOCATION_HINTS):
+            term_type = "industry_location"
+        elif has_title and h1_matches > 0:
+            term_type = "entity_brand"
+        else:
+            term_type = "content_phrase"
+
+        # Check section-level occurrences if sections provided (single-page sites)
+        section_breakdown = {}
+        if sections and eligible:
+            h_soup = eligible[0].get("soup")
+            if h_soup:
+                for sec in sections:
+                    sec_id = sec.get("id")
+                    if not sec_id:
+                        continue
+                    sec_el = h_soup.find(id=sec_id) or h_soup.find(attrs={"name": sec_id})
+                    if sec_el:
+                        sec_txt = extract_visible_text(sec_el)
+                        cnt = len(exact_pattern.findall(sec_txt))
+                        if cnt > 0:
+                            section_breakdown[f"#{sec_id}"] = cnt
+
+        observed_terms.append({
+            "text": clean_term,
+            "term": clean_term,
+            "category": "observed_website_term",
+            "term_type": term_type,
+            "occurrence_count": total_occurrences,
+            "count": total_occurrences,
+            "visible_word_denominator": total_visible_words,
+            "denominator": total_visible_words,
+            "density_pct": density_pct,
+            "source_pages": source_pages or [eligible[0].get("final_url") or eligible[0].get("url", "")],
+            "placements": {
+                "title": has_title,
+                "meta_description": has_meta,
+                "h1": h1_matches > 0,
+                "h2": h2_matches > 0,
+                "h3": h3_matches > 0,
+                "body": body_count > 0,
+                "alt_text": alt_matches > 0,
+                "anchor_text": anchor_matches > 0,
+            },
+            "alt_text_occurrences": alt_matches,
+            "anchor_text_occurrences": anchor_matches,
+            "section_breakdown": section_breakdown,
+        })
+
+    # Sort observed terms: Title/H1 placement and high frequency first
+    def _rank(t):
+        score = t["occurrence_count"]
+        if t["placements"]["title"]: score += 15
+        if t["placements"]["h1"]: score += 12
+        if t["placements"]["meta_description"]: score += 8
+        if t["placements"]["h2"]: score += 6
+        if t["term_type"] in ("service_product", "industry_location"): score += 5
+        return score
+
+    observed_terms.sort(key=_rank, reverse=True)
+
+    # Deduplicate terms that are sub-strings of higher ranked terms with identical frequency
+    deduped = []
+    for t in observed_terms:
+        if len(deduped) >= max_terms:
+            break
+        # Skip if identical text already present
+        if any(d["text"].lower() == t["text"].lower() for d in deduped):
+            continue
+        deduped.append(t)
+
+    return deduped
+
+
+def extract_top_topics(crawled_pages: list[dict], max_topics: int = 6) -> list[dict[str, Any]]:
     """
     Extract frequent meaningful multi-word and single-word phrases across the site
     as optional extracted topic terms. Marked explicitly as inferred, NOT target keywords.
     """
-    word_freq: dict[str, int] = {}
-    bigram_freq: dict[str, int] = {}
-
-    for page in crawled_pages:
-        soup = page.get("soup")
-        if not soup:
-            continue
-        text = extract_visible_text(soup)
-        words = [w for w in tokenize_words(text) if len(w) > 3 and w not in COMMON_STOPWORDS]
-        for w in words:
-            word_freq[w] = word_freq.get(w, 0) + 1
-        for i in range(len(words) - 1):
-            w1, w2 = words[i], words[i + 1]
-            if w1 != w2:
-                pair = f"{w1} {w2}"
-                bigram_freq[pair] = bigram_freq.get(pair, 0) + 1
-
-    # Prefer bigrams with frequency >= 2
+    observed = discover_observed_website_terms(crawled_pages, max_terms=max_topics * 2)
     candidates = []
-    for pair, count in sorted(bigram_freq.items(), key=lambda x: x[1], reverse=True)[:max_topics]:
-        if count >= 2:
-            candidates.append({"topic": pair.title(), "frequency": count, "type": "phrase"})
 
-    if len(candidates) < max_topics:
-        for word, count in sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:max_topics - len(candidates)]:
-            candidates.append({"topic": word.title(), "frequency": count, "type": "keyword"})
+    for t in observed[:max_topics]:
+        candidates.append({
+            "topic": t["text"].title(),
+            "frequency": t["occurrence_count"],
+            "type": "phrase" if " " in t["text"] else "keyword",
+            "category": "inferred_topic_suggestion",
+            "term_type": t["term_type"],
+            "density_pct": t["density_pct"],
+            "evidence_basis": f"Observed on website (frequency: {t['occurrence_count']}, density: {t['density_pct']}%)",
+            "disclaimer": "Candidate topic inferred from content evidence; external search-volume and ranking evidence requires a separate connected data provider (currently unavailable).",
+        })
 
     return candidates
 
@@ -258,14 +547,19 @@ def extract_top_topics(crawled_pages: list[dict], max_topics: int = 5) -> list[d
 def analyze_target_keywords_site(
     crawled_pages: list[dict],
     target_keywords: list[str] | str | None = None,
+    sections: list[dict] | None = None,
 ) -> dict[str, Any]:
     """
     Site-wide keyword analysis aggregation across all eligible crawled pages.
+    Makes automatic keyword and topic discovery the default behavior.
+    Distinguishes:
+      1. Observed website terms: Phrases actually extracted from the audited website.
+      2. Inferred topic suggestions: Candidate topics inferred from observed content.
+      3. User-supplied target keywords: Optional phrases entered by the auditor.
     """
     # Normalize input keywords
     normalized_keywords: list[str] = []
     if isinstance(target_keywords, str):
-        # Support comma or newline delimited strings
         lines = target_keywords.replace(",", "\n").splitlines()
         normalized_keywords = [k.strip() for k in lines if k.strip()]
     elif isinstance(target_keywords, list):
@@ -274,22 +568,97 @@ def analyze_target_keywords_site(
     # Deduplicate while preserving order
     unique_keywords = list(dict.fromkeys(normalized_keywords))
 
+    crawled_pages = _normalize_pages(crawled_pages)
+    eligible_pages = [p for p in crawled_pages if p.get("ok") and p.get("soup")]
+    total_eligible = max(len(eligible_pages), 1)
+
+    # 1. Automatically discover observed website terms
+    observed_terms = discover_observed_website_terms(crawled_pages, sections=sections, max_terms=15)
+    inferred_topics = extract_top_topics(crawled_pages, max_topics=6)
+    for inf in inferred_topics:
+        if "suggestion_label" not in inf:
+            inf["suggestion_label"] = "Inferred Candidate Topic (from content frequency)"
+
+    # Build section breakdown for single page if sections provided
+    sec_breakdown = []
+    if sections and eligible_pages:
+        h_soup = eligible_pages[0].get("soup")
+        for sec in sections:
+            sid = sec.get("id", "")
+            sname = sec.get("name", sid)
+            sec_el = h_soup.find(id=sid) if h_soup and sid else None
+            stxt = extract_visible_text(sec_el) if sec_el else sec.get("snippet", "")
+            words = tokenize_words(stxt)
+            top_kws = [
+                {"keyword": t["text"], "count": t.get("section_breakdown", {}).get(f"#{sid}", 1)}
+                for t in observed_terms if t.get("section_breakdown", {}).get(f"#{sid}", 0) > 0
+            ][:3]
+            sec_breakdown.append({
+                "section_id": sid,
+                "section_name": sname,
+                "word_count": len(words),
+                "top_keywords": top_kws,
+            })
+
+    # If user-supplied target keywords are absent:
+    # Continue the audit using the website-derived terms as default!
     if not unique_keywords:
-        inferred = extract_top_topics(crawled_pages)
+        # Build keyword_summaries from the top observed terms
+        auto_summaries = []
+        for t in observed_terms[:6]:
+            kw = t["text"]
+            exact_count = t["occurrence_count"]
+            density_pct = t["density_pct"]
+            total_words = t["visible_word_denominator"]
+            auto_summaries.append({
+                "keyword": kw,
+                "term_type": t["term_type"],
+                "total_exact_occurrences": exact_count,
+                "total_variant_occurrences": 0,
+                "pages_covering_exact": 1,
+                "pages_covering_any": 1,
+                "page_coverage_pct": 100,
+                "average_density_pct": density_pct,
+                "visible_word_denominator": total_words,
+                "best_page": {
+                    "url": t["source_pages"][0] if t["source_pages"] else (eligible_pages[0].get("final_url") or eligible_pages[0].get("url", "") if eligible_pages else ""),
+                    "occurrences": exact_count,
+                    "density_pct": density_pct,
+                },
+                "placement_occurrences": {
+                    "title": 1 if t["placements"]["title"] else 0,
+                    "meta_description": 1 if t["placements"]["meta_description"] else 0,
+                    "h1": 1 if t["placements"]["h1"] else 0,
+                    "h2": 1 if t["placements"]["h2"] else 0,
+                    "url": 0,
+                    "alt_text": t["alt_text_occurrences"],
+                    "opening_content": 0,
+                    "main_body": exact_count,
+                },
+                "section_breakdown": t.get("section_breakdown", {}),
+            })
+
         return {
             "configured": False,
             "status": "not_configured",
             "message": "Target keywords not configured",
+            "auto_discovered": True,
+            "discovery_mode": "automatic",
             "target_keywords": [],
-            "pages_analyzed": len(crawled_pages),
-            "keyword_summaries": [],
-            "inferred_topics": inferred,
+            "user_supplied_target_keywords": [],
+            "observed_website_terms": observed_terms,
+            "inferred_topics": inferred_topics,
+            "inferred_topic_suggestions": inferred_topics,
+            "pages_analyzed": len(eligible_pages),
+            "keyword_summaries": auto_summaries,
+            "external_search_volume_available": False,
+            "search_volume_disclaimer": "Search volume and ranking evidence require a connected external data source (currently unavailable).",
             "formula_note": "Keyword Density (%) = (Exact Occurrences * Keyword Word Count / Total Visible Word Count) * 100",
+            "sections": sections or [],
+            "section_breakdown": sec_breakdown,
         }
 
-    eligible_pages = [p for p in crawled_pages if p.get("ok") and p.get("soup")]
-    total_eligible = max(len(eligible_pages), 1)
-
+    # When target keywords ARE supplied by user:
     summaries = []
 
     for kw in unique_keywords:
@@ -341,6 +710,24 @@ def analyze_target_keywords_site(
         avg_density = round(sum(densities) / len(densities), 2) if densities else 0.0
         coverage_pct = round((pages_with_any / total_eligible) * 100)
 
+        # Check section-level occurrences if single-page sections provided
+        section_breakdown = {}
+        if sections and eligible_pages:
+            h_soup = eligible_pages[0].get("soup")
+            if h_soup:
+                escaped_kw = re.escape(kw.strip())
+                exact_kw_pattern = re.compile(r"\b" + escaped_kw + r"\b", re.IGNORECASE)
+                for sec in sections:
+                    sec_id = sec.get("id")
+                    if not sec_id:
+                        continue
+                    sec_el = h_soup.find(id=sec_id) or h_soup.find(attrs={"name": sec_id})
+                    if sec_el:
+                        sec_txt = extract_visible_text(sec_el)
+                        cnt = len(exact_kw_pattern.findall(sec_txt))
+                        if cnt > 0:
+                            section_breakdown[f"#{sec_id}"] = cnt
+
         summaries.append({
             "keyword": kw,
             "total_exact_occurrences": kw_total_exact,
@@ -355,14 +742,25 @@ def analyze_target_keywords_site(
                 "density_pct": best_page_density,
             },
             "placement_occurrences": placement_summary,
+            "section_breakdown": section_breakdown,
         })
 
     return {
         "configured": True,
         "status": "configured",
+        "auto_discovered": False,
+        "discovery_mode": "user_supplied",
         "message": f"{len(unique_keywords)} target keyword(s) analyzed across {len(eligible_pages)} crawled pages.",
         "target_keywords": unique_keywords,
+        "user_supplied_target_keywords": unique_keywords,
+        "observed_website_terms": observed_terms,
+        "inferred_topics": inferred_topics,
+        "inferred_topic_suggestions": inferred_topics,
         "pages_analyzed": len(eligible_pages),
         "keyword_summaries": summaries,
+        "external_search_volume_available": False,
+        "search_volume_disclaimer": "External search volume and ranking evidence requires a separate connected data provider (currently unavailable).",
         "formula_note": "Keyword Density (%) = (Exact Occurrences * Keyword Word Count / Total Visible Word Count) * 100",
+        "sections": sections or [],
     }
+

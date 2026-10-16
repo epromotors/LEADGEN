@@ -3,7 +3,7 @@ import {
   RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X,
   Globe, ShieldCheck, FileCode, CheckCircle2, AlertCircle, XCircle, ArrowRight,
   ExternalLink, Layers, Cpu, Compass, LayoutGrid, ListFilter, Bot, Check, AlertOctagon,
-  Send, CheckCheck, FileText, Play
+  Send, CheckCheck, FileText, Play, Smartphone, Zap, Gauge
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -780,11 +780,12 @@ function AuditRow({ lead }) {
   })
 
   // URL identity extraction
-  const requestedUrl = audit?.requested_url || audit?.audited_url || lead.website || '—'
-  const finalUrl = audit?.final_url || audit?.audited_url || lead.website || '—'
-  const canonicalUrl = audit?.canonical_url || audit?.audit_results?.technical?.canonical?.value || '—'
+  const requestedUrl = String(audit?.requested_url || audit?.audited_url || lead.website || '—')
+  const finalUrl = String(audit?.final_url || audit?.audited_url || lead.website || '—')
+  const rawCanonical = audit?.canonical_url || (typeof audit?.audit_results?.technical?.canonical?.value === 'string' ? audit?.audit_results?.technical?.canonical?.value : null)
+  const canonicalUrl = rawCanonical ? String(rawCanonical) : '—'
   const isRedirected = requestedUrl !== '—' && finalUrl !== '—' && requestedUrl.replace(/\/$/, '') !== finalUrl.replace(/\/$/, '')
-  const hasCanonical = canonicalUrl !== '—' && canonicalUrl !== null
+  const hasCanonical = canonicalUrl !== '—'
   const isCanonicalSame = hasCanonical && finalUrl !== '—' && canonicalUrl.replace(/\/$/, '') === finalUrl.replace(/\/$/, '')
 
   return (
@@ -1197,6 +1198,86 @@ function AuditRow({ lead }) {
                         </span>
                       </div>
 
+                      {/* ── SITE ARCHITECTURE CLASSIFICATION CARD ── */}
+                      {audit.site_summary?.architecture && (
+                        <div style={{
+                          background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10,
+                          padding: 16, marginBottom: 16
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <Layers size={20} style={{ color: '#38bdf8' }} />
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>
+                                    Site Architecture Classification
+                                  </h4>
+                                  <span style={{
+                                    fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
+                                    background: audit.site_summary.architecture.architecture === 'single_page' ? '#064e3b' : (audit.site_summary.architecture.architecture === 'hybrid' ? '#581c87' : '#1e3a8a'),
+                                    color: audit.site_summary.architecture.architecture === 'single_page' ? '#34d399' : (audit.site_summary.architecture.architecture === 'hybrid' ? '#c084fc' : '#60a5fa'),
+                                    border: `1px solid ${audit.site_summary.architecture.architecture === 'single_page' ? '#059669' : (audit.site_summary.architecture.architecture === 'hybrid' ? '#7e22ce' : '#2563eb')}`,
+                                    textTransform: 'uppercase'
+                                  }}>
+                                    {audit.site_summary.architecture.architecture?.replace('_', ' ')}
+                                  </span>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                                    background: '#1e293b', color: '#94a3b8'
+                                  }}>
+                                    {audit.site_summary.architecture.confidence?.toUpperCase()} CONFIDENCE
+                                  </span>
+                                </div>
+                                <p style={{ margin: '3px 0 0', fontSize: 12, color: '#94a3b8' }}>
+                                  {audit.site_summary.architecture.summary}
+                                </p>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>IN-PAGE SECTIONS</span>
+                                <strong style={{ fontSize: 14, color: '#38bdf8' }}>{audit.site_summary.architecture.section_count || 0}</strong>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>HTML DOCS</span>
+                                <strong style={{ fontSize: 14, color: '#a855f7' }}>{audit.site_summary.architecture.distinct_document_count || 1}</strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Architecture Evidence & Sections breakdown */}
+                          {audit.site_summary.architecture.sections?.length > 0 && (
+                            <div style={{ marginTop: 10, padding: 10, background: '#070c14', borderRadius: 8, border: '1px solid #172554' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 6 }}>
+                                Audited In-Page Content Sections ({audit.site_summary.architecture.sections.length}):
+                              </span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {audit.site_summary.architecture.sections.map((s, sIdx) => (
+                                  <div key={sIdx} style={{
+                                    padding: '4px 8px', borderRadius: 4, background: '#0e1726', border: '1px solid #1e293b',
+                                    fontSize: 11, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 6
+                                  }}>
+                                    <span style={{ color: '#38bdf8', fontWeight: 700 }}>#{s.id}</span>
+                                    <span style={{ color: '#64748b' }}>|</span>
+                                    <span style={{ color: '#94a3b8', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {s.heading}
+                                    </span>
+                                    <span style={{ color: '#34d399', fontSize: 10 }}>({s.word_count}w)</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {audit.site_summary.architecture.evidence?.length > 0 && (
+                            <div style={{ marginTop: 10, fontSize: 11, color: '#94a3b8' }}>
+                              <strong style={{ color: '#cbd5e1' }}>Observed Evidence: </strong>
+                              {audit.site_summary.architecture.evidence.join(' • ')}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Multi-Source Crawl Metrics Strip */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
                         <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 8, padding: '12px 14px' }}>
@@ -1236,98 +1317,376 @@ function AuditRow({ lead }) {
                         </div>
                       )}
 
-                      {/* ── TARGET KEYWORDS & DENSITY SECTION ── */}
+                      {/* ── 1. TARGET WEBSITE KEYWORD & TOPIC DISCOVERY ── */}
                       <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                           <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span>🎯 Target Keywords & Content Density</span>
+                            <span>🎯 Target Website Keywords & Topic Discovery</span>
+                            {audit.site_summary?.keyword_analysis?.auto_discovered && (
+                              <span style={{ fontSize: 10, background: '#1e3a5f', color: '#60a5fa', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                                Auto-Discovered from Client Content
+                              </span>
+                            )}
                           </h4>
                           <span style={{ fontSize: 11, color: '#64748b' }}>
-                            Formula: (Exact Count × Words / Body Words) × 100
+                            Source: Audited Client Website HTML & Rendered Content
                           </span>
                         </div>
 
-                        {/* Keyword Analysis Results Table or Not Configured Notice */}
-                        {audit.site_summary?.keyword_analysis?.configured ? (
-                          <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+                        {/* Search Volume & Tooling Notice */}
+                        <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: 11, color: '#94a3b8' }}>
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Notice: </span>
+                          <span>{audit.site_summary?.keyword_analysis?.search_volume_disclaimer || 'External search-volume & live keyword rankings require a connected data source and are reported as unavailable.'}</span>
+                        </div>
+
+                        {/* Category 1: Observed Website Terms */}
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
+                              1. Observed Website Terms ({audit.site_summary?.keyword_analysis?.observed_website_terms?.length || audit.site_summary?.keyword_analysis?.keyword_summaries?.length || 0})
+                            </span>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              Formula: (Exact Count × Words / Body Words) × 100
+                            </span>
+                          </div>
+
+                          <div style={{ overflowX: 'auto', marginBottom: 10 }}>
                             <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 12 }}>
                               <thead style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
                                 <tr>
-                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Keyword</th>
-                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Exact Count</th>
-                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Avg Density</th>
-                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Page Coverage</th>
-                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Key Placements</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Observed Term</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Occurrences</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Denominator</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Density</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Observed Placements</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {audit.site_summary.keyword_analysis.keyword_summaries?.map((ks, idx) => (
+                                {(audit.site_summary?.keyword_analysis?.observed_website_terms || audit.site_summary?.keyword_analysis?.keyword_summaries || []).slice(0, 10).map((ks, idx) => {
+                                  const term = ks.term || ks.keyword;
+                                  const count = ks.count ?? ks.total_exact_occurrences ?? 0;
+                                  const density = ks.density_pct ?? ks.average_density_pct ?? 0;
+                                  const denom = ks.denominator ?? audit.site_summary?.total_word_count ?? 0;
+                                  const places = ks.placements || ks.placement_occurrences || {};
+                                  return (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                                      <td style={{ padding: '8px 10px', fontWeight: 700, color: '#f8fafc' }}>
+                                        {term}
+                                      </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#e2e8f0' }}>
+                                        {count}
+                                      </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#94a3b8', fontSize: 11 }}>
+                                        {denom} words
+                                      </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center', color: '#38bdf8', fontWeight: 700 }}>
+                                        {density}%
+                                      </td>
+                                      <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 11 }}>
+                                        {[
+                                          places.title ? `Title (${places.title})` : null,
+                                          places.h1 ? `H1 (${places.h1})` : null,
+                                          places.h2 ? `H2 (${places.h2})` : null,
+                                          places.meta_description ? `Meta (${places.meta_description})` : null,
+                                          places.alt_text ? `Alt (${places.alt_text})` : null,
+                                          places.body ? `Body (${places.body})` : null,
+                                        ].filter(Boolean).join(', ') || 'Body text only'}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Category 2: Inferred Topic Suggestions */}
+                        {audit.site_summary?.keyword_analysis?.inferred_topic_suggestions?.length > 0 && (
+                          <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa' }}>
+                                2. Inferred Topic Suggestions (Candidate Topics)
+                              </span>
+                              <span style={{ fontSize: 10, background: '#2e1065', color: '#d8b4fe', padding: '1px 6px', borderRadius: 10 }}>
+                                Inferred Candidate Topics — Not Verified Search Volume
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {audit.site_summary.keyword_analysis.inferred_topic_suggestions.map((top, idx) => (
+                                <span key={idx} style={{ background: '#131b2e', border: '1px solid #24344d', padding: '3px 8px', borderRadius: 6, fontSize: 11, color: '#e2e8f0' }}>
+                                  <strong style={{ color: '#38bdf8' }}>{top.topic}</strong> ({top.frequency}x)
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Single-Page In-Page Section Breakdown */}
+                        {audit.site_summary?.keyword_analysis?.section_breakdown?.length > 0 && (
+                          <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#34d399' }}>
+                                📑 Single-Page Section Breakdown ({audit.site_summary.keyword_analysis.section_breakdown.length} Anchor Sections)
+                              </span>
+                              <span style={{ fontSize: 10, color: '#64748b' }}>
+                                Single HTML page with anchor IDs (Not separate HTML documents)
+                              </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                              {audit.site_summary.keyword_analysis.section_breakdown.map((sec, idx) => (
+                                <div key={idx} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#93c5fd', fontWeight: 700 }}>
+                                    <span>#{sec.section_id}</span>
+                                    <span style={{ color: '#64748b' }}>{sec.word_count} words</span>
+                                  </div>
+                                  <div style={{ color: '#94a3b8', marginTop: 4 }}>
+                                    {sec.top_keywords?.map(k => `${k.keyword} (${k.count})`).join(', ') || 'General content'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Category 3: User-Supplied Target Keywords & Action Form */}
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1e293b' }}>
+                          <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                            <strong>3. User-Supplied Target Keywords: </strong>
+                            {audit.site_summary?.keyword_analysis?.user_supplied_target_keywords?.length > 0
+                              ? audit.site_summary.keyword_analysis.user_supplied_target_keywords.join(', ')
+                              : 'None supplied (defaulting to website-derived terms)'}
+                          </span>
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              placeholder="e.g. video editor, channel management, marketing"
+                              value={kwInput}
+                              onChange={e => setKwInput(e.target.value)}
+                              style={{
+                                flex: 1, minWidth: 260, padding: '7px 12px', background: '#090e18',
+                                border: '1px solid #24344d', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none'
+                              }}
+                            />
+                            <button
+                              onClick={() => handleRetriggerWithKeywords()}
+                              disabled={retriggering}
+                              className="btn btn-primary"
+                              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <RefreshCw size={13} className={retriggering ? 'animate-spin' : ''} />
+                              {retriggering ? 'Auditing...' : 'Compare Against Target Keywords'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── 2. TARGET WEBSITE MOBILE USABILITY (PLAYWRIGHT) ── */}
+                      {audit.site_summary?.mobile_usability && (
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                            <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Smartphone size={16} color="#38bdf8" />
+                              <span>Client Website Mobile Usability (Real Browser Multi-Viewport)</span>
+                            </h4>
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
+                              background: audit.site_summary.mobile_usability.status === 'PASS' ? '#064e3b' : (audit.site_summary.mobile_usability.status === 'NEEDS IMPROVEMENT' ? '#78350f' : '#7f1d1d'),
+                              color: audit.site_summary.mobile_usability.status === 'PASS' ? '#34d399' : (audit.site_summary.mobile_usability.status === 'NEEDS IMPROVEMENT' ? '#fbbf24' : '#f87171'),
+                              border: `1px solid ${audit.site_summary.mobile_usability.status === 'PASS' ? '#059669' : (audit.site_summary.mobile_usability.status === 'NEEDS IMPROVEMENT' ? '#d97706' : '#dc2626')}`
+                            }}>
+                              STATUS: {audit.site_summary.mobile_usability.status} (Score: {audit.site_summary.mobile_usability.score}/100)
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 12 }}>
+                            Evaluated in headless Chromium at 360px, 390px, 412px (mobile widths) & 1280px (desktop baseline). Sites are not declared mobile-friendly solely due to a viewport tag.
+                          </div>
+
+                          {/* Mobile Metrics Overview */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
+                            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 12px' }}>
+                              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase' }}>Horizontal Overflow</div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: audit.site_summary.mobile_usability.horizontal_overflow_px === 0 ? '#34d399' : '#f87171' }}>
+                                {audit.site_summary.mobile_usability.horizontal_overflow_px} px
+                              </div>
+                            </div>
+                            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 12px' }}>
+                              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase' }}>Touch Targets &ge;44px</div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: audit.site_summary.mobile_usability.touch_target_pass_pct >= 80 ? '#34d399' : '#fbbf24' }}>
+                                {audit.site_summary.mobile_usability.touch_target_pass_pct}% ({audit.site_summary.mobile_usability.touch_targets_undersized} undersized)
+                              </div>
+                            </div>
+                            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 12px' }}>
+                              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase' }}>Typography &ge;12px</div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: audit.site_summary.mobile_usability.font_size_pass_pct >= 80 ? '#34d399' : '#fbbf24' }}>
+                                {audit.site_summary.mobile_usability.font_size_pass_pct}% ({audit.site_summary.mobile_usability.typography_elements_under_12px} &lt;12px)
+                              </div>
+                            </div>
+                            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 12px' }}>
+                              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase' }}>Viewport Meta</div>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {audit.site_summary.mobile_usability.viewport_meta || 'None'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Tested Viewports Table */}
+                          <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 11 }}>
+                              <thead style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                                <tr>
+                                  <th style={{ padding: '6px 10px', color: '#94a3b8' }}>Viewport / Device</th>
+                                  <th style={{ padding: '6px 10px', color: '#94a3b8', textAlign: 'center' }}>Dimensions</th>
+                                  <th style={{ padding: '6px 10px', color: '#94a3b8', textAlign: 'center' }}>Overflow</th>
+                                  <th style={{ padding: '6px 10px', color: '#94a3b8', textAlign: 'center' }}>Touch Targets &ge;44px</th>
+                                  <th style={{ padding: '6px 10px', color: '#94a3b8', textAlign: 'center' }}>Fonts &ge;12px</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(audit.site_summary.mobile_usability.tested_viewports || []).map((vp, idx) => (
                                   <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#f8fafc' }}>
-                                      {ks.keyword}
+                                    <td style={{ padding: '6px 10px', color: '#f1f5f9', fontWeight: 600 }}>{vp.name}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: '#94a3b8' }}>{vp.width} × {vp.height}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: vp.overflow_px === 0 ? '#34d399' : '#f87171' }}>
+                                      {vp.overflow_px === 0 ? '✓ None (0px)' : `⚠ ${vp.overflow_px}px`}
                                     </td>
-                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#e2e8f0' }}>
-                                      {ks.total_exact_occurrences} {ks.total_variant_occurrences > 0 ? `(+${ks.total_variant_occurrences} var)` : ''}
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: vp.tap_targets_pass_pct >= 80 ? '#34d399' : '#fbbf24' }}>
+                                      {vp.tap_targets_pass_pct}% ({vp.undersized_targets_count} small)
                                     </td>
-                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#38bdf8', fontWeight: 700 }}>
-                                      {ks.average_density_pct}%
-                                    </td>
-                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#34d399' }}>
-                                      {ks.page_coverage_pct}% ({ks.pages_covering_any || 0} pgs)
-                                    </td>
-                                    <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 11 }}>
-                                      {[
-                                        ks.placement_occurrences?.title ? `Title (${ks.placement_occurrences.title})` : null,
-                                        ks.placement_occurrences?.h1 ? `H1 (${ks.placement_occurrences.h1})` : null,
-                                        ks.placement_occurrences?.meta_description ? `Meta (${ks.placement_occurrences.meta_description})` : null,
-                                        ks.placement_occurrences?.alt_text ? `Alt (${ks.placement_occurrences.alt_text})` : null,
-                                      ].filter(Boolean).join(', ') || 'Body text only'}
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: vp.typography_pass_pct >= 80 ? '#34d399' : '#fbbf24' }}>
+                                      {vp.typography_pass_pct}% ({vp.small_fonts_count} &lt;12px)
                                     </td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
-                        ) : (
-                          <div style={{ background: '#0e1626', border: '1px solid #1e293b', borderRadius: 8, padding: 12, marginBottom: 14 }}>
-                            <p style={{ margin: 0, fontWeight: 700, color: '#facc15', fontSize: 13 }}>
-                              Target keywords not configured
-                            </p>
-                            <p style={{ margin: '4px 0 8px', color: '#94a3b8', fontSize: 12 }}>
-                              Enter target keywords below to calculate exact-phrase density, placement hierarchy, and internal-page coverage.
-                            </p>
-                            {audit.site_summary?.keyword_analysis?.inferred_topics?.length > 0 && (
-                              <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
-                                <strong style={{ color: '#cbd5e1' }}>Inferred Topic Terms (from visible text): </strong>
-                                {audit.site_summary.keyword_analysis.inferred_topics.slice(0, 5).map(t => `${t.topic} (${t.frequency}x)`).join(', ')}
-                              </div>
-                            )}
-                          </div>
-                        )}
 
-                        {/* Keyword Input & Action Form */}
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <input
-                            type="text"
-                            placeholder="e.g. video editor, channel management, marketing"
-                            value={kwInput}
-                            onChange={e => setKwInput(e.target.value)}
-                            style={{
-                              flex: 1, minWidth: 260, padding: '7px 12px', background: '#090e18',
-                              border: '1px solid #24344d', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none'
-                            }}
-                          />
-                          <button
-                            onClick={() => handleRetriggerWithKeywords()}
-                            disabled={retriggering}
-                            className="btn btn-primary"
-                            style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                          >
-                            <RefreshCw size={13} className={retriggering ? 'animate-spin' : ''} />
-                            {retriggering ? 'Auditing...' : 'Run Keyword & Density Audit'}
-                          </button>
+                          {/* Mobile Issues List */}
+                          {(audit.site_summary.mobile_usability.issues || []).length > 0 && (
+                            <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 12px' }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>
+                                Observed Usability Deficiencies ({audit.site_summary.mobile_usability.issues.length}):
+                              </div>
+                              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: '#cbd5e1' }}>
+                                {audit.site_summary.mobile_usability.issues.map((iss, idx) => (
+                                  <li key={idx} style={{ marginBottom: 4 }}>
+                                    <strong style={{ color: iss.severity === 'HIGH' ? '#f87171' : '#fbbf24' }}>[{iss.severity}] {iss.issue}: </strong>
+                                    <span>{iss.observed} — <em>{iss.recommendation}</em></span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      )}
+
+                      {/* ── 3. TARGET WEBSITE LIGHTHOUSE SPEED & CORE WEB VITALS ── */}
+                      {audit.site_summary?.lighthouse_performance && (
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                            <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Zap size={16} color="#facc15" />
+                              <span>Client Website Performance & Core Web Vitals (Lighthouse Lab)</span>
+                            </h4>
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
+                              background: audit.site_summary.lighthouse_performance.overall_score >= 90 ? '#064e3b' : (audit.site_summary.lighthouse_performance.overall_score >= 50 ? '#78350f' : '#7f1d1d'),
+                              color: audit.site_summary.lighthouse_performance.overall_score >= 90 ? '#34d399' : (audit.site_summary.lighthouse_performance.overall_score >= 50 ? '#fbbf24' : '#f87171'),
+                              border: `1px solid ${audit.site_summary.lighthouse_performance.overall_score >= 90 ? '#059669' : (audit.site_summary.lighthouse_performance.overall_score >= 50 ? '#d97706' : '#dc2626')}`
+                            }}>
+                              SCORE: {audit.site_summary.lighthouse_performance.overall_score}/100
+                            </span>
+                          </div>
+
+                          <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 10, color: '#94a3b8' }}>
+                            <strong>Lab Test Conditions: </strong>
+                            <span>{audit.site_summary.lighthouse_performance.lab_conditions?.tool} | {audit.site_summary.lighthouse_performance.lab_conditions?.device} | Viewport {audit.site_summary.lighthouse_performance.lab_conditions?.viewport}. Distinct from real-user CrUX field data.</span>
+                          </div>
+
+                          {/* Lab Metrics Grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 12 }}>
+                            {Object.entries(audit.site_summary.lighthouse_performance.metrics || {}).map(([mKey, mVal]) => (
+                              <div key={mKey} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 10px' }}>
+                                <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase' }}>{mKey.toUpperCase()}</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: (mVal.score ?? 100) >= 90 ? '#34d399' : ((mVal.score ?? 100) >= 50 ? '#fbbf24' : '#f87171') }}>
+                                  {mVal.display_value}
+                                </div>
+                                <div style={{ fontSize: 9, color: '#64748b' }}>Score: {mVal.score}/100</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Performance Opportunities */}
+                          {(audit.site_summary.lighthouse_performance.opportunities || []).length > 0 && (
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#facc15', marginBottom: 6 }}>
+                                Priority Performance Opportunities:
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
+                                {audit.site_summary.lighthouse_performance.opportunities.map((opp, idx) => (
+                                  <div key={idx} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f1f5f9', fontWeight: 700 }}>
+                                      <span>{opp.title}</span>
+                                      <span style={{ color: '#38bdf8' }}>{opp.estimated_savings}</span>
+                                    </div>
+                                    <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 2 }}>{opp.description}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── 4. ON-PAGE METADATA EXACT OBSERVED VALUES ── */}
+                      {audit.site_summary?.onpage_metadata_diagnostics?.length > 0 && (
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                          <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <FileCode size={16} color="#a855f7" />
+                            <span>Client Website Metadata & On-Page SEO Diagnostics</span>
+                          </h4>
+
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 11 }}>
+                              <thead style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                                <tr>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Field</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Observed Exact Value</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Length</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', textAlign: 'center' }}>Status</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Recommended Improvement</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {audit.site_summary.onpage_metadata_diagnostics.map((meta, idx) => (
+                                  <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#f1f5f9' }}>{meta.label}</td>
+                                    <td style={{ padding: '8px 10px', color: '#cbd5e1', maxWidth: 280, wordBreak: 'break-word', fontFamily: 'monospace', fontSize: 10 }}>
+                                      {meta.observed_value}
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#94a3b8' }}>
+                                      {meta.char_count > 0 ? `${meta.char_count} chars` : '—'}
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                      <span style={{
+                                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                                        background: meta.status === 'PASS' ? '#064e3b' : (meta.status === 'MISSING' ? '#7f1d1d' : '#78350f'),
+                                        color: meta.status === 'PASS' ? '#34d399' : (meta.status === 'MISSING' ? '#f87171' : '#fbbf24')
+                                      }}>
+                                        {meta.status}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 10 }}>
+                                      {meta.recommendation}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
 
                       {/* ── SITE-WIDE CRAWLED PAGES TABLE ── */}
                       <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>

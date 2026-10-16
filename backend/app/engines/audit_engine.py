@@ -415,7 +415,9 @@ def _run_audit_sync(
         site_summary = aggregate_site_issues(page_audits, crawl_meta=crawl_meta)
         try:
             from auditor.keyword_density import analyze_target_keywords_site
-            site_summary["keyword_analysis"] = analyze_target_keywords_site(crawled, target_keywords)
+            arch_meta = (crawl_meta or {}).get("architecture") or {}
+            arch_sections = arch_meta.get("sections")
+            site_summary["keyword_analysis"] = analyze_target_keywords_site(crawled, target_keywords, sections=arch_sections)
         except Exception as _kwe:
             logger.warning(f"[audit_engine] analyze_target_keywords_site failed: {_kwe}")
         failed_pages = [page for page in crawled if not page.get("ok")]
@@ -526,6 +528,27 @@ def _run_audit_sync(
         "redirect_url": page.get("redirect_url"),
     }
     site_summary["url_info"] = url_info
+
+    # ── Live client website diagnostics ─────────────────────────────────────
+    try:
+        from auditor.client_diagnostics import (
+            evaluate_client_metadata_diagnostics,
+            get_stored_mobile_usability,
+            get_stored_lighthouse_performance,
+        )
+        final_target_url = normalize_url(page.get("final_url") or url)
+        site_summary["onpage_metadata_diagnostics"] = evaluate_client_metadata_diagnostics(soup, final_target_url)
+        
+        mob_diag = get_stored_mobile_usability(final_target_url)
+        if mob_diag:
+            site_summary["mobile_usability"] = mob_diag
+            
+        lh_diag = get_stored_lighthouse_performance(final_target_url)
+        if lh_diag:
+            site_summary["lighthouse_performance"] = lh_diag
+    except Exception as _cd_err:
+        logger.warning(f"[audit_engine] Client diagnostics attachment error: {_cd_err}")
+
 
     return {
         "audit_results": audit_results,
