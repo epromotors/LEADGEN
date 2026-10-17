@@ -304,15 +304,32 @@ def is_safe_external_url(url: str, allow_test_loopback: bool = False) -> Tuple[b
 
 # ─── File Upload Processing (.txt) ────────────────────────────────────────────
 
+DISCOVERY_REGION_MAP: Dict[str, str] = {
+    "IN": "India",
+    "US": "USA",
+    "UK": "UK",
+    "GB": "UK",
+    "CA": "Canada",
+    "AU": "Australia",
+    "AE": "UAE",
+    "DE": "Germany",
+    "SG": "Singapore",
+    "NZ": "New Zealand",
+}
+
+
 def parse_txt_upload_content(
     content_bytes: bytes,
+    file_type: str = "keywords",
     max_file_size: int = 1_048_576,
-    max_entries: int = 250,
+    max_entries: int = 1000,
 ) -> Dict[str, Any]:
     """
     Parse uploaded .txt file for keywords or locations.
-    - Handles UTF-8 and UTF-8 BOM.
-    - Trims whitespace, skips blank lines and lines starting with '#'.
+    - Handles UTF-8 and UTF-8 BOM, comments (#, //, --), empty lines and section tags.
+    - Supports multiword keywords, pipe delimiters (|) across niche lines.
+    - Supports location formats (REGION:City, City, Country, or City).
+    - Validates minimum/maximum length constraints and records invalid items.
     - Case-insensitive deduplication preserving original readable values.
     - Enforces size limit and max entry count.
     """
@@ -327,11 +344,15 @@ def parse_txt_upload_content(
         try:
             text = content_bytes.decode("utf-8")
         except UnicodeDecodeError:
-            raise ValueError("File is not a valid UTF-8 text document.")
+            try:
+                text = content_bytes.decode("latin-1")
+            except UnicodeDecodeError:
+                raise ValueError("File is not a valid UTF-8 text document.")
 
     lines = text.splitlines()
     entries: List[str] = []
     seen_lower: Set[str] = set()
+    invalid_entries: List[str] = []
 
     ignored_count = 0
     duplicate_count = 0
@@ -339,25 +360,84 @@ def parse_txt_upload_content(
 
     for line in lines:
         raw_stripped = line.strip()
-        if not raw_stripped or raw_stripped.startswith("#"):
+        if not raw_stripped or raw_stripped.startswith(("#", "//", "--")):
             ignored_count += 1
             continue
 
-        if len(raw_stripped) > 200:
-            rejected_count += 1
+        # Ignore bracketed section headings like [KEYWORDS], [CITIES]
+        if re.match(r"^\[.+\]$", raw_stripped):
+            ignored_count += 1
             continue
 
-        key = raw_stripped.lower()
-        if key in seen_lower:
-            duplicate_count += 1
-            continue
+        if file_type == "locations":
+            if ":" in raw_stripped:
+                prefix, _, city_part = raw_stripped.partition(":")
+                prefix = prefix.strip()
+                city = city_part.strip()
+                if len(city) < 2:
+                    rejected_count += 1
+                    invalid_entries.append(f"{raw_stripped} (location '{city}' too short)")
+                    continue
 
-        if len(entries) >= max_entries:
-            rejected_count += 1
-            continue
+                upper_prefix = prefix.upper()
+                if upper_prefix in DISCOVERY_REGION_MAP:
+                    country = DISCOVERY_REGION_MAP[upper_prefix]
+                    if country.lower() not in city.lower():
+                        loc_val = f"{city}, {country}"
+                    else:
+                        loc_val = city
+                elif prefix:
+                    loc_val = f"{city}, {prefix}"
+                else:
+                    loc_val = city
+            else:
+                loc_val = raw_stripped
 
-        seen_lower.add(key)
-        entries.append(raw_stripped)
+            if len(loc_val) < 2 or len(loc_val) > 200:
+                rejected_count += 1
+                invalid_entries.append(f"{loc_val[:30]} (length out of bounds 2-200)")
+                continue
+
+            key = loc_val.lower()
+            if key in seen_lower:
+                duplicate_count += 1
+                continue
+
+            if len(entries) >= max_entries:
+                rejected_count += 1
+                invalid_entries.append(f"{loc_val[:30]} (exceeds max {max_entries} limit)")
+                continue
+
+            seen_lower.add(key)
+            entries.append(loc_val)
+
+        else:
+            # Keywords: Support pipe-separated format (Category | kw1 | kw2 | ...) or single line
+            if "|" in raw_stripped:
+                parts = [p.strip() for p in raw_stripped.split("|")]
+            else:
+                parts = [raw_stripped]
+
+            for part in parts:
+                if not part:
+                    continue
+                if len(part) < 2 or len(part) > 200:
+                    rejected_count += 1
+                    invalid_entries.append(f"{part[:30]} (length out of bounds 2-200)")
+                    continue
+
+                key = part.lower()
+                if key in seen_lower:
+                    duplicate_count += 1
+                    continue
+
+                if len(entries) >= max_entries:
+                    rejected_count += 1
+                    invalid_entries.append(f"{part[:30]} (exceeds max {max_entries} limit)")
+                    continue
+
+                seen_lower.add(key)
+                entries.append(part)
 
     if not entries:
         raise ValueError("Uploaded file contains no usable entries after filtering blanks and comments.")
@@ -367,6 +447,7 @@ def parse_txt_upload_content(
         "ignored_count": ignored_count,
         "duplicate_count": duplicate_count,
         "rejected_count": rejected_count,
+        "invalid_entries": invalid_entries,
         "entries": entries,
     }
 
@@ -529,6 +610,7 @@ class LeadDiscoveryService:
         locations: List[str],
         mode: str = "uploaded_only",
         custom_budget: Optional[int] = None,
+        batch_offset: Optional[int] = 0,
     ) -> Dict[str, Any]:
         """
         Calculate total search combinations and enforce configured safety limits.
@@ -555,9 +637,23 @@ class LeadDiscoveryService:
 
         total_combinations = len(active_kws) * len(active_locs)
         max_allowed = getattr(settings, "DISCOVERY_MAX_COMBINATIONS_LIMIT", 500)
+        offset = max(0, batch_offset or 0)
+        remaining = max(0, total_combinations - offset)
 
         budget = custom_budget if custom_budget and custom_budget > 0 else total_combinations
         exceeds_safety_limit = total_combinations > max_allowed and (budget > max_allowed)
+        effective_budget = min(budget, remaining) if remaining > 0 else 0
+
+        batch_start = (offset + 1) if (total_combinations > 0 and effective_budget > 0) else 0
+        batch_end = min(total_combinations, offset + effective_budget)
+        # step_size is the configured navigation budget (unclamped), so that total_batches and
+        # current_batch_num are consistent across all batches including the last partial batch.
+        # effective_budget is the actual run count for this batch (may be smaller on the last batch);
+        # it must NOT be used as the step size or the final-batch batch-number will be wrong.
+        # max_allowed is the hard per-job execution cap and is never the pagination step size.
+        step_size = budget if budget > 0 else max_allowed
+        total_batches = max(1, -(-total_combinations // step_size)) if total_combinations > 0 else 1
+        current_batch_num = (offset // step_size) + 1 if step_size > 0 else 1
 
         return {
             "mode": mode,
@@ -565,7 +661,12 @@ class LeadDiscoveryService:
             "location_count": len(active_locs),
             "total_combinations": total_combinations,
             "max_allowed_combinations": max_allowed,
-            "effective_budget": min(budget, total_combinations),
+            "batch_offset": offset,
+            "batch_start": batch_start,
+            "batch_end": batch_end,
+            "total_batches": total_batches,
+            "current_batch_num": current_batch_num,
+            "effective_budget": effective_budget,
             "exceeds_safety_limit": exceeds_safety_limit,
             "keywords": active_kws,
             "locations": active_locs,
@@ -1097,18 +1198,22 @@ class LeadDiscoveryService:
         locations: List[str],
         mode: str = "uploaded_only",
         budget: Optional[int] = None,
+        batch_offset: Optional[int] = 0,
     ) -> Dict[str, Any]:
         """Initialize and persist a new discovery job configuration."""
         import uuid
 
-        combo_info = self.calculate_combinations(keywords, locations, mode=mode, custom_budget=budget)
+        combo_info = self.calculate_combinations(
+            keywords, locations, mode=mode, custom_budget=budget, batch_offset=batch_offset
+        )
         if combo_info["exceeds_safety_limit"]:
             raise ValueError(
-                f"Requested search combinations ({combo_info['total_combinations']}) exceed maximum safety limit ({combo_info['max_allowed_combinations']}). Adjust keywords, locations, or set a budget limit."
+                f"Requested search combinations budget ({combo_info['effective_budget']}) exceed maximum safety limit ({combo_info['max_allowed_combinations']}). Adjust keywords, locations, or set a budget limit."
             )
 
         job_id = f"disc_{uuid.uuid4().hex[:12]}"
         now = datetime.now(timezone.utc).isoformat()
+        offset = combo_info["batch_offset"]
 
         job = {
             "job_id": job_id,
@@ -1121,7 +1226,12 @@ class LeadDiscoveryService:
             "locations": combo_info["locations"],
             "total_combinations": combo_info["total_combinations"],
             "effective_budget": combo_info["effective_budget"],
-            "current_combination_idx": 0,
+            "batch_offset": offset,
+            "batch_start": combo_info["batch_start"],
+            "batch_end": combo_info["batch_end"],
+            "total_batches": combo_info["total_batches"],
+            "current_batch_num": combo_info["current_batch_num"],
+            "current_combination_idx": offset,
             "discovered_leads": [],
             "stats": {
                 "combinations_searched": 0,
@@ -1199,10 +1309,11 @@ class LeadDiscoveryService:
         keywords = job.get("keywords", [])
         locations = job.get("locations", [])
         budget = job.get("effective_budget", len(keywords) * len(locations))
-        idx = job.get("current_combination_idx", 0)
+        batch_offset = job.get("batch_offset", 0)
+        idx = job.get("current_combination_idx", batch_offset)
 
         combos = [(k, l) for k in keywords for l in locations]
-        total_combos = min(len(combos), budget)
+        total_combos = min(len(combos), batch_offset + budget)
 
         steps_run = 0
         async with aiohttp.ClientSession() as session:

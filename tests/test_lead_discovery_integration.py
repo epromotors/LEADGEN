@@ -461,3 +461,287 @@ def test_router_discovery_preview_and_job_lifecycle(test_client):
     export_resp = test_client.get(f"/leads/discovery/jobs/{job_id}/export?format=simple")
     assert export_resp.status_code == 200
     assert "business name,email,website" in export_resp.text
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. Dedicated Tests for Keyword & Location Importer and Batching
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_parse_keywords_file_pipe_format_and_bom():
+    content = (
+        "\ufeff# ====================================================================\n"
+        "# MASTER KEYWORDS LIST\n"
+        "# Format: Category | keyword 1 | keyword 2\n"
+        "# ====================================================================\n"
+        "[KEYWORDS]\n"
+        "# --- B2B Trade ---\n"
+        "Import Export | import export company | trading company | freight forwarding\n"
+        "Printing & Signage | printing press | signage company | flex printing\n"
+        "# Duplicate entry\n"
+        "trading company | new trade\n"
+    ).encode("utf-8")
+
+    parsed = parse_txt_upload_content(content, file_type="keywords")
+    assert parsed["valid_count"] == 9
+    assert parsed["ignored_count"] >= 6
+    assert parsed["duplicate_count"] == 1
+    assert "Import Export" in parsed["entries"]
+    assert "import export company" in parsed["entries"]
+    assert "Printing & Signage" in parsed["entries"]
+    assert "flex printing" in parsed["entries"]
+    assert "new trade" in parsed["entries"]
+
+
+def test_parse_locations_file_region_format_and_rejection():
+    content = (
+        "# Master Locations\n"
+        "[CITIES]\n"
+        "IN:Delhi\n"
+        "IN:Mumbai\n"
+        "IN:Navi Mumbai\n"
+        "IN:Roorkee\n"
+        "Roorkee, Uttarakhand\n"
+        "US:Austin\n"
+        "# Malformed single-letter city\n"
+        "IN:R\n"
+        "# Duplicate location\n"
+        "IN:Delhi\n"
+    ).encode("utf-8")
+
+    parsed = parse_txt_upload_content(content, file_type="locations")
+    assert "Delhi, India" in parsed["entries"]
+    assert "Mumbai, India" in parsed["entries"]
+    assert "Navi Mumbai, India" in parsed["entries"]
+    assert "Roorkee, India" in parsed["entries"]
+    assert "Roorkee, Uttarakhand" in parsed["entries"]
+    assert "Austin, USA" in parsed["entries"]
+    assert parsed["duplicate_count"] == 1
+    assert parsed["rejected_count"] == 1
+    assert any("IN:R" in inv for inv in parsed["invalid_entries"])
+
+
+def test_parse_file_errors_and_malformed_inputs(test_client):
+    # Empty file
+    with pytest.raises(ValueError, match="no usable entries"):
+        parse_txt_upload_content(b"", file_type="keywords")
+
+    # Only comments
+    with pytest.raises(ValueError, match="no usable entries"):
+        parse_txt_upload_content(b"# Just a comment\n// Another comment\n", file_type="locations")
+
+    # Router rejects non-.txt
+    files = {"file": ("data.csv", b"col1,col2\n", "text/csv")}
+    resp = test_client.post("/leads/discovery/upload-txt?file_type=keywords", files=files)
+    assert resp.status_code == 400
+    assert "Only .txt" in resp.json()["detail"]
+
+
+def test_merge_imported_entries_without_data_loss():
+    existing = ["roofing contractor", "Plumbing Services"]
+    incoming = ["plumbing services", "Electrical Contractors", "Solar Installation"]
+
+    seen = {e.lower() for e in existing}
+    merged = list(existing)
+    added = 0
+    for item in incoming:
+        if item.lower() not in seen:
+            seen.add(item.lower())
+            merged.append(item)
+            added += 1
+
+    assert len(merged) == 4
+    assert added == 2
+    assert merged[0] == "roofing contractor"
+    assert merged[1] == "Plumbing Services"
+    assert "Electrical Contractors" in merged
+    assert "Solar Installation" in merged
+
+
+def test_calculate_combinations_batching_pagination_and_safety_caps():
+    svc = LeadDiscoveryService(storage_path="")
+    # 20 keywords * 20 locations = 400 combinations
+    kws = [f"niche_kw_{i}" for i in range(20)]
+    locs = [f"City_{i}, Country" for i in range(20)]
+
+    # --- Batch 1 (offset 0, budget 100) ---
+    b1 = svc.calculate_combinations(kws, locs, mode="uploaded_only", custom_budget=100, batch_offset=0)
+    assert b1["total_combinations"] == 400
+    assert b1["batch_offset"] == 0
+    assert b1["batch_start"] == 1
+    assert b1["batch_end"] == 100
+    assert b1["effective_budget"] == 100
+    assert b1["current_batch_num"] == 1
+    # total_batches must reflect budget-sized steps (ceil(400/100)=4), not max_allowed-sized steps.
+    assert b1["total_batches"] == 4
+    assert b1["exceeds_safety_limit"] is False
+
+    # --- Batch 2 (offset 100, budget 100) ---
+    b2 = svc.calculate_combinations(kws, locs, mode="uploaded_only", custom_budget=100, batch_offset=100)
+    assert b2["batch_offset"] == 100
+    assert b2["batch_start"] == 101
+    assert b2["batch_end"] == 200
+    assert b2["effective_budget"] == 100
+    assert b2["current_batch_num"] == 2
+    assert b2["total_batches"] == 4
+
+    # --- No gap / no overlap: consecutive batch windows are adjacent ---
+    assert b2["batch_start"] == b1["batch_end"] + 1
+
+    # --- Final partial batch (offset 300, budget 100, only 100 remain) ---
+    b4 = svc.calculate_combinations(kws, locs, mode="uploaded_only", custom_budget=100, batch_offset=300)
+    assert b4["batch_start"] == 301
+    assert b4["batch_end"] == 400          # clamped to total, not 400
+    assert b4["effective_budget"] == 100
+    assert b4["current_batch_num"] == 4
+    assert b4["total_batches"] == 4
+
+    # --- Safety limit cap exceeded when total combinations > 500 and budget > 500 ---
+    big_kws = [f"kw_{i}" for i in range(30)]
+    big_locs = [f"loc_{i}" for i in range(25)]
+    b_oversized = svc.calculate_combinations(big_kws, big_locs, mode="uploaded_only", custom_budget=600)
+    assert b_oversized["total_combinations"] == 750
+    assert b_oversized["exceeds_safety_limit"] is True
+    # Hard cap (500) remains enforced — exceeded check is independent of total_batches
+    assert b_oversized["max_allowed_combinations"] == 500
+
+
+def test_no_provider_calls_during_upload_and_preview(test_client):
+    with patch("app.services.lead_discovery_service.LeadDiscoveryService.search_places") as mock_search:
+        # 1. Upload
+        file_content = b"Dentist Clinic\nIN:Delhi\n"
+        files = {"file": ("list.txt", file_content, "text/plain")}
+        resp_up = test_client.post("/leads/discovery/upload-txt?file_type=keywords", files=files)
+        assert resp_up.status_code == 200
+
+        # 2. Preview
+        resp_prev = test_client.post(
+            "/leads/discovery/preview",
+            json={"keywords": ["Dentist Clinic"], "locations": ["Delhi, India"], "mode": "uploaded_only"},
+        )
+        assert resp_prev.status_code == 200
+
+        # Zero provider calls must have occurred
+        assert mock_search.call_count == 0
+
+
+def test_discovery_job_execution_with_imported_lists(test_client):
+    svc = LeadDiscoveryService(storage_path="")
+    kws = ["commercial lawyers"]
+    locs = ["Roorkee, Uttarakhand, India"]
+
+    job = svc.create_job(kws, locs, mode="uploaded_only", budget=10, batch_offset=0)
+    assert job["job_id"].startswith("disc_")
+    assert job["keywords"] == ["commercial lawyers"]
+    assert job["locations"] == ["Roorkee, Uttarakhand, India"]
+
+    # Mock places fetcher
+    mock_places_called_with = []
+    def mock_fetcher(keyword, city):
+        mock_places_called_with.append((keyword, city))
+        return (
+            [
+                {
+                    "name": "Roorkee Legal Associates",
+                    "website": "https://roorkeelegal.example.com",
+                    "phone": "+91-1332-123456",
+                    "email": "contact@roorkeelegal.example.com",
+                }
+            ],
+            "serper",
+            "google_maps_api",
+        )
+
+    def mock_inspector(url):
+        return True, "Outdated HTML with missing viewport meta", "contact@roorkeelegal.example.com"
+
+    async def _run():
+        return await svc.run_discovery_job(
+            job["job_id"],
+            places_mock=mock_fetcher,
+            inspect_mock=mock_inspector,
+            max_steps=1,
+        )
+
+    res_job = asyncio.run(_run())
+    assert len(mock_places_called_with) == 1
+    assert mock_places_called_with[0] == ("commercial lawyers", "Roorkee, Uttarakhand, India")
+    assert res_job["stats"]["businesses_discovered"] == 1
+    assert res_job["stats"]["outdated_or_dead_found"] == 1
+    assert len(res_job["discovered_leads"]) == 1
+    lead = res_job["discovered_leads"][0]
+    assert lead["business_name"] == "Roorkee Legal Associates"
+    assert lead["email"] == "contact@roorkeelegal.example.com"
+    assert lead["source"] == "serper"
+    assert lead["site_classification"] == "outdated_website"
+    assert lead["verification_status"] == "candidate"
+
+
+
+def test_batching_arithmetic_boundary_and_real_list_sizes():
+    """Verify corrected batching arithmetic.
+
+    total_batches and current_batch_num must use effective_budget as the step
+    size (not max_allowed=500).  The hard cap of 500 enforces
+    exceeds_safety_limit independently and is never used as the pagination step.
+
+    Real-world inputs: 423 keywords x 68 locations = 28,764 combinations.
+      budget=100  ->  ceil(28764 / 100) = 288 batches
+      budget=500  ->  ceil(28764 / 500) =  58 batches
+    """
+    import math
+    svc = LeadDiscoveryService(storage_path="")
+
+    # ---- Real-world list sizes (423 kws x 68 locs = 28,764) ----
+    kws = [f"industry_kw_{i}" for i in range(423)]
+    locs = [f"City_{i}, India" for i in range(68)]
+    total = 423 * 68  # 28,764
+
+    # budget=100 -> 288 batches
+    r100 = svc.calculate_combinations(kws, locs, mode="uploaded_only", custom_budget=100, batch_offset=0)
+    assert r100["total_combinations"] == total
+    assert r100["total_batches"] == math.ceil(total / 100)   # 288
+    assert r100["current_batch_num"] == 1
+    assert r100["batch_start"] == 1
+    assert r100["batch_end"] == 100
+    assert r100["exceeds_safety_limit"] is False
+
+    # budget=500 -> 58 batches (budget equals hard cap -- not over)
+    r500 = svc.calculate_combinations(kws, locs, mode="uploaded_only", custom_budget=500, batch_offset=0)
+    assert r500["total_batches"] == math.ceil(total / 500)   # 58
+    assert r500["current_batch_num"] == 1
+    assert r500["exceeds_safety_limit"] is False
+
+    # ---- Final partial batch: offset 28700, budget 100, only 64 remain ----
+    last_offset = 28700
+    r_last = svc.calculate_combinations(kws, locs, mode="uploaded_only", custom_budget=100, batch_offset=last_offset)
+    assert r_last["batch_start"] == last_offset + 1           # 28701
+    assert r_last["batch_end"] == total                       # 28764 (clamped)
+    assert r_last["effective_budget"] == total - last_offset  # 64
+    assert r_last["current_batch_num"] == math.ceil(total / 100)  # 288
+
+    # ---- Empty lists are handled safely ----
+    r_empty_kws = svc.calculate_combinations([], locs, mode="uploaded_only", custom_budget=100)
+    assert r_empty_kws["total_combinations"] == 0
+    assert r_empty_kws["total_batches"] == 1      # max(1, ...) floor
+    assert r_empty_kws["effective_budget"] == 0
+    assert r_empty_kws["exceeds_safety_limit"] is False
+
+    r_empty_locs = svc.calculate_combinations(kws, [], mode="uploaded_only", custom_budget=100)
+    assert r_empty_locs["total_combinations"] == 0
+    assert r_empty_locs["effective_budget"] == 0
+
+    # ---- No combinations skipped: consecutive windows partition cleanly ----
+    # 25 total (5x5), budget=10 -> 3 batches of 10, 10, 5
+    sk = [f"k{i}" for i in range(5)]
+    sl = [f"l{i}" for i in range(5)]
+    pa = svc.calculate_combinations(sk, sl, mode="uploaded_only", custom_budget=10, batch_offset=0)
+    pb = svc.calculate_combinations(sk, sl, mode="uploaded_only", custom_budget=10, batch_offset=10)
+    pc = svc.calculate_combinations(sk, sl, mode="uploaded_only", custom_budget=10, batch_offset=20)
+    assert pa["total_batches"] == 3
+    assert pa["batch_end"] + 1 == pb["batch_start"]   # no gap between batch 1 and 2
+    assert pb["batch_end"] + 1 == pc["batch_start"]   # no gap between batch 2 and 3
+    assert pc["batch_end"] == 25                       # last batch covers remainder
+    assert pc["effective_budget"] == 5                 # partial last batch
+    assert pa["current_batch_num"] == 1
+    assert pb["current_batch_num"] == 2
+    assert pc["current_batch_num"] == 3

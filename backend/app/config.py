@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     TREG_QUOTA_SCOPE_2: str = ""
     TREG_ENABLE_PAID_ENDPOINTS: bool = False
     DISCOVERY_MAX_FILE_SIZE_BYTES: int = 1_048_576
-    DISCOVERY_MAX_ENTRIES_PER_FILE: int = 250
+    DISCOVERY_MAX_ENTRIES_PER_FILE: int = 1000
     DISCOVERY_MAX_COMBINATIONS_LIMIT: int = 500
     DISCOVERY_STORAGE_FILE: str = "reports/.lead_discovery_jobs.json"
 

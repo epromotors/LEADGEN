@@ -21,10 +21,26 @@ import {
 
 export default function BulkImportDiscovery({ onLeadsImported }) {
   const [isOpen, setIsOpen] = useState(true)
-  const [keywords, setKeywords] = useState([])
-  const [locations, setLocations] = useState([])
+  const [keywords, setKeywords] = useState(() => {
+    try {
+      const saved = localStorage.getItem('leadgen_custom_keywords')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [locations, setLocations] = useState(() => {
+    try {
+      const saved = localStorage.getItem('leadgen_custom_locations')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const [keywordsMeta, setKeywordsMeta] = useState(null)
   const [locationsMeta, setLocationsMeta] = useState(null)
+  const [mergeMode, setMergeMode] = useState(true)
+  const [batchOffset, setBatchOffset] = useState(0)
   const [mode, setMode] = useState('uploaded_only')
   const [budget, setBudget] = useState(100)
   const [presets, setPresets] = useState({ keywords: [], locations: [] })
@@ -40,6 +56,19 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
   const kwFileRef = useRef(null)
   const locFileRef = useRef(null)
   const pollTimerRef = useRef(null)
+
+  // ─── Persistence to localStorage ───────────────────────────────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem('leadgen_custom_keywords', JSON.stringify(keywords))
+    } catch {}
+  }, [keywords])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('leadgen_custom_locations', JSON.stringify(locations))
+    } catch {}
+  }, [locations])
 
   // ─── Fetch Presets & Providers on Mount ─────────────────────────────────────
   useEffect(() => {
@@ -93,11 +122,12 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
       keywords,
       locations,
       mode,
-      custom_budget: Number(budget) || null
+      custom_budget: Number(budget) || null,
+      batch_offset: Number(batchOffset) || 0
     })
       .then(res => setPreview(res.data))
       .catch(() => {})
-  }, [keywords, locations, mode, budget, presets])
+  }, [keywords, locations, mode, budget, presets, batchOffset])
 
   // ─── Polling for Active Job ────────────────────────────────────────────────
   useEffect(() => {
@@ -126,6 +156,20 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
     }
   }, [activeJob?.job_id, activeJob?.status])
 
+  function mergeLists(existing, incoming) {
+    const seen = new Set(existing.map(x => x.toLowerCase()))
+    const merged = [...existing]
+    let addedCount = 0
+    for (const item of incoming) {
+      if (!seen.has(item.toLowerCase())) {
+        seen.add(item.toLowerCase())
+        merged.push(item)
+        addedCount++
+      }
+    }
+    return { merged, addedCount, existingCount: existing.length }
+  }
+
   // ─── Upload Handlers ───────────────────────────────────────────────────────
   async function handleFileUpload(e, fileType) {
     const file = e.target.files?.[0]
@@ -144,17 +188,48 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
     try {
       const res = await uploadDiscoveryTxt(file, fileType)
       const data = res.data
+
+      let finalEntries = data.entries
+      let addedMsg = ''
+
+      if (mergeMode) {
+        const currentList = isKw ? keywords : locations
+        if (currentList.length > 0) {
+          const { merged, addedCount } = mergeLists(currentList, data.entries)
+          finalEntries = merged
+          addedMsg = ` (merged ${addedCount} new with ${currentList.length} existing)`
+        }
+      }
+
       toast.success(
-        `Parsed ${data.valid_count} valid ${fileType}. Skipped ${data.ignored_count} blanks/comments and ${data.duplicate_count} duplicates.`,
+        `Parsed ${data.valid_count} valid ${fileType}${addedMsg}. Skipped ${data.ignored_count} blanks/comments and ${data.duplicate_count} duplicates.`,
         { id: t }
       )
 
+      if (data.invalid_entries && data.invalid_entries.length > 0) {
+        toast((toastObj) => (
+          <div className="text-xs">
+            <p className="font-bold text-amber-400 mb-1">
+              {data.invalid_entries.length} invalid items excluded:
+            </p>
+            <ul className="list-disc pl-4 max-h-24 overflow-y-auto">
+              {data.invalid_entries.slice(0, 5).map((inv, idx) => (
+                <li key={idx} className="text-slate-300">{inv}</li>
+              ))}
+              {data.invalid_entries.length > 5 && (
+                <li className="text-slate-400">…and {data.invalid_entries.length - 5} more</li>
+              )}
+            </ul>
+          </div>
+        ), { duration: 6000, icon: '⚠️' })
+      }
+
       if (isKw) {
-        setKeywords(data.entries)
+        setKeywords(finalEntries)
         setKeywordsMeta(data)
         if (mode === 'presets_only') setMode('uploaded_only')
       } else {
-        setLocations(data.entries)
+        setLocations(finalEntries)
         setLocationsMeta(data)
         if (mode === 'presets_only') setMode('uploaded_only')
       }
@@ -184,7 +259,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
 
     if (preview.exceeds_safety_limit) {
       toast.error(
-        `Combinations (${preview.total_combinations}) exceed safety limit (${preview.max_allowed_combinations}). Adjust entries or lower your budget.`
+        `Combinations budget (${preview.effective_budget}) exceeds safety limit (${preview.max_allowed_combinations}). Adjust entries or lower your budget.`
       )
       return
     }
@@ -196,7 +271,8 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
         keywords,
         locations,
         mode,
-        budget: Number(budget) || null
+        budget: Number(budget) || null,
+        batch_offset: Number(batchOffset) || 0
       })
       toast.success(`Job ${res.data.job_id} started!`, { id: t })
       setActiveJob(res.data)
@@ -344,6 +420,25 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
             </div>
           )}
 
+          {/* ── Import & Merge Configuration ─────────────────────────────── */}
+          <div className="p-3.5 rounded-xl bg-slate-800/20 border border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <input
+                id="merge-mode-toggle"
+                type="checkbox"
+                checked={mergeMode}
+                onChange={(e) => setMergeMode(e.target.checked)}
+                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="merge-mode-toggle" className="text-slate-200 font-medium cursor-pointer select-none">
+                Merge imported entries with existing lists (preserve existing user entries)
+              </label>
+            </div>
+            <span className="text-slate-400 text-[11px]">
+              Formats: Niche pipe lists (<code>Category | kw1 | kw2</code>), <code>REGION:City</code>, UTF-8 BOM supported.
+            </span>
+          </div>
+
           {/* ── Two Upload Controls ─────────────────────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Control A: Keywords */}
@@ -365,7 +460,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                   )}
                 </div>
                 <p className="text-xs text-slate-400 mb-4">
-                  One keyword per line (e.g. <code>web design agency</code>, <code>dental clinic</code>). Comments with <code>#</code> ignored.
+                  Multi-niche (<code>Category | kw1 | kw2</code>) or single per line. Comments with <code>#</code> ignored.
                 </p>
 
                 <input
@@ -384,7 +479,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                   <span className="text-xs font-medium text-slate-300 block">
                     {uploadingKw ? 'Uploading…' : 'Click to select keywords.txt'}
                   </span>
-                  <span className="text-[10px] text-slate-400">Max 250 entries · UTF-8 · 1 MB</span>
+                  <span className="text-[10px] text-slate-400">Max 1,000 entries · UTF-8 · 1 MB</span>
                 </div>
 
                 {keywordsMeta && (
@@ -393,6 +488,13 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                     <span>• {keywordsMeta.ignored_count} Blanks/Comments</span>
                     <span>• {keywordsMeta.duplicate_count} Duplicates</span>
                     {keywordsMeta.rejected_count > 0 && <span className="text-amber-400">• {keywordsMeta.rejected_count} Rejected</span>}
+                  </div>
+                )}
+
+                {keywordsMeta?.invalid_entries?.length > 0 && (
+                  <div className="text-[11px] bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg mb-3 text-amber-300">
+                    <span className="font-semibold block mb-0.5">⚠️ {keywordsMeta.invalid_entries.length} excluded entries:</span>
+                    <span className="text-slate-400 truncate block">{keywordsMeta.invalid_entries.slice(0, 3).join(', ')}</span>
                   </div>
                 )}
               </div>
@@ -438,7 +540,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                   )}
                 </div>
                 <p className="text-xs text-slate-400 mb-4">
-                  One city/location per line (e.g. <code>Roorkee, Uttarakhand, India</code>, <code>Austin, Texas</code>).
+                  Target locations (e.g. <code>IN:Roorkee</code>, <code>Roorkee, Uttarakhand</code>, <code>Austin, Texas</code>).
                 </p>
 
                 <input
@@ -457,7 +559,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                   <span className="text-xs font-medium text-slate-300 block">
                     {uploadingLoc ? 'Uploading…' : 'Click to select locations.txt'}
                   </span>
-                  <span className="text-[10px] text-slate-400">Max 250 entries · UTF-8 · 1 MB</span>
+                  <span className="text-[10px] text-slate-400">Max 1,000 entries · UTF-8 · 1 MB</span>
                 </div>
 
                 {locationsMeta && (
@@ -466,6 +568,13 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                     <span>• {locationsMeta.ignored_count} Blanks/Comments</span>
                     <span>• {locationsMeta.duplicate_count} Duplicates</span>
                     {locationsMeta.rejected_count > 0 && <span className="text-amber-400">• {locationsMeta.rejected_count} Rejected</span>}
+                  </div>
+                )}
+
+                {locationsMeta?.invalid_entries?.length > 0 && (
+                  <div className="text-[11px] bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg mb-3 text-amber-300">
+                    <span className="font-semibold block mb-0.5">⚠️ {locationsMeta.invalid_entries.length} excluded entries:</span>
+                    <span className="text-slate-400 truncate block">{locationsMeta.invalid_entries.slice(0, 3).join(', ')}</span>
                   </div>
                 )}
               </div>
@@ -543,17 +652,48 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                 <div>
                   <div className="text-sm font-bold text-white flex items-center gap-2">
                     <span>
-                      {preview.keyword_count} keywords × {preview.location_count} locations = {preview.total_combinations} combinations
+                      {preview.keyword_count} keywords × {preview.location_count} locations = {preview.total_combinations.toLocaleString()} combinations
                     </span>
                     {preview.exceeds_safety_limit && (
                       <span className="text-[11px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                        Exceeds Safety Cap ({preview.max_allowed_combinations})
+                        Budget Exceeds Single-Job Cap ({preview.max_allowed_combinations})
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Effective search limit for this run: <strong>{preview.effective_budget} queries</strong>.
+                    {preview.total_batches > 1 ? (
+                      <>
+                        Batch <strong>{preview.current_batch_num}</strong> of <strong>{preview.total_batches}</strong>: Planned combinations <strong>{preview.batch_start.toLocaleString()}</strong> to <strong>{preview.batch_end.toLocaleString()}</strong> (effective limit: <strong>{preview.effective_budget} queries</strong>).
+                      </>
+                    ) : (
+                      <>
+                        Effective search limit for this run: <strong>{preview.effective_budget} queries</strong>.
+                      </>
+                    )}
                   </p>
+                  {preview.total_batches > 1 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        type="button"
+                        disabled={batchOffset === 0}
+                        onClick={() => setBatchOffset(prev => Math.max(0, prev - (Number(budget) || 100)))}
+                        className="text-[11px] px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 border border-slate-700 transition-colors"
+                      >
+                        ← Prev Batch
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Offset: {preview.batch_offset}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={preview.batch_end >= preview.total_combinations}
+                        onClick={() => setBatchOffset(prev => prev + (Number(budget) || 100))}
+                        className="text-[11px] px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 border border-slate-700 transition-colors"
+                      >
+                        Next Batch →
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -565,7 +705,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   <Play size={15} />
-                  Start Discovery Job
+                  Start Discovery Job {preview.total_batches > 1 ? `(Batch ${preview.current_batch_num})` : ''}
                 </button>
               </div>
             </div>

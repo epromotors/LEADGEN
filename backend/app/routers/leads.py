@@ -115,6 +115,7 @@ class DiscoveryPreviewRequest(BaseModel):
     locations: List[str] = []
     mode: str = "uploaded_only"
     custom_budget: Optional[int] = None
+    batch_offset: Optional[int] = 0
 
 
 class DiscoveryJobCreateRequest(BaseModel):
@@ -122,6 +123,7 @@ class DiscoveryJobCreateRequest(BaseModel):
     locations: List[str] = []
     mode: str = "uploaded_only"
     budget: Optional[int] = None
+    batch_offset: Optional[int] = 0
 
 
 @router.get("/discovery/presets", summary="Get built-in keyword and location presets")
@@ -154,8 +156,9 @@ async def upload_discovery_txt(
     try:
         parsed = parse_txt_upload_content(
             content,
+            file_type=file_type,
             max_file_size=getattr(settings, "DISCOVERY_MAX_FILE_SIZE_BYTES", 1_048_576),
-            max_entries=getattr(settings, "DISCOVERY_MAX_ENTRIES_PER_FILE", 250),
+            max_entries=getattr(settings, "DISCOVERY_MAX_ENTRIES_PER_FILE", 1000),
         )
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
@@ -174,6 +177,7 @@ async def preview_discovery_combinations(payload: DiscoveryPreviewRequest):
         locations=payload.locations,
         mode=payload.mode,
         custom_budget=payload.custom_budget,
+        batch_offset=payload.batch_offset,
     )
 
 
@@ -188,6 +192,7 @@ async def create_discovery_job(
             locations=payload.locations,
             mode=payload.mode,
             budget=payload.budget,
+            batch_offset=payload.batch_offset,
         )
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
