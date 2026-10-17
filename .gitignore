@@ -68,6 +68,7 @@ US_leads.xlsx
 leads1_clean_mobiles.csv
 leads_export_*.csv
 backend/reports/*.csv
+sample_leads.csv
 leads/
 
 # OS / Editor files

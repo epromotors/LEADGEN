@@ -944,12 +944,12 @@ Configured via `SMTP_SENDERS` in `.env`:
 ## 12. Environment Variables
 
 ```env
-DATABASE_URL=postgresql+psycopg://postgres:Misthy31$@localhost:5432/leadgen
+DATABASE_URL=postgresql+psycopg://postgres:<REDACTED>@localhost:5432/leadgen
 JWT_SECRET=144d07b7...
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=1440
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=Misthy31$
+ADMIN_PASSWORD=<REDACTED>
 SMTP_SENDERS=[{"email":"info@tebsolutions.in",...},{"email":"tebsolutions.in@gmail.com",...}]
 APP_NAME=TEB Solutions LeadGen
 FRONTEND_URL=http://localhost:5174
@@ -982,7 +982,9 @@ npm install
 npm run dev
 ```
 
-Login at **http://localhost:5174** (default credentials: `admin` / `Misthy31$`).
+Login at **http://localhost:5174** (default credentials: `admin` / `<REDACTED>`).
+
+> **Note:** Credential values redacted on 2026-10-17 — security hygiene remediation.
 
 ---
 

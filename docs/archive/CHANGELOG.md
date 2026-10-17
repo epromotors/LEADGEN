@@ -1720,7 +1720,7 @@ If you're a new AI agent or developer picking up this codebase:
 
 4. **Environment:**
    - Python 3.14 on Windows (asyncpg does NOT work — use psycopg)
-   - PostgreSQL `leadgen` database on localhost:5432, password: `Misthy31$`
+   - PostgreSQL `leadgen` database on localhost:5432, password: `<REDACTED — see operator for credentials>`
    - Two SMTP accounts (Hostinger port 465 + Gmail port 465)
    - Frontend: React 18 + Vite at localhost:5173
 
