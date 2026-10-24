@@ -487,25 +487,25 @@ async def run_pipeline() -> None:
 
     manifest = load_manifest()
     manifest["total_leads"] = total_leads_count
-    # For clean consistency with updated categorization logic, reset completed_lead_ids
-    # so every lead gets properly categorized under the new accurate rules
-    completed_ids: Set[str] = set()
+    completed_ids: Set[str] = set(manifest.get("completed_lead_ids", []))
+    logger.info(f"Resuming pipeline with {len(completed_ids)} already completed leads and {len(manifest.get('completed_batches', []))} completed batches.")
 
-    # Truncate jsonl logs for clean run output
-    for log_name in (
-        "03-batch-progress.jsonl",
-        "04-website-discovery-results.jsonl",
-        "05-email-recovery-results.jsonl",
-        "06-audit-results.jsonl",
-        "07-final-categorization.jsonl",
-        "08-failures-and-retries.jsonl",
-    ):
-        (LOGS_DIR / log_name).write_text("", encoding="utf-8")
+    if not completed_ids:
+        # Fresh run: truncate jsonl logs
+        for log_name in (
+            "03-batch-progress.jsonl",
+            "04-website-discovery-results.jsonl",
+            "05-email-recovery-results.jsonl",
+            "06-audit-results.jsonl",
+            "07-final-categorization.jsonl",
+            "08-failures-and-retries.jsonl",
+        ):
+            (LOGS_DIR / log_name).write_text("", encoding="utf-8")
 
-    manifest["completed_batches"] = []
-    manifest["completed_lead_ids"] = []
-    manifest["batch_metrics"] = []
-    save_manifest(manifest)
+        manifest["completed_batches"] = []
+        manifest["completed_lead_ids"] = []
+        manifest["batch_metrics"] = []
+        save_manifest(manifest)
 
     # Slice into batches of BATCH_SIZE
     total_batches = (total_leads_count + BATCH_SIZE - 1) // BATCH_SIZE
