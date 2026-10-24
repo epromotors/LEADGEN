@@ -51,6 +51,11 @@ samples/
 # Backups & restores
 restores/
 *.bak*
+*.dump
+backend/backups/
+output/
+scratch/
+tmp/
 
 # Node & Frontend
 node_modules/

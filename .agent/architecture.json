@@ -1,7 +1,7 @@
 {
   "components": {
     "frontend": {"path": "frontend/", "entrypoint": "frontend/src/main.jsx", "depends_on": ["api"]},
-    "api": {"path": "backend/app/routers/", "entrypoint": "backend/app/main.py", "depends_on": ["audit_engine", "database"]},
+    "api": {"path": "backend/app/routers/", "entrypoint": "backend/app/main.py", "depends_on": ["audit_engine", "database", "email_verification", "lead_discovery"]},
     "audit_engine": {"path": "backend/app/engines/audit_engine.py", "entrypoint": "run_audit", "depends_on": ["factor_contract", "audit_modules", "crawler", "browser_provider", "database", "pdf_report"]},
     "factor_contract": {"path": "backend/app/engines/factor_contract.py", "depends_on": ["factor_registry"]},
     "audit_modules": {"path": "auditor/auditor/auditor/", "depends_on": ["http_provider"]},
@@ -12,10 +12,16 @@
     "browser_comparisons": {"path": "auditor/auditor/browser/comparisons.py"},
     "database": {"path": "backend/app/models.py", "depends_on": ["backend/app/database.py"]},
     "pdf_report": {"path": "auditor/auditor/reporter/pdf_report.py", "depends_on": ["audit_engine"]},
-    "outreach": {"path": "backend/app/engines/outreach_engine.py", "depends_on": ["database", "pdf_report"]}
+    "outreach": {"path": "backend/app/engines/outreach_engine.py", "depends_on": ["database", "pdf_report", "email_verification"]},
+    "email_verification": {"path": "backend/app/services/email_verifier_service.py", "depends_on": ["email_constants"]},
+    "email_constants": {"path": "backend/app/utils/email_constants.py"},
+    "lead_discovery": {"path": "backend/app/services/lead_discovery_service.py", "depends_on": ["database"]},
+    "email_verification_ui": {"path": "frontend/src/components/EmailVerificationAudit.jsx", "depends_on": ["api"]}
   },
   "flows": {
     "audit": ["audits router", "audit_engine.run_audit", "registry validation", "isolated factor results", "crawler coverage/lifecycle", "optional browser capture", "Audit model", "AuditResponse", "Audits.jsx/PDF"],
-    "outreach": ["campaign router", "outreach_engine", "Lead/Audit", "SMTP"]
+    "outreach": ["campaign router", "fail-closed gatekeeper", "outreach_engine", "Lead/Audit", "classify_smtp_error", "SMTP"],
+    "email_verification": ["email-verify router", "email_verifier_service", "EmailVerificationAudit.jsx"],
+    "discovery": ["lead_discovery_service", "score_website_candidate", "context-aware scraper", "leads router"]
   }
 }

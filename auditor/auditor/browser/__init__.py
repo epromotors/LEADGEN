@@ -24,6 +24,8 @@ from browser.provider import (
     select_target_pages,
 )
 
+from browser.performance_diagnostics import PerformanceDiagnostics
+
 __all__ = [
     "BrowserEvidence",
     "BrowserProvider",
@@ -34,4 +36,5 @@ __all__ = [
     "is_same_origin_boundary",
     "normalize_page_url",
     "select_target_pages",
+    "PerformanceDiagnostics",
 ]

@@ -5,31 +5,35 @@
 **Baseline reported:** Published `main` at `1253824` (`fix: bound synchronous audit network work`)  
 **Working checkout:** `C:\Users\LENOVO\LEADGEN-RELEASE`  
 **Original checkout (protected):** `C:\Users\LENOVO\LEADGEN`  
-**Status:** Current-state reference plus explicitly labeled target architecture  
-**Prepared:** 15 October 2026
+**Status:** Current-state reference reconciled with source-code evidence plus explicitly labeled target architecture  
+**Prepared:** 15 October 2026  
+**Reconciled & Synchronized:** 19 October 2026  
 
-> **Read this before implementation.** This document separates documented/current capabilities from proposed future capabilities. Do not treat a planned capability as implemented. Current file structure, endpoint routes, factors, settings, schemas and scripts must be revalidated against the actual checked-out source before any code change. This reference is based on project documentation and release/test reports supplied during the LEADGEN work; it is not a fresh forensic scan of the local repository.
+> **Read this before implementation.** This document separates documented/current capabilities from proposed future capabilities. Do not treat a planned capability as implemented. Current file structure, endpoint routes, factors, settings, schemas and scripts have been reconciled against the active checked-out source in `C:\Users\LENOVO\LEADGEN-RELEASE` as of commit `c0a5947`.
+>
+> **Note on Companion PDF (`LEADGEN_SYSTEM_ARCHITECTURE_PRODUCT_DOCUMENTATION.pdf`):** The pre-compiled PDF document in `docs/` reflects the earlier October 15, 2026 baseline. In the absence of an automated in-workspace PDF regeneration and visual verification pipeline for this architecture document, the PDF is preserved unchanged to prevent artifact corruption, and this Markdown document stands as the authoritative editable reference.
 
 ---
 
 ## 1. Executive summary
 
-LEADGEN is an internal lead-generation and website-audit operations platform for TEB Solutions. It brings together business lead intake, website classification, a technical/SEO audit, score/finding persistence, PDF generation, personalized email outreach, campaign management, and reply handling.
+LEADGEN is an internal lead-generation and website-audit operations platform for TEB Solutions. It brings together business lead intake, website classification, candidate website discovery, a technical/SEO audit, score/finding persistence, PDF generation, email verification and deliverability gating, personalized email outreach, campaign management, and reply handling.
 
-The published application is a local Windows-oriented stack:
+The application is a local Windows-oriented stack:
 
-- **Frontend:** React 18 + Vite + Axios + CSS.
-- **Backend:** Python 3.14, FastAPI, Uvicorn, SQLAlchemy 2.x async, Pydantic settings/schemas, `psycopg` v3.
-- **Storage:** PostgreSQL; documented local database name is `leadgen`.
-- **Audit:** an `auditor` Python package with HTTP fetching/parsing, 62 canonical factors across 11 groups according to the most recent release validator, an optional Playwright/Chromium browser-evidence path, bounded crawling/network work, and score-neutral lab metrics.
-- **Reports:** ReportLab PDF generation.
-- **Outreach:** SMTP sender integration, IMAP reply checking/classification, campaigns and an activity/audit trail.
+- **Frontend:** React 18 + Vite + Axios (with JWT interceptor) + Tailwind CSS on `127.0.0.1:5174`.
+- **Backend:** Python 3.11+ / 3.14 compatible, FastAPI, Uvicorn, SQLAlchemy 2.x async, Pydantic v2 settings/schemas, `psycopg` v3 on `127.0.0.1:8001`.
+- **Storage:** PostgreSQL; default local database name is `leadgen`; tests and migrations isolated to `leadgen_release_sandbox`.
+- **Audit Engine:** an `auditor` Python package with HTTP fetching/parsing, 62 canonical factors across 11 groups verified via strict parity validator, an optional Playwright/Chromium browser-evidence path (disabled by default), bounded crawling/network work, and score-neutral lab metrics.
+- **Verification & Deliverability Hub:** 6-layer asynchronous verifier (RFC 5322 syntax, popular domain typo suggestions, disposable domain frozenset, async DNS/MX with A-record fallback, SSRF IP filtering, and permanent disabled-by-default SMTP/catch-all probing).
+- **Outreach & Gatekeeper:** Fail-closed pre-send gatekeeper enforcing positive association allowlists (`matched`, `approved`), outbound SMTP sender classification (553 5.7.1 ownership rejection handling), campaign auto-pause, and IMAP reply triage.
+- **Reports:** ReportLab PDF generation for client audit reports.
 - **Local ports:** API `127.0.0.1:8001`, frontend `127.0.0.1:5174`, PostgreSQL commonly `localhost:5432`.
-- **Git:** the four release commits are published on `main`; no cloud deployment workflow was found in the release report. This means code publication was done, but a cloud production deployment was not.
+- **Git:** Active branch `fix/audit-url-sitemap-correctness` at `c0a5947` with working-tree verification and deliverability implementations.
 
 ### Important truth about status
 
-The normal audit workflow and PDF were verified end-to-end against `python.org` in a disposable database, and optional browser evidence passed local fixture tests. However, the Car Medic Motors report revealed unresolved audit correctness defects: the reported target path differed from the stored/root URL, robots/sitemap discovery used the wrong path, and two schema findings contradicted one another. The frontend and PDF visual redesign also remains planned, not delivered. These must remain explicit blockers for declaring the broader product complete.
+The normal audit workflow and PDF were verified end-to-end against `python.org` in a disposable database, and optional browser evidence passed local fixture tests. The Car Medic Motors report correctness defects (URL identity separation, origin-root sitemap discovery, shared JSON-LD extraction, and impact-based priority classification) were addressed and verified in regression tests (`tests/test_audit_correctness_url_sitemap_schema.py`). The Email Deliverability & Verification Hub, candidate website discovery, and fail-closed campaign gatekeeper are implemented and verified via automated test suites. Advanced multi-page browser crawling, Lighthouse integration, and cloud production deployment remain planned roadmap items.
 
 ---
 
@@ -38,7 +42,7 @@ The normal audit workflow and PDF were verified end-to-end against `python.org` 
 | Label | Meaning |
 |---|---|
 | **Current / documented** | Described in the source project documents or directly reported as part of the published release. Verify implementation before modifying. |
-| **Verified in tests** | A specific behavior was reported as tested with named test suites/controlled run. This is not a universal accuracy guarantee. |
+| **Verified in tests** | A specific behavior was tested with named test suites/controlled run. This is not a universal runtime guarantee. |
 | **Known defect / unverified** | Evidence shows incorrect behavior, or the behavior has not yet been validated. |
 | **Target / planned** | Part of the desired product architecture, but not claimed as implemented. |
 | **Optional integration** | Requires separate authorization, provider account, data access or configuration. |
@@ -47,19 +51,21 @@ The normal audit workflow and PDF were verified end-to-end against `python.org` 
 
 | Area | Current documented state | Desired target state |
 |---|---|---|
-| Leads | CSV import/deduplication, edit/list/delete/bulk operations | Preserve; add better provenance and safe audit eligibility visibility |
-| Site classification | 13-layer classifier, several URL variants and parking/demo checks | Preserve and prevent classification/normalization from silently changing the user's requested URL |
-| SEO audit | Canonical 62 factors / 11 groups per latest validator | Same contract, better accuracy/evidence, more advanced diagnostics without casual factor/weight changes |
-| Crawl/sitemap | Crawl limits, size/time bounds, timing logs, sitemap support | Origin-correct robots/sitemap discovery, diagnostics and page coverage evidence |
-| Browser | Optional Playwright/Chromium capture, disabled by default | More complete design/JS/performance diagnostics; strictly bounded and explicit about lab vs field data |
-| Performance | Existing response-time/page-size and score-neutral lab web-vitals work | Repeated lab runs, resource diagnostics; actual field metrics only from real authorized data sources |
-| Frontend | Existing React/Vite operational UI | Modern, visibly redesigned audit overview, issue evidence, crawl scope, history and action plan |
-| PDF | Multi-section ReportLab report | Premium client-ready template with coherent evidence, reasonable priorities and rendered-page visual QA |
-| Search Console | Not established as implemented | Optional OAuth-authorized read-only integration with clicks/impressions/CTR/position and URL inspection only where supported |
-| AI search visibility | Readiness heuristics can be designed from existing evidence; live visibility monitoring not established | Dated, reproducible query/answer/citation observations from supported, permitted data sources; no fabricated citation metrics |
-| Web design/code health | Basic HTML/UX observations | Visual hierarchy, responsive issues, console/resource failures, accessibility hints and evidence-backed repair/redesign scope |
-| Outreach | SMTP campaigns, personalized email templates, IMAP reply handling, email review | Draft grounded in verified findings; evidence provenance; preview/edit/approve before sending |
-| Deployment | Local Windows workflow; remote Git publication | Explicitly selected hosting/deployment target and separately approved production release |
+| Leads & Intake | CSV import/deduplication, edit/list/delete/bulk operations | Preserved; keyword/location bulk import verified |
+| Provenance & Discovery | Context-aware HTML extraction, agency footer credit filter, candidate scoring (`score_website_candidate`), ccTLD alignment | Fully automated discovery and association confidence scoring |
+| Site classification | 13-layer classifier, several URL variants and parking/demo checks | Preserved; separates requested URL from final redirect URL |
+| SEO audit | Canonical 62 factors / 11 groups strictly validated across all 6 tiers | Same contract, better accuracy/evidence, more advanced diagnostics without factor/weight changes |
+| Crawl/sitemap | Crawl limits (10 default, 25 hard cap), origin-root robots/sitemap discovery | Bounded multi-page crawl coverage (Phase 3 WS-C) |
+| Browser Evidence | Optional Playwright/Chromium capture, disabled by default; lifecycle proxy with IP SSRF blocking | More complete design/JS/performance diagnostics; strictly bounded lab data |
+| Email Verification | 6-layer async verification (Syntax, Typos, Disposable, DNS/MX, SSRF safety); permanent disabled-by-default SMTP/catch-all probing; score capped at 85 | Preserved; live SMTP optional opt-in only |
+| Campaign Gatekeeper | Fail-closed positive allowlist (`matched`, `approved`, `valid`, not quarantined); authenticated approval endpoint; quota protection | Preserved; strict protection of outbound sending quotas |
+| SMTP Error Handling | Permanent sender classification (553 5.7.1 ownership, 535 auth, 550 quota); campaign auto-pause; password redaction; preserves recipient status | Multi-sender failover pool |
+| Performance | Existing response-time/page-size and score-neutral lab web-vitals work (LCP, CLS, TTFB) | Repeated lab runs; field metrics only from real authorized field data |
+| Frontend | React 18 + Vite operational UI; unified Audits page with Website SEO vs Email Deliverability tabs; candidate badges; dual CSV exports | Complete interactive browser acceptance testing across all viewports |
+| PDF Reports | Multi-section ReportLab client audit report with dynamic 62-factor sections | Additional bespoke proposal templates |
+| Search Console | AES-GCM encrypted credential persistence, OAuth flow implemented | Verified with live production client credentials |
+| AI search visibility | Heuristics implemented; Perplexity, Gemini, OpenRouter, Groq providers integrated | Continuous scheduled visibility tracking |
+| Deployment | Local Windows workflow; remote Git publication; safe port-specific `STOP.bat` | Authorized cloud production target and automated CI/CD pipeline |
 
 ---
 
@@ -90,30 +96,85 @@ The normal audit workflow and PDF were verified end-to-end against `python.org` 
 ```mermaid
 flowchart TB
     U[Agency operator] --> FE[React + Vite frontend\n127.0.0.1:5174]
-    FE -->|Axios / JSON / JWT| API[FastAPI + Uvicorn\n127.0.0.1:8001]
-    API --> AUTH[Authentication & configuration]
-    API --> ROUTERS[API routers\nleads, audits, campaigns, activity, replies, email review]
-    ROUTERS --> ENGINES[Domain engines\nclassifier, audit, PDF, outreach, replies]
-    ENGINES <--> DB[(PostgreSQL\nleadgen :5432)]
-    ENGINES --> WEB[Target websites\nHTTP/HTML/robots/sitemaps]
-    ENGINES -. optional, disabled by default .-> BROWSER[Playwright + Chromium\npolicy-aware proxy / evidence]
-    ENGINES --> PDF[ReportLab PDF\nreports directory]
-    OUT[Outreach engine] --> SMTP[SMTP provider\n465 SSL / 587 STARTTLS]
-    IMAP[Mail inbox\nIMAP SSL :993] --> REPLY[Reply checker/classifier]
+    FE -->|Axios / JSON / Bearer JWT| API[FastAPI + Uvicorn\n127.0.0.1:8001]
+    API --> AUTH[Authentication & RBAC\nadmin / operator / viewer]
+    API --> ROUTERS[API Routers\nleads, audits, campaigns, email_verification,\nactivity, replies, email_review, proposals, gsc, ai_search]
+    ROUTERS --> SERVICES[Core Services & Engines\nlead_discovery, email_verifier, audit_engine,\noutreach_engine, proposal_service, provider_key_mgr]
+    SERVICES <--> DB[(PostgreSQL Database\nleads, audits, campaigns, logs\nsandbox: leadgen_release_sandbox)]
+    SERVICES --> WEB[Target Websites\nHTTP / robots / sitemaps]
+    SERVICES -. optional, disabled by default .-> BROWSER[Playwright + Chromium\nLifecycle proxy with IP SSRF blocking]
+    SERVICES --> PDF[ReportLab PDF Generator\nreports/ directory]
+    SERVICES --> SMTP[Outbound SMTP Senders\nHostinger SSL :465 / STARTTLS :587\nClassified sender error handling]
+    IMAP[Mail Inbox\nIMAP SSL :993] --> REPLY[Reply Checker & Classifier]
     REPLY --> DB
-    PDF --> API
-    API --> FE
 ```
 
 ### Architectural boundaries
 
-- The browser is a **frontend client**; business rules and credentials remain in the backend.
-- FastAPI routers validate requests and coordinate services/engines.
-- The audit engine calls focused auditor modules and crawler utilities.
-- PostgreSQL is the durable store for leads, audits, campaigns and operational logs.
-- PDF is a generated artifact based on audited data. It must not produce its own contradictory result set.
-- SMTP and IMAP are external systems with separate failure and credential boundaries.
-- Browser capture is optional and defaults to disabled; no UI or report should imply it ran when it did not.
+- **Frontend Client Boundary:** React/Vite runs client-side; business rules, fail-closed gates, secret keys, and database connections remain strictly backend-side.
+- **Authentication & RBAC Boundary:** All lead modification, export, audit triggering, and campaign dispatch endpoints require JWT authentication. State mutations require `admin` or `operator` roles; `viewer` is restricted to read-only views.
+- **Fail-Closed Association & Gatekeeper Boundary:** Outbound email dispatch is restricted by a strict positive allowlist (`matched` or `approved` association, non-quarantined, valid verification). Unverified or legacy records fail closed.
+- **Deliverability & Verification Boundary:** Email verification operates without invasive mailbox probing by default (`smtp_probe_enabled=False`). Verification scores are capped at 85 without a live SMTP probe, reporting `Routeable (Syntax & MX)` rather than guaranteeing delivery.
+- **Audit Engine Baseline Boundary:** Canonical 62 audit factors across 11 groups are preserved invariantly. Browser evidence capture is strictly optional, decoupled, and cannot alter factor scoring.
+- **Database Isolation Boundary:** Live operations default to `leadgen`; testing and migrations are restricted to `leadgen_release_sandbox` using non-superuser credentials.
+
+---
+
+## 4.1 Detailed Architecture Sub-Views
+
+### A. Lead Discovery & Provenance Flow
+```mermaid
+flowchart TD
+    INPUT[Keyword / Location / CSV Input] --> SEARCH[Places / Web Search]
+    SEARCH --> HAS_WEB{Website Present?}
+    HAS_WEB -- Yes --> EXTRACT[Context-Aware Scraper]
+    HAS_WEB -- No --> CAND_SEARCH[Candidate Website Discovery\nSerper Organic Search]
+    CAND_SEARCH --> SCORE[Candidate Scoring Engine\nscore_website_candidate]
+    SCORE -->|Score >= 0.5| CAND_MATCH[Tagged candidate_match]
+    SCORE -->|Competing matches| CONFLICT[Tagged conflicting]
+    SCORE -->|Zero matches| NO_WEB[Tagged no_website]
+    CAND_MATCH --> EXTRACT
+    EXTRACT --> CTX_CHECK{Agency / Designer\nContext Detected?}
+    CTX_CHECK -- Yes --> QUAR_MISMATCH[Classified mismatched_source\nAuto-Quarantined is_sendable=False]
+    CTX_CHECK -- No --> DOM_MATCH{Domain Matches\nWebsite?}
+    DOM_MATCH -- Yes --> ASSOC_MATCH[Classified matched\nis_sendable=True]
+    DOM_MATCH -- Free Mail --> EXT_REVIEW[Classified external_domain_review\nis_sendable=False, Requires Review]
+    DOM_MATCH -- Unrelated --> UNVER_ASSOC[Classified unverified_association\nis_sendable=False, Quarantined]
+```
+
+### B. Email Verification & Deliverability Lifecycle
+```mermaid
+flowchart TD
+    RAW_EMAIL[Input Email Address] --> SYNTAX{RFC 5322\nSyntax Valid?}
+    SYNTAX -- No --> ST_INVALID[Status: invalid\nScore: 0, Quarantined]
+    SYNTAX -- Yes --> TYPO{Popular Domain\nTypo Detected?}
+    TYPO -- Yes --> ST_RISKY[Status: risky\nTypo suggested, Non-sendable]
+    TYPO -- No --> DISP{Disposable Domain\nBlocklist Match?}
+    DISP -- Yes --> ST_DISP[Status: disposable\nScore: 0, Quarantined]
+    DISP -- No --> DNS{DNS / MX Query\n+ A-record fallback}
+    DNS -- NXDOMAIN / Fail --> ST_NOTFOUND[Status: not_found / error\nQuarantined]
+    DNS -- Resolves --> SSRF{Safe Public IP?\nis_safe_ip}
+    SSRF -- Prohibited/Private --> ST_BLOCKED[Status: blocked\nSSRF mitigated, Quarantined]
+    SSRF -- Safe Public --> SMTP_OPT{SMTP Probing\nExplicitly Enabled?}
+    SMTP_OPT -- No Default --> ST_VALID_NO_PROBE[Status: valid\nScore: 85 max\nDiagnostic: Routeable Syntax & MX]
+    SMTP_OPT -- Yes Opt-In --> LIVE_SMTP[Live SMTP Mailbox Probe]
+    LIVE_SMTP -- 250 Accepted --> ST_VALID_PROBED[Status: valid\nScore: 100\nMailbox Confirmed]
+    LIVE_SMTP -- 550 Rejected --> ST_SMTP_REJECT[Status: invalid\nScore: 0, Quarantined]
+```
+
+### C. Campaign Pre-Send Gatekeeper & SMTP Sender Failure Handling
+```mermaid
+flowchart TD
+    QUEUE[Campaign Recipient Queue] --> GATE{Pre-Send Gatekeeper\nCheck All 3 Conditions}
+    GATE -->|1. assoc in ('matched', 'approved')\n2. not is_quarantined\n3. email_verification == 'valid'| SEND_PREP[Prepare Email Payload]
+    GATE -->|Any condition fails| ABORT_SEND[Skip Recipient\nLog CampaignEmailLog: skipped\nQuota untouched, sent_count unaffected]
+    SEND_PREP --> SMTP_DISPATCH[Outbound SMTP Dispatch via Provider]
+    SMTP_DISPATCH -- Success --> LOG_OK[Log CampaignEmailLog: sent\nIncrement sent_count]
+    SMTP_DISPATCH -- Failure --> CLASSIFY[classify_smtp_error]
+    CLASSIFY --> PERM_CHECK{Permanent Sender Failure?\n553 ownership, 535 auth, 550 quota}
+    PERM_CHECK -- Yes --> PAUSE_CAMP[Pause Campaign Immediately\ncampaign.status = paused\nPreserve recipient verification status\nPrevent repetitive failures]
+    PERM_CHECK -- No Recipient Rejection --> LOG_FAIL[Log failure\nReset lead status to fresh]
+```
 
 ---
 

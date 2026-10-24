@@ -58,7 +58,18 @@ export default function BrowserEvidence({ evidence, status, auditResults, pages 
   const pageList = Array.isArray(pages) && pages.length > 0 ? pages : null
   const currentEvidence = pageList ? (pageList[selectedIdx] || pageList[0]) : evidence
   const providerStatus = status || currentEvidence?.provider_status
-  if (!currentEvidence || HIDDEN_STATUSES.has(providerStatus)) return null
+  if (!currentEvidence || HIDDEN_STATUSES.has(providerStatus)) {
+    return (
+      <div style={{ textAlign: 'center', padding: '36px 20px', color: '#94a3b8' }}>
+        <p style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}>
+          Browser Evidence Unavailable
+        </p>
+        <p style={{ fontSize: 12, color: '#64748b', maxWidth: 440, margin: '0 auto', lineHeight: 1.5 }}>
+          Headless browser capture was disabled or unavailable for this audit. The canonical 62-factor audit was evaluated using direct HTTP and HTML analysis.
+        </p>
+      </div>
+    )
+  }
 
   const isHomepage = !pageList || selectedIdx === 0
   const titleResult = auditResults?.onpage?.page_title
@@ -171,6 +182,188 @@ export default function BrowserEvidence({ evidence, status, auditResults, pages 
           <p style={{ color: '#64748b', fontSize: 10, margin: '8px 0 0', lineHeight: 1.4 }}>
             Lab measurements captured in headless browser under lab conditions. Not real-user field data (CrUX).
           </p>
+        </div>
+
+        {/* Domain H: Web Design & Observable Code Health */}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e2d44' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Web Design & Layout Health <span style={{ color: '#64748b', fontSize: 10, fontWeight: 500, textTransform: 'none' }}>(Domain H Diagnostics)</span>
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+            <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+              <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Horizontal Overflow</p>
+              <p style={{ color: currentEvidence.has_horizontal_overflow ? '#f87171' : '#4ade80', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                {currentEvidence.has_horizontal_overflow ? `Detected (${currentEvidence.overflow_px || 0}px overflow)` : 'Fit to viewport (No overflow)'}
+              </p>
+            </div>
+            {currentEvidence.design_diagnostics && (
+              <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+                <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Design Issues</p>
+                <p style={{ color: (currentEvidence.design_diagnostics.total_issues || currentEvidence.design_diagnostics.total_runtime_issues || (currentEvidence.design_diagnostics.issues?.length || 0)) > 0 ? '#fbbf24' : '#4ade80', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                  {currentEvidence.design_diagnostics.total_issues || currentEvidence.design_diagnostics.total_runtime_issues || (currentEvidence.design_diagnostics.issues?.length || 0)} issue(s) recorded
+                </p>
+              </div>
+            )}
+          </div>
+          {Array.isArray(currentEvidence.design_diagnostics?.issues) && currentEvidence.design_diagnostics.issues.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {currentEvidence.design_diagnostics.issues.map((iss, i) => (
+                <div key={i} style={{ background: '#070d18', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: 4,
+                      background: iss.severity === 'critical' ? '#7f1d1d' : iss.severity === 'high' ? '#831843' : '#334155',
+                      color: iss.severity === 'critical' ? '#fca5a5' : iss.severity === 'high' ? '#fbcfe8' : '#cbd5e1',
+                      textTransform: 'uppercase',
+                    }}>
+                      {iss.severity || 'info'}
+                    </span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{iss.message}</span>
+                  </div>
+                  {iss.recommendation && (
+                    <p style={{ color: '#94a3b8', fontSize: 10, margin: '2px 0 0', lineHeight: 1.35 }}>
+                      Recommendation: {iss.recommendation}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+        {/* Advanced Website Performance Diagnostics */}
+        {currentEvidence.performance_diagnostics && currentEvidence.performance_diagnostics.available && (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e2d44' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Performance & Resource Diagnostics <span style={{ color: '#60a5fa', fontSize: 10, fontWeight: 500, textTransform: 'none' }}>(Lab Runtime)</span>
+              </p>
+              <span style={{ color: '#64748b', fontSize: 10 }}>
+                Page { (currentEvidence.performance_diagnostics.page_index || 0) + 1 } of { currentEvidence.performance_diagnostics.total_pages_captured || 1 }
+              </span>
+            </div>
+
+            {/* Quick summary indicators */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+                <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Resources</p>
+                <p style={{ color: '#dbeafe', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                  {currentEvidence.performance_diagnostics.resource_summary?.total_requests || 0} requests
+                </p>
+              </div>
+
+              <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+                <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Observed Transfer</p>
+                <p style={{ color: currentEvidence.performance_diagnostics.resource_summary?.has_transfer_size_data ? '#4ade80' : '#94a3b8', fontSize: 12, fontWeight: 700, margin: 0 }}>
+                  {currentEvidence.performance_diagnostics.resource_summary?.has_transfer_size_data
+                    ? `${currentEvidence.performance_diagnostics.resource_summary.total_transfer_kb} KB`
+                    : 'Size unavailable (cross-origin)'}
+                </p>
+              </div>
+
+              <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+                <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Failures / Errors</p>
+                <p style={{
+                  color: (currentEvidence.performance_diagnostics.failure_breakdown?.total_failure_events || 0) > 0 ? '#f87171' : '#4ade80',
+                  fontSize: 12, fontWeight: 700, margin: 0
+                }}>
+                  {(currentEvidence.performance_diagnostics.failure_breakdown?.failed_requests_count || 0)} blocked / {(currentEvidence.performance_diagnostics.failure_breakdown?.http_errors_count || 0)} HTTP err
+                </p>
+              </div>
+
+              <div style={{ background: '#0b1220', border: '1px solid #1e2d44', borderRadius: 8, padding: '8px 10px' }}>
+                <p style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Render-Blocking</p>
+                <p style={{
+                  color: (currentEvidence.performance_diagnostics.render_blocking_candidates?.total_candidates || 0) > 0 ? '#fbbf24' : '#4ade80',
+                  fontSize: 12, fontWeight: 700, margin: 0
+                }}>
+                  {currentEvidence.performance_diagnostics.render_blocking_candidates?.total_candidates || 0} candidate(s)
+                </p>
+              </div>
+            </div>
+
+            {/* Detailed collapsible diagnostics breakdown */}
+            <details style={{ marginTop: 10, background: '#070d18', border: '1px solid #1e293b', borderRadius: 8, padding: '8px 12px' }}>
+              <summary style={{ cursor: 'pointer', color: '#93c5fd', fontSize: 11, fontWeight: 700, userSelect: 'none' }}>
+                View Resource & Diagnostics Breakdown
+              </summary>
+
+              {/* Resource type distribution */}
+              {currentEvidence.performance_diagnostics.resource_summary?.by_type && (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+                    Resource Distribution by Type
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 6 }}>
+                    {Object.entries(currentEvidence.performance_diagnostics.resource_summary.by_type)
+                      .filter(([_, data]) => data.count > 0)
+                      .map(([type, data]) => (
+                        <div key={type} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '4px 8px' }}>
+                          <span style={{ color: '#60a5fa', fontSize: 10, fontWeight: 700, textTransform: 'capitalize' }}>{type}</span>
+                          <p style={{ color: '#e2e8f0', fontSize: 11, fontWeight: 600, margin: '2px 0 0' }}>
+                            {data.count} {data.has_size_data ? `(${data.transfer_kb} KB)` : ''}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Failure samples */}
+              {currentEvidence.performance_diagnostics.failure_breakdown?.samples?.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ color: '#f87171', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
+                    Observed Network Failures & HTTP Errors
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {currentEvidence.performance_diagnostics.failure_breakdown.samples.map((s, idx) => (
+                      <div key={idx} style={{ background: '#1c1917', border: '1px solid #442727', borderRadius: 4, padding: '4px 8px', fontSize: 10 }}>
+                        <span style={{ color: '#fca5a5', fontWeight: 700 }}>
+                          [{s.category === 'http_error' ? `HTTP ${s.status}` : 'BLOCKED/FAILED'}]
+                        </span>{' '}
+                        <span style={{ color: '#cbd5e1', wordBreak: 'break-all' }}>{s.url}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Render-blocking candidates */}
+              {currentEvidence.performance_diagnostics.render_blocking_candidates?.total_candidates > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ color: '#fbbf24', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
+                    Candidate Render-Blocking Resources (Heuristic)
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {[
+                      ...(currentEvidence.performance_diagnostics.render_blocking_candidates.stylesheets || []).map(item => ({ ...item, type: 'CSS' })),
+                      ...(currentEvidence.performance_diagnostics.render_blocking_candidates.scripts || []).map(item => ({ ...item, type: 'JS' }))
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 4, padding: '4px 8px', fontSize: 10 }}>
+                        <span style={{ color: '#fde047', fontWeight: 700 }}>[{item.type}]</span>{' '}
+                        <span style={{ color: '#e2e8f0', wordBreak: 'break-all' }}>{item.url}</span>
+                        <p style={{ color: '#a1a1aa', margin: '2px 0 0', fontSize: 9 }}>{item.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ color: '#71717a', fontSize: 9, fontStyle: 'italic', margin: '4px 0 0' }}>
+                    {currentEvidence.performance_diagnostics.render_blocking_candidates.limitation_note}
+                  </p>
+                </div>
+              )}
+
+              {/* Coverage limitation */}
+              <p style={{ color: '#64748b', fontSize: 9, margin: '10px 0 0', lineHeight: 1.4 }}>
+                {currentEvidence.performance_diagnostics.coverage_note}
+              </p>
+            </details>
+          </div>
+        )}
+
         </div>
       </div>
     </details>

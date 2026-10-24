@@ -24,8 +24,9 @@ from app.models import (
     Lead, LeadStatus, Audit, EmailCorrection, ActivityLog
 )
 
+from app.routers.auth import require_authorized_operator
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/email-review", tags=["email-review"])
+router = APIRouter(prefix="/email-review", tags=["email-review"], dependencies=[Depends(require_authorized_operator)])
 
 
 # ── Pydantic response schema ──────────────────────────────────────────────────
@@ -56,7 +57,7 @@ async def _scan_all_emails_bg(only_unscanned: bool = False):
     # Import here to avoid circular imports at startup
     import sys
     from pathlib import Path
-    auditor_path = Path("C:/Users/LENOVO/LEADGEN/auditor/auditor")
+    auditor_path = Path(__file__).resolve().parents[3] / "auditor" / "auditor"
     if str(auditor_path) not in sys.path:
         sys.path.insert(0, str(auditor_path))
 
@@ -210,6 +211,17 @@ async def list_corrections(
             "detected_at": c.detected_at.isoformat() if c.detected_at else None,
             "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None,
             "lead_status": c.lead.status.value if c.lead else None,
+            # Backward-compatible safety context for the operational review UI.
+            "verification_status": c.lead.email_verification_status if c.lead else "unverified",
+            "mailbox_confirmed": bool((c.lead.email_verification_details or {}).get("mailbox_confirmed", False)) if c.lead else False,
+            "association_status": c.lead.email_business_association_status if c.lead else "unverified_association",
+            "association_reason": c.lead.email_association_reason if c.lead else None,
+            "email_source_url": c.lead.email_source_url if c.lead else None,
+            "email_source_type": c.lead.email_source_type if c.lead else None,
+            "email_domain_match": c.lead.email_domain_match if c.lead else None,
+            "is_quarantined": bool(c.lead.is_quarantined) if c.lead else False,
+            "quarantine_reason": c.lead.quarantine_reason if c.lead else None,
+            "reply_type": c.lead.reply_type if c.lead else None,
         })
     return {"total": len(items), "items": items}
 

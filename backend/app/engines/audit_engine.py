@@ -858,6 +858,11 @@ async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> N
                 logger.warning(f"[audit_engine] Lead {lead_id} has no website — skipping")
                 return None
 
+            from app.utils.email_constants import is_third_party_directory_or_aggregator
+            if is_third_party_directory_or_aggregator(website):
+                logger.warning(f"[audit_engine] Lead {lead_id} website '{website}' is a third-party directory/platform — skipping audit")
+                return None
+
             from sqlalchemy import select as _select
             audit_result = await db.execute(_select(Audit).where(Audit.lead_id == lead.id))
             audit = audit_result.scalar_one_or_none()

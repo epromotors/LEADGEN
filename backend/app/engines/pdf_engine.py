@@ -342,6 +342,30 @@ def generate_pdf(lead, audit) -> str:
     _factor_row(pdf, "CSS/JS Minification",
                 getattr(audit, 'minification_ok', None),
                 "Assets minified" if getattr(audit, 'minification_ok', None) else "Unminified assets detected")
+
+    bev = (getattr(audit, 'site_summary', None) or {}).get('browser_evidence') or getattr(audit, 'browser_evidence', None)
+    if isinstance(bev, dict) and bev.get('lab_metrics_available'):
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(*TEXT_GREY)
+        pdf.cell(0, 5, _safe("Lab Web Vitals (Synthetic headless browser measurements — not real-user CrUX data):"),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        lcp_val = bev.get('lab_lcp_ms')
+        if isinstance(lcp_val, (int, float)):
+            _factor_row(pdf, "Lab LCP (Largest Contentful Paint)",
+                        lcp_val <= 2500,
+                        f"{lcp_val}ms (Lab target <= 2500ms)")
+        cls_val = bev.get('lab_cls')
+        if isinstance(cls_val, (int, float)):
+            _factor_row(pdf, "Lab CLS (Cumulative Layout Shift)",
+                        cls_val <= 0.1,
+                        f"{cls_val:.4f} (Lab target <= 0.100)")
+        ttfb_val = bev.get('lab_ttfb_ms')
+        if isinstance(ttfb_val, (int, float)):
+            _factor_row(pdf, "Lab TTFB (Time to First Byte)",
+                        ttfb_val <= 800,
+                        f"{ttfb_val}ms (Lab target <= 800ms)")
+
     pdf.ln(6)
 
     # ── v5.0 Advanced Schema Audit ─────────────────────────────────────────────

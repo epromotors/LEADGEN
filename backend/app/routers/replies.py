@@ -14,9 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Lead, Audit, ActivityLog, LeadStatus
 from app.schemas import LeadResponse, LeadListResponse
+from app.routers.auth import require_authorized_operator
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/replies", tags=["replies"])
+router = APIRouter(
+    prefix="/replies",
+    tags=["replies"],
+    dependencies=[Depends(require_authorized_operator)],
+)
 
 
 # ── Background task wrapper ───────────────────────────────────────────────────
@@ -216,6 +221,9 @@ async def send_email2(
 
     if lead.status != LeadStatus.converted:
         raise HTTPException(status_code=400, detail="Lead must have status=converted to send Email 2")
+
+    if getattr(lead, "is_quarantined", False) or getattr(lead, "email_business_association_status", None) not in ("matched", "approved"):
+        raise HTTPException(status_code=400, detail="Lead is quarantined or has unresolved email association.")
 
     audit_result = await db.execute(sa_select(Audit).where(Audit.lead_id == lead_id))
     audit = audit_result.scalar_one_or_none()

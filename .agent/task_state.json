@@ -1,10 +1,10 @@
 {
-  "phase": "Phase 3 Workstream B",
+  "phase": "Master System Audit & Control-Plane Synchronization",
   "status": "COMPLETE",
   "active_task": null,
-  "last_known_commit": "91cae45",
+  "last_known_commit": "c0a5947",
   "uncommitted_changes_at_snapshot": true,
-  "last_updated": "2026-10-11T14:26:00+05:30",
+  "last_updated": "2026-10-22T22:30:00+05:30",
   "verification_items": {
     "P2_VERIFY_01_RUNTIME": {
       "name": "Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF)",
@@ -23,6 +23,24 @@
       "status": "COMPLETE",
       "scope": "Reconcile brain.json, architecture.json, rules.json, factor_registry.json; verify scripts/validate_agent_brain.py; generate phase-2-verification.json snapshot with exact resume points.",
       "acceptance_criteria": "Control-plane documents reconcile with runtime code; strict validation passes; snapshot contains complete evidence matrix and resume instruction."
+    },
+    "SYS_AUDIT_2026_10_19": {
+      "name": "Master System Audit, Documentation Reconciliation & Control-Plane Synchronization",
+      "status": "COMPLETE",
+      "scope": "Complete system audit across backend, frontend, database, APIs, and tests. Reconcile documentation with code evidence, create docs/LEADGEN_CURRENT_IMPLEMENTATION_STATUS.md, update docs/LEADGEN_SYSTEM_ARCHITECTURE_PRODUCT_DOCUMENTATION.md, and synchronize .agent/ control-plane records.",
+      "acceptance_criteria": "Consolidated status report created; architecture docs reconciled; brain validator passes strict mode; zero unauthorized writes to code, tests, or config; protected checkout untouched."
+    },
+    "P3_WS_C_BROWSER_EVIDENCE": {
+      "name": "Phase 3 Workstream C: Controlled Multi-Page Browser Evidence",
+      "status": "COMPLETE",
+      "scope": "Deterministic URL normalization, same-origin boundary rules, inbound-link ranking, bounded multi-page browser capture within aggregate wall-clock budget, score neutrality, and optional browser_pages API contract.",
+      "acceptance_criteria": "Strict origin boundary enforcement; deterministic ranking (homepage at index 0, inbound sources count); budget and timeout isolation; backward-compatible API schema; canonical 62 factors unchanged; 34 targeted verification tests pass."
+    },
+    "CAMPAIGN_SEGMENTATION_OUTREACH_2026_10_19": {
+      "name": "Campaign Segmentation, Audit-Personalized Outreach, Email Templates & Sendability",
+      "status": "COMPLETE",
+      "scope": "Two-axis classification (Website & Email sendability); campaign.template source of truth; removal of deprecated pricing & external promotional links; canonical 62-factor audit findings integration via OpportunityEngine; Campaigns UI with live segment breakdown, email preview, and sender status; fail-closed pre-send gates.",
+      "acceptance_criteria": "Deterministic campaign eligibility service; safe template renderer with XSS protection & strict placeholder check; zero deprecated prices ($25, $60, $150) or external links; worker uses saved template; fail-closed gates across selection, queueing, retries, and pre-send; 20 new tests + 37 regression tests pass; Vite build succeeds."
     }
   },
   "completed": [
@@ -36,13 +54,27 @@
     "P2_VERIFY_01_RUNTIME: Runtime verification of browser provider (enabled & disabled modes, fixtures, API/PDF) complete — 25 verification tests, 81 total tests pass",
     "P2_VERIFY_02_SECURITY: Browser security audit and hardening (SSRF, URL/IP classes, redirects, DNS, resource limits) complete — literal IP formats, IPv4-mapped IPv6, and route redirect boundary enforcement added",
     "P2_VERIFY_03_CONTROL_PLANE: Agent Brain consistency, validator strictness, and snapshots generated — strict validation passes, phase-2-verification.json created",
-    "P3_WS_A: Browser Evidence UI — reusable null-safe collapsible evidence panel, SSR scenarios and full regression gate complete; no API, score, or factor changes"
+    "P3_WS_A: Browser Evidence UI — reusable null-safe collapsible evidence panel, SSR scenarios and full regression gate complete; no API, score, or factor changes",
+    "P3_WS_B: Local Core Web Vitals (LCP, CLS, TTFB) — optional score-neutral lab measurements, session windowed CLS, genuine 0.0 vs null preserved; 13 tests pass",
+    "Audit Correctness & Observability: URL identity separation (requested_url, final_url, canonical_url), origin sitemap discovery, shared JSON-LD extraction, and impact-based priority classification verified (commits 86e427d, e413e56, bcd2be6)",
+    "Account-Aware Key Rotation: ProviderKeyManager with 2-key rotation, independent quota scopes, and circuit breakers verified (commit 6fbc450, tests/test_two_key_rotation_provider_manager.py)",
+    "Lead Discovery & Provenance: Context-aware HTML scraping, agency footer credit quarantine, Serper candidate website discovery, score_website_candidate ccTLD scoring verified (commit c0a5947, tests/test_email_association_and_website_discovery.py)",
+    "Email Deliverability & Verification Hub: 6-layer async verification (syntax, typo, disposable, DNS/MX, SSRF safety), permanent disabled-by-default SMTP/catch-all probing, Routeable status semantics verified (backend/app/services/email_verifier_service.py, tests/test_email_verifier_service.py)",
+    "Fail-Closed Outreach Gatekeeper & Sender Error Handling: Explicit positive allowlist ('matched', 'approved'), quota protection, 553/535 permanent sender classification and campaign pause verified (backend/app/engines/outreach_engine.py, tests/test_fail_closed_association_gate.py, tests/test_smtp_sender_and_deliverability.py)",
+    "Master System Audit & Control-Plane Synchronization (2026-10-19): docs/LEADGEN_CURRENT_IMPLEMENTATION_STATUS.md created, architecture doc updated, .agent/brain.json and architecture.json synchronized, scripts/validate_agent_brain.py strict_valid=true verified",
+    "Campaign Segmentation, Audit-Personalized Outreach, Email Templates & Sendability (2026-10-19): Deterministic 2-axis routing, template source of truth, OpportunityEngine integration for canonical 62-factor findings, removal of legacy pricing ($25/$60/$150) & external links, live frontend audience preview and sender status, 57 backend tests passing, Vite build passing",
+    "Phase 3 WS-C: Controlled Multi-Page Browser Evidence — deterministic normalization, inbound-link ranking, origin boundary enforcement, aggregate budget & timeout isolation, score neutrality, optional browser_pages API contract, and multi-page frontend evidence panel (34 passed)",
+    "Phase 8 Controlled E2E Validation & Host Superuser Credential Rotation (2026-10-22): Disposable isolated DB validation passed; ReportLab PDF and preview proposals verified; PostgreSQL admin rotated and credential-store ACL hardened",
+    "Controlled Email Migration Verification v6.2.0-v6.2.3 & Preflight Safety Guards (2026-10-22): Additive SQL migrations verified idempotent on disposable target; consistent 9-target forbidden guards deployed; 27 schema/startup tests pass",
+    "Domain H Browser Design Diagnostics Integration (2026-10-22): Horizontal overflow and design diagnostics mapped to OpportunityEngine and BrowserEvidence UI; 13 targeted tests pass; Vite build passes",
+    "Deliverability Hub UI Component Refinements & Operational Authorization Hardening (2026-10-22): Attached require_authorized_operator to email_review.py and activity.py; Deliverability Hub UI demo_only tab and unquarantined counts aligned; 22/22 auth matrix tests pass; Vite build passes; 62-factor strict validation passes",
+    "Controlled Local Interactive UI Verification (2026-10-22): Live Playwright headless Chromium session verified Deliverability Hub, Mismatch Review, Activity Log, Audits/Browser Evidence (Domain H), Dashboard, and Leads. Captured 6 sanitized screenshots. Fixed view=pending 422 defect in email_verification.py, win32 SelectorEventLoop in main.py, and BrowserEvidence unavailable state."
   ],
   "in_progress": [],
   "blocked": [],
   "next": [
-    "Implement WS-B: local Core Web Vitals via the existing browser provider; preserve the 62-factor score.",
-    "Implement WS-C: multi-page browser crawl only after WS-B verification passes.",
+    "Await operator review and explicit approval before committing the working-tree files on fix/audit-url-sitemap-correctness.",
+    "Stage third-party live integrations (GSC OAuth and AI Search Visibility) once operator credentials are provided.",
     "Keep WS-D Lighthouse blocked until an enforceable egress policy is demonstrated.",
     "Keep WS-F Gemini and WS-E PageSpeed Insights deferred pending reviewed prerequisites."
   ],
@@ -65,223 +97,20 @@
       "status": "OPEN — no fix required before Phase 3; may be addressed in a dedicated hardening pass."
     }
   },
-  "last_verified": "2026-10-10 (P3 WS-A: 234 pytest tests pass, 1 skipped; BrowserEvidence SSR scenarios pass; strict validator and frontend build pass; 62 factors)",
-  "last_checkpoint": "Phase 3 Workstream A COMPLETE locally — no commit or push; snapshot phase-3-workstream-a.json",
-  "steps": {
-    "2.0": {
-      "name": "Baseline and control-plane readiness",
-      "status": "COMPLETE",
-      "verification": {
-        "git_commit": "b6427e8",
-        "uncommitted_changes": false,
-        "tests": "pass: 18 pytest tests",
-        "brain_validator": "pass: valid=true, strict_valid=true, 62 code/registry/frontend factors",
-        "python_compile": "pass",
-        "playwright": "1.58.0 installed, browser launch OK"
-      }
-    },
-    "2.1": {
-      "name": "Provider interface and configuration",
-      "status": "COMPLETE",
-      "files_created": [
-        "auditor/auditor/browser/__init__.py",
-        "auditor/auditor/browser/provider.py",
-        "auditor/auditor/browser/security.py"
-      ],
-      "files_modified": [
-        "auditor/auditor/config.py"
-      ],
-      "acceptance_criteria": "Import safe (no browser launch), disabled by default, DISABLED evidence on capture, blocked schemes and private IPs rejected, to_dict JSON-serialisable"
-    },
-    "2.2": {
-      "name": "Browser capture implementation",
-      "status": "COMPLETE",
-      "files_created": [
-        "auditor/auditor/browser/comparisons.py"
-      ],
-      "features": [
-        "Full Playwright sync capture with Chromium",
-        "Module-level concurrency semaphore (max_concurrency=2 default)",
-        "Resource type blocking (image, font, stylesheet; NOT script)",
-        "DOM snippet capped at 16 KB",
-        "Budget timer (60 s default)",
-        "Pre-navigation AND post-redirect URL security validation",
-        "Guaranteed cleanup in finally block",
-        "Console error capture (max 20)",
-        "Failed request capture (max 20)",
-        "Screenshot support (disabled by default)",
-        "Evidence: page_title, meta_description, headings (h1-h6), visible_text, has_nav, internal_link_count, has_cta, has_form, dom_snippet"
-      ]
-    },
-    "2.3": {
-      "name": "Audit orchestration and evidence comparison",
-      "status": "COMPLETE",
-      "files_modified": [
-        "backend/app/engines/audit_engine.py"
-      ],
-      "features": [
-        "Lazy browser capture at end of _run_audit_sync (only when BROWSER_ENABLED=true)",
-        "_annotate_browser_comparisons annotates page_title, h1, cta with browser_diff",
-        "browser_evidence stored in site_summary JSON column",
-        "A browser failure never affects any of the 62 factor results"
-      ]
-    },
-    "2.4": {
-      "name": "API, frontend, and PDF compatibility",
-      "status": "COMPLETE",
-      "files_modified": [
-        "backend/app/schemas.py",
-        "backend/app/routers/audits.py"
-      ],
-      "features": [
-        "AuditResponse.browser_status (Optional[str]) — backward compatible",
-        "AuditResponse.browser_evidence (Optional[dict]) — backward compatible",
-        "get_audit endpoint populates browser fields from site_summary",
-        "No new DB columns required",
-        "62-factor parity preserved (brain validator strict_valid=true)"
-      ]
-    },
-    "2.5": {
-      "name": "Regression and security tests",
-      "status": "COMPLETE",
-      "files_created": [
-        "tests/test_phase2_browser_provider.py"
-      ],
-      "test_counts": {
-        "phase2_new_tests": 38,
-        "phase1_regression_tests": 18,
-        "total": 56,
-        "failed": 0
-      }
-    },
-    "2.6": {
-      "name": "Final checkpoint — commit and brain validation",
-      "status": "COMPLETE",
-      "verification": {
-        "git_commit": "9b096d0",
-        "uncommitted_changes": false,
-        "tests": "pass: 56 total (38 phase2 + 18 regression)",
-        "brain_validator": "pass: valid=true, strict_valid=true, 62 code/registry/frontend/db/api/pdf factors",
-        "python_compile": "pass: all modified files"
-      }
-    },
-    "2.7": {
-      "name": "Phase 2 Verification and Hardening",
-      "status": "COMPLETE",
-      "files_created": [
-        "tests/test_phase2_verification.py",
-        ".agent/snapshots/phase-2.json",
-        ".agent/snapshots/phase-2-verification.json"
-      ],
-      "files_modified": [
-        "backend/app/engines/audit_engine.py",
-        "auditor/auditor/browser/provider.py",
-        "auditor/auditor/browser/security.py",
-        "scripts/validate_agent_brain.py",
-        ".agent/brain.json",
-        ".agent/architecture.json",
-        ".agent/rules.json",
-        ".agent/task_state.json"
-      ],
-      "verification": {
-        "tests": "pass: 81 total pytest tests (25 verification + 38 phase2 + 18 phase1)",
-        "brain_validator": "pass: valid=true, strict_valid=true, 62 factors",
-        "python_compile": "pass: all files compiled",
-        "frontend_build": "pass: Vite production build succeeded",
-        "diff_check": "clean"
-      }
-    },
-    "3.A": {
-      "name": "Phase 3 Workstream A — Browser Evidence UI",
-      "status": "COMPLETE",
-      "files_created": [
-        "frontend/src/components/BrowserEvidence.jsx",
-        "frontend/scripts/verify-browser-evidence.mjs",
-        ".agent/snapshots/phase-3-workstream-a.json"
-      ],
-      "files_modified": [
-        "frontend/src/pages/Audits.jsx",
-        ".agent/brain.json",
-        ".agent/task_state.json"
-      ],
-      "acceptance_criteria": "Collapsible panel is hidden for absent, DISABLED, and UNAVAILABLE evidence; complete and partial evidence renders safely; status, comparisons, indicators, and error counts are displayed when available; no API or score changes.",
-      "verification": {
-        "targeted_ui": "pass: dependency-free SSR scenarios for complete, partial, null, DISABLED, and UNAVAILABLE evidence",
-        "tests": "pass: 234 passed, 1 skipped, 14 warnings",
-        "brain_validator": "pass: valid=true, strict_valid=true, 62 factors",
-        "python_compile": "pass",
-        "frontend_build": "pass: Vite production build completed",
-        "diff_check": "pass",
-        "visual_browser": "not run: local browser automation session lacked the required sandbox policy"
-      }
-    },
-    "3.B": {
-      "name": "Phase 3 Workstream B — Local Lab Web Vitals (LCP, CLS, TTFB)",
-      "status": "COMPLETE",
-      "files_created": [
-        "tests/test_phase3_workstream_b.py"
-      ],
-      "files_modified": [
-        "auditor/auditor/browser/provider.py",
-        "frontend/src/components/BrowserEvidence.jsx",
-        "frontend/scripts/verify-browser-evidence.mjs",
-        ".agent/brain.json",
-        ".agent/task_state.json"
-      ],
-      "acceptance_criteria": "Optional score-neutral lab measurements (LCP, CLS, TTFB); CLS uses session windowing; genuine 0.0 distinguished from null; finite TTFB/LCP; score neutrality and canonical 62 factors strictly preserved; zero schema changes.",
-      "verification": {
-        "targeted_tests": "pass: 13 passed in test_phase3_workstream_b.py",
-        "tests": "pass: full suite passes",
-        "brain_validator": "pass: valid=true, strict_valid=true, 62 factors",
-        "frontend_build": "pass: Vite production build completed",
-        "ssr_scenarios": "pass: verify-browser-evidence.mjs",
-        "diff_check": "pass"
-      }
-    }
-  },
+  "last_verified": "2026-10-22 (Live headless browser interactive session verified across 6 surfaces; 6 sanitized screenshots captured; 17/17 email_verification_api tests pass; 22/22 auth matrix tests pass; Vite build passes in 7.56s; strict 62-factor validator passes)",
+  "last_checkpoint": "Controlled Local Interactive UI Verification (Phase 4A–4E + Domain H) COMPLETE and VERIFIED",
   "verification": {
     "brain_validator": "pass; strict mode pass with 62 code/registry/frontend factors",
     "python_compile": "pass",
-    "unit_tests": "pass: 81 pytest tests (25 Phase 2 Verification + 38 Phase 2 + 18 Phase 1 regression)",
-    "frontend_build": "pass: Vite build completed successfully",
-    "diff_check": "pass"
+    "unit_tests": "pass: test_email_verification_api.py 17 passed; test_api_authorization_matrix.py 22 passed; verify-phase4* suites passed",
+    "frontend_build": "pass: Vite production build completed in 7.56s (1,920 modules transformed, 0 errors)",
+    "interactive_browser": "pass: headless Chromium Playwright session verified 6 surfaces; 6 screenshots captured; 0 uncaught errors",
+    "diff_check": "clean for authorized documentation/brain writes"
   },
   "deferred_features": [
     "Lighthouse integration",
     "PageSpeed Insights integration",
     "Real Core Web Vitals measurement",
-    "AI-based website analysis or report generation",
-    "Multi-page browser crawl (Phase 2 captures homepage only)"
-  ],
-  "phase_1_completed": [
-    "Repository discovery",
-    "Executable factor inventory",
-    "Control-plane JSON files",
-    "Factor registry and static parity validator",
-    "Historical documentation archived",
-    "Canonical FactorResult adapter and per-factor exception isolation",
-    "Structured scoring, registry validation, lifecycle and crawl coverage",
-    "Registry/API-driven frontend parity",
-    "Backward-compatible audit_lifecycle persistence",
-    "Automated tests and controlled smoke audits"
-  ],
-  "phase_2_completed": [
-    "Isolated browser evidence provider (browser.provider.BrowserProvider)",
-    "URL security validator (browser.security.validate_url)",
-    "Raw-vs-rendered comparison annotation (browser.comparisons.annotate_browser_comparisons)",
-    "BROWSER_DEFAULTS config block in auditor/auditor/config.py",
-    "audit_engine.py: lazy browser capture, annotation, evidence stored in site_summary",
-    "AuditResponse: browser_status, browser_evidence fields (backward-compatible)",
-    "get_audit endpoint: populates browser fields from site_summary",
-    "38 new tests for all Phase 2 components (all pass)"
-  ],
-  "phase_2_verification_completed": [
-    "Fixed sys.path order in audit_engine.py ensuring _BROWSER_MODULE_AVAILABLE is True at runtime",
-    "Wrapped BrowserProvider.capture to run in worker thread if called in active asyncio loop",
-    "Hardened validate_url against decimal/hex IPs and IPv4-mapped IPv6, expanded blocked CIDRs",
-    "Enforced redirect SSRF blocking at route fetch boundary before network egress",
-    "25 verification tests in tests/test_phase2_verification.py covering runtime, security, fixtures, invariants",
-    "Comprehensive control plane validation in scripts/validate_agent_brain.py",
-    "Created phase-2.json and phase-2-verification.json snapshots"
+    "AI-based website analysis or report generation"
   ]
 }

@@ -387,7 +387,23 @@ def test_client(tmp_path):
 
     app = FastAPI()
     app.include_router(leads_router)
-    return TestClient(app)
+    client = TestClient(app)
+    from app.routers.auth import create_access_token
+    token = create_access_token({"sub": "operator@tebsolutions.in", "role": "operator"})
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
+
+
+def test_unauthenticated_lead_endpoints_rejected_401():
+    """Verify that sensitive lead discovery, listing, and export endpoints reject unauthenticated calls with 401."""
+    app = FastAPI()
+    app.include_router(leads_router)
+    unauth_client = TestClient(app)
+
+    assert unauth_client.get("/leads/").status_code == 401
+    assert unauth_client.get("/leads/discovery/presets").status_code == 401
+    assert unauth_client.get("/leads/discovery/providers").status_code == 401
+    assert unauth_client.get("/leads/discovery/jobs/test_job/export").status_code == 401
 
 
 def test_router_discovery_presets_and_providers(test_client):

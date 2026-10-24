@@ -21,6 +21,8 @@ from app.models import Audit, Lead
 from app.services.ai_search_service import AiSearchMonitoringService
 from app.services.ai_search_provider import normalize_domain
 
+from app.routers.auth import require_authorized_operator
+
 router = APIRouter(prefix="/ai-search", tags=["ai_search"])
 _ai_search_service = AiSearchMonitoringService()
 
@@ -42,6 +44,22 @@ class RunVisibilityCheckRequest(BaseModel):
     competitors: Optional[List[Dict[str, str]]] = None
     query_budget: Optional[int] = 10
     provider: Optional[str] = None
+
+
+class AiObservationCreateRequest(BaseModel):
+    domain: str
+    query: str
+    mention_status: str = "unknown"
+    source_type: str = "manual"
+    provider: Optional[str] = None
+    engine: Optional[str] = None
+    lead_id: Optional[str] = None
+    brand_name: Optional[str] = None
+    locale: Optional[str] = None
+    observed_at: Optional[str] = None
+    citation_urls: Optional[List[str]] = None
+    evidence_snippet: Optional[str] = None
+    notes: Optional[str] = None
 
 
 @router.get("/status", summary="Get AI-Search visibility monitoring status")
@@ -166,3 +184,76 @@ async def generate_query_corpus(payload: QueryCorpusRequest):
         services=payload.services,
     )
     return {"queries": corpus, "count": len(corpus)}
+
+
+@router.post("/observations", status_code=201, summary="Record a dated AI visibility observation")
+async def record_observation(
+    payload: AiObservationCreateRequest,
+    current_operator: dict = Depends(require_authorized_operator),
+):
+    try:
+        record = _ai_search_service.record_observation(
+            target_domain=payload.domain,
+            search_query=payload.query,
+            mention_status=payload.mention_status,
+            source_type=payload.source_type,
+            provider=payload.provider,
+            engine=payload.engine,
+            lead_id=payload.lead_id,
+            brand_name=payload.brand_name,
+            locale=payload.locale,
+            observed_at=payload.observed_at,
+            citation_urls=payload.citation_urls,
+            evidence_snippet=payload.evidence_snippet,
+            notes=payload.notes,
+            created_by=current_operator.get("sub", "operator"),
+        )
+        return record
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/observations", summary="List dated AI visibility observations")
+async def list_observations(
+    lead_id: Optional[str] = Query(None),
+    domain: Optional[str] = Query(None),
+    source_type: Optional[str] = Query(None),
+    mention_status: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    return _ai_search_service.get_observations(
+        lead_id=lead_id,
+        domain=domain,
+        source_type=source_type,
+        mention_status=mention_status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/observations/compare", summary="Compare two dated AI visibility observations")
+async def compare_observations(
+    base_id: str = Query(..., description="Baseline observation ID"),
+    target_id: str = Query(..., description="Target observation ID to compare against baseline"),
+):
+    try:
+        return _ai_search_service.compare_observations(base_id=base_id, target_id=target_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/observations/{observation_id}", summary="Get observation by ID")
+async def get_observation(observation_id: str):
+    obs = _ai_search_service.get_observation_by_id(observation_id)
+    if not obs:
+        raise HTTPException(status_code=404, detail="Observation not found.")
+    return obs
+
+
+@router.get("/coverage", summary="Get AI search observation coverage summary")
+async def get_coverage_summary(
+    lead_id: Optional[str] = Query(None),
+    domain: Optional[str] = Query(None),
+):
+    return _ai_search_service.get_coverage_summary(lead_id=lead_id, domain=domain)

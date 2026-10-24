@@ -1,27 +1,35 @@
 {
   "project": {
     "name": "LEADGEN",
-    "version": "5.1.1",
-    "purpose": "Lead generation, website auditing, PDF reporting, and outreach operations.",
-    "status": "Phase 2 CLOSED — CONDITIONAL GO (commit 17cffe5). Phase 3 Workstream A complete locally; Workstream B is next."
+    "version": "6.2.1",
+    "purpose": "Lead generation, website auditing, email deliverability verification, PDF reporting, and outreach operations.",
+    "status": "Audit correctness verified; Email Deliverability Hub, Association Provenance, and Fail-Closed Gates implemented in working tree (HEAD commit c0a5947 on fix/audit-url-sitemap-correctness)."
   },
   "architecture": {
-    "frontend": "React 18 + Vite at frontend/",
+    "frontend": "React 18 + Vite at frontend/ (Audits page with SEO and Email Deliverability tabs)",
     "backend": "FastAPI + SQLAlchemy async at backend/app/",
-    "audit_engine": "backend/app/engines/audit_engine.py",
+    "audit_engine": "backend/app/engines/audit_engine.py (canonical 62 factors across 11 groups)",
     "audit_modules": "auditor/auditor/auditor/",
     "browser_provider": "auditor/auditor/browser/provider.py",
     "browser_security": "auditor/auditor/browser/security.py",
-    "browser_proxy": "auditor/auditor/browser/proxy.py — lifecycle-bound HTTP/CONNECT policy proxy; enforces IP policy at TCP-connection time; started/stopped inside BrowserProvider._capture_with_playwright(); no new dependencies",
-    "database": "PostgreSQL models in backend/app/models.py; additive audit_lifecycle migration in backend/migrations/v6_1_0_audit_lifecycle.sql",
+    "browser_proxy": "auditor/auditor/browser/proxy.py — lifecycle-bound HTTP/CONNECT policy proxy; enforces IP policy at TCP-connection time; started/stopped inside BrowserProvider._capture_with_playwright()",
+    "database": "PostgreSQL models in backend/app/models.py; additive migrations in backend/migrations/",
     "reporting": "ReportLab renderer at auditor/auditor/reporter/pdf_report.py",
-    "crawler": "HTTP crawler at auditor/auditor/auditor/crawler.py"
+    "crawler": "HTTP crawler at auditor/auditor/auditor/crawler.py",
+    "email_verification": "Async 6-layer verifier at backend/app/services/email_verifier_service.py",
+    "lead_discovery": "Candidate scoring and context-aware extraction at backend/app/services/lead_discovery_service.py",
+    "campaign_segmentation": "Deterministic 2-axis eligibility routing at backend/app/services/campaign_eligibility_service.py",
+    "template_renderer": "Authoritative variable substitution and safe HTML/plain rendering at backend/app/services/template_renderer.py",
+    "outreach": "Pre-send gatekeeper, opportunity-backed audit bullets, and sender classification at backend/app/engines/outreach_engine.py",
+    "key_rotation": "Account-aware key rotation at backend/app/services/provider_key_manager.py"
   },
   "entrypoints": {
     "backend": "backend/run.py -> backend/app/main.py",
     "frontend": "frontend/src/main.jsx -> frontend/src/App.jsx",
     "audit": "backend/app/engines/audit_engine.py:run_audit",
     "browser": "auditor/auditor/browser/provider.py:BrowserProvider",
+    "email_verification": "backend/app/routers/email_verification.py",
+    "lead_discovery": "backend/app/services/lead_discovery_service.py",
     "api": "backend/app/routers/",
     "database": "backend/app/database.py and backend/app/models.py"
   },
@@ -30,61 +38,78 @@
     "audit_modules": "auditor/auditor/auditor/",
     "browser": "auditor/auditor/browser/",
     "crawler": "auditor/auditor/auditor/crawler.py",
+    "email_verifier": "backend/app/services/email_verifier_service.py",
+    "email_verification_ui": "frontend/src/components/EmailVerificationAudit.jsx",
     "models": "backend/app/models.py",
     "schemas": "backend/app/schemas.py",
     "frontend_audits": "frontend/src/pages/Audits.jsx",
     "pdf_reports": "auditor/auditor/reporter/pdf_report.py"
   },
   "data_flow": [
-    "lead",
+    "lead intake via CSV, keyword/location discovery, or search candidates",
+    "context-aware extraction & agency credit detection (quarantines designer credits)",
+    "email verification via 6-layer async service (syntax, typo, disposable, DNS/MX, SSRF; optional SMTP disabled by default)",
     "POST /audits/trigger/{lead_id}",
-    "site classification",
-    "HTTP homepage fetch",
+    "site classification & URL identity separation (requested_url, final_url, canonical_url)",
+    "origin-root robots.txt and sitemap discovery",
     "62 synchronous factor calls",
     "HTTP crawl with coverage",
     "optional browser capture when BROWSER_ENABLED=true with raw-vs-rendered annotation",
     "isolated structured factor results plus mapped Audit columns and audit_lifecycle",
-    "GET /audits/{lead_id}",
-    "Audits.jsx and PDF"
+    "Audits.jsx (Website SEO & Email Deliverability tabs) and ReportLab PDF",
+    "fail-closed campaign gatekeeper check: assoc in ('matched', 'approved') and not quarantined and valid verification",
+    "outbound SMTP sending with sender error classification (auto-pause on 553/535)",
+    "IMAP reply triage and activity logging"
   ],
   "critical_rules": [
     "Runtime code is authoritative; record documentation drift explicitly.",
     "Preserve existing lead, campaign, CRM, outreach, and scraping behavior unless the task authorizes a change.",
-    "Use factor_registry.json for all audit-factor changes.",
+    "Use factor_registry.json for all audit-factor changes; 62 factors across 11 groups are canonical.",
     "Browser evidence is disabled by default and never launches at import time.",
-    "A browser failure must never affect any of the 62 factor results."
+    "A browser failure must never affect any of the 62 factor results.",
+    "SMTP mailbox and catch-all probing remain permanently optional and disabled by default (smtp_probe_enabled=False).",
+    "Campaign and outreach dispatch strictly enforce fail-closed positive allowlist (email_business_association_status in ('matched', 'approved') and not is_quarantined and email_verification_status == 'valid').",
+    "Permanent SMTP sender errors (553 5.7.1, 535, 550 quota) must immediately pause campaign and preserve recipient verification state.",
+    "Protected original checkout C:\\Users\\LENOVO\\LEADGEN must remain untouched.",
+    "Never expose passwords, API keys, tokens, or personal lead data in logs or documents."
   ],
   "known_issues": [
     "DOCUMENTATION_DRIFT: archived prose says 55 factors; runtime builds 62.",
     "LIMITATION: Browser evidence is disabled by default; enabled only when BROWSER_ENABLED=true.",
     "LIMITATION: HTTP request duration is not TTFB or Core Web Vitals.",
-    "LIMITATION: Multi-page browser crawl and full Core Web Vitals are deferred to Phase 3.",
+    "STATUS: Multi-page browser crawl (Phase 3 WS-C) is implemented and verified; lab Core Web Vitals (WS-B) active.",
     "FINDING F1 (low severity): proxy relay (_relay in browser/proxy.py) has only a 30-second idle timeout; no absolute wall-clock cap or byte limit on relay sessions. Blast radius is zero when BROWSER_ENABLED=false.",
-    "FINDING F2 (low severity): _handle_plain_http in browser/proxy.py uses rpartition(':') to split host:port; a bare IPv6 literal without brackets would be mis-parsed. Chromium sends well-formed requests so not exploitable in practice, but parse failure is silent."
+    "FINDING F2 (low severity): _handle_plain_http in browser/proxy.py uses rpartition(':') to split host:port; a bare IPv6 literal without brackets would be mis-parsed. Chromium sends well-formed requests so not exploitable in practice, but parse failure is silent.",
+    "OBSERVED SENDER ERROR: Hostinger 553 5.7.1 sender address rejected occurs if mailbox credentials mismatch envelope sender or plan is expired; classified as permanent sender failure to auto-pause campaigns.",
+    "HISTORICAL SENDER TEST: Single controlled test message to epromotors@gmail.com confirmed received; recorded as historical test evidence, not an ongoing runtime guarantee.",
+    "UNCOMMITTED WORKING TREE: 24 modified and 17 untracked files in LEADGEN-RELEASE implement email verification, provenance, and fail-closed gates."
   ],
-  "current_phase": "Phase 3 — Workstream B complete and verification-gated; Workstream C remains pending.",
-  "next_action": "Await explicit user direction and approval before Phase 3 Workstream C (multi-page crawl); preserve 62-factor score, zero schema changes, and browser security boundary.",
+  "current_phase": "Phase 3 — Workstreams A, B, and C complete; Email Verification & Deliverability Hub and Association Provenance complete in working tree.",
+  "next_action": "Await operator review of consolidated status report and explicit approval before committing working-tree changes on fix/audit-url-sitemap-correctness.",
   "do_not_touch": [
-    "lead generation and import flows",
-    "campaign and outreach behavior",
-    "CRM/reply workflows",
-    "Phase 3 features"
+    "protected original checkout C:\\Users\\LENOVO\\LEADGEN",
+    "docs/LEADGEN_MASTER_PRODUCT_PLAN.md (read-only product plan)",
+    "factor_registry.json (canonical 62 factors)",
+    "application source code during documentation/audit tasks"
   ],
   "verification_commands": [
     "python scripts/validate_agent_brain.py --strict --report",
-    "python -m pytest",
-    "python -m pytest tests/test_phase2_verification.py -v",
+    "python -m pytest tests/test_fail_closed_association_gate.py -v",
+    "python -m pytest tests/test_email_*.py -v",
+    "python -m pytest tests/test_smtp_sender_and_deliverability.py -v",
     "python -m compileall backend/app auditor/auditor scripts/validate_agent_brain.py",
-    "npm run build (from frontend)",
-    "git diff --check"
+    "npm run build (from frontend)"
   ],
   "source_of_truth": {
-    "runtime_code": "backend/app/engines/audit_engine.py",
+    "runtime_code": "backend/app/main.py and backend/app/engines/",
     "browser_provider": "auditor/auditor/browser/provider.py",
     "factor_registry": ".agent/factor_registry.json",
     "database": "backend/app/models.py",
-    "api": "backend/app/schemas.py and backend/app/routers/audits.py",
+    "api": "backend/app/schemas.py and backend/app/routers/",
     "frontend": "frontend/src/pages/Audits.jsx",
-    "pdf": "auditor/auditor/reporter/pdf_report.py"
+    "pdf": "auditor/auditor/reporter/pdf_report.py",
+    "status_report": "docs/LEADGEN_CURRENT_IMPLEMENTATION_STATUS.md",
+    "architecture_doc": "docs/LEADGEN_SYSTEM_ARCHITECTURE_PRODUCT_DOCUMENTATION.md",
+    "master_product_plan": "docs/LEADGEN_MASTER_PRODUCT_PLAN.md"
   }
 }

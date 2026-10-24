@@ -22,10 +22,12 @@ Verifies:
    - Duplicate-run locking and file persistence
 """
 
+import asyncio
 import json
 import os
 import tempfile
 import pytest
+import sys
 import httpx
 from unittest.mock import MagicMock, patch
 
@@ -38,6 +40,49 @@ from backend.app.services.ai_search_provider import (
     is_domain_match,
     is_brand_mentioned_in_text,
 )
+
+
+from backend.app.services.provider_key_manager import ProviderKeyManager
+
+
+@pytest.fixture(autouse=True)
+def _isolate_test_ai_search_environment(monkeypatch):
+    """
+    Ensure test_ai_search_service runs in a clean environment without
+    interference from environment variables, settings, or global key manager singletons.
+    """
+    empty_settings = type("EmptySettings", (), {})()
+    empty_km = ProviderKeyManager(settings_obj=empty_settings)
+
+    # Patch in both 'app' and 'backend.app' modules if loaded
+    for mod_name in ("app.services.provider_key_manager", "backend.app.services.provider_key_manager"):
+        if mod_name in sys.modules:
+            monkeypatch.setattr(sys.modules[mod_name], "_global_key_manager", empty_km)
+
+    for cfg_mod in ("app.config", "backend.app.config"):
+        if cfg_mod in sys.modules:
+            s = getattr(sys.modules[cfg_mod], "settings", None)
+            if s:
+                monkeypatch.setattr(s, "GROQ_API_KEY_1", "")
+                monkeypatch.setattr(s, "GROQ_API_KEY_2", "")
+                monkeypatch.setattr(s, "GROQ_API_KEY", "")
+                monkeypatch.setattr(s, "SERPER_API_KEY_1", "")
+                monkeypatch.setattr(s, "SERPER_API_KEY_2", "")
+                monkeypatch.setattr(s, "TREG_API_KEY_1", "")
+                monkeypatch.setattr(s, "TREG_API_KEY_2", "")
+
+    monkeypatch.setenv("GROQ_API_KEY_1", "")
+    monkeypatch.setenv("GROQ_API_KEY_2", "")
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    monkeypatch.setenv("SERPER_API_KEY_1", "")
+    monkeypatch.setenv("SERPER_API_KEY_2", "")
+    monkeypatch.setenv("TREG_API_KEY_1", "")
+    monkeypatch.setenv("TREG_API_KEY_2", "")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "")
+    monkeypatch.setenv("AI_SEARCH_PROVIDER_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    yield
 
 
 # ── 1. Readiness Heuristics & Crawler Access ─────────────────────────────────
@@ -262,9 +307,6 @@ def test_perplexity_agent_response_parsing():
     assert parsed["latency_ms"] == 450
     # Strict secret redaction: secret key must never appear
     assert "mock_secret_key" not in json.dumps(parsed)
-
-
-import asyncio
 
 
 # ── 6. Provider Error Handling & Redaction (401, 429, 5xx, Timeout) ──────────

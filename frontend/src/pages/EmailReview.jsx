@@ -1,226 +1,227 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Mail, RefreshCw, Check, X, AlertTriangle, Inbox, ExternalLink, Loader2, ChevronDown } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  getEmailCorrections, scanEmails, acceptCorrection,
-  dismissCorrection, getEmailReviewStats
+  AlertTriangle, Check, ExternalLink, Inbox, Loader2, MailCheck,
+  RefreshCw, ShieldAlert, ShieldCheck, X,
+} from 'lucide-react'
+import {
+  acceptCorrection, dismissCorrection, getEmailCorrections,
+  getEmailReviewStats, scanEmails,
 } from '../api/client'
-
-// ── helper ────────────────────────────────────────────────────────────────────
-const timeAgo = (iso) => {
-  if (!iso) return '—'
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000
-  if (diff < 60) return `${Math.round(diff)}s ago`
-  if (diff < 3600) return `${Math.round(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.round(diff / 3600)}h ago`
-  return `${Math.round(diff / 86400)}d ago`
-}
+import EmailVerificationAudit from '../components/EmailVerificationAudit'
 
 const SOURCE_LABELS = {
-  homepage_text:   'Homepage text',
+  homepage_text: 'Homepage text',
   homepage_mailto: 'Homepage mailto link',
-  contact_text:    'Contact page text',
-  contact_mailto:  'Contact page mailto',
-  website:         'Website',
+  contact_text: 'Contact page text',
+  contact_mailto: 'Contact page mailto',
+  website: 'Website',
 }
 
-// ── Status pill ───────────────────────────────────────────────────────────────
-function StatusPill({ status }) {
-  const styles = {
-    pending:   { bg: '#fef3c7', color: '#92400e', label: 'Pending Review' },
-    accepted:  { bg: '#dcfce7', color: '#166534', label: 'Accepted' },
-    dismissed: { bg: '#f1f5f9', color: '#475569', label: 'Dismissed' },
+const ASSOCIATION_LABELS = {
+  matched: 'Business matched',
+  approved: 'Manually approved',
+  mismatched_source: 'Source mismatch',
+  invalid_format: 'Invalid association',
+  external_domain_review: 'External domain review',
+  pending_review: 'Pending association review',
+  unverified_association: 'Association unconfirmed',
+  unverified: 'Association unconfirmed',
+}
+
+const VERIFICATION_LABELS = {
+  valid: 'Routeable (syntax and MX)',
+  invalid: 'Invalid address',
+  disposable: 'Disposable address',
+  catch_all: 'Catch-all domain',
+  risky: 'Risky or typo',
+  not_found: 'Mailbox not found',
+  timeout: 'Verification timeout',
+  error: 'Verification error',
+  unverified: 'Unverified mailbox',
+}
+
+function timeAgo(value) {
+  if (!value) return 'Timestamp unavailable'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Timestamp unavailable'
+  const seconds = Math.max(0, (Date.now() - date.getTime()) / 1000)
+  if (seconds < 60) return Math.round(seconds) + 's ago'
+  if (seconds < 3600) return Math.round(seconds / 60) + 'm ago'
+  if (seconds < 86400) return Math.round(seconds / 3600) + 'h ago'
+  return Math.round(seconds / 86400) + 'd ago'
+}
+
+function CorrectionStatus({ status }) {
+  const tone = {
+    pending: 'border-amber-800/60 bg-amber-950/50 text-amber-300',
+    accepted: 'border-emerald-800/60 bg-emerald-950/50 text-emerald-300',
+    dismissed: 'border-slate-700 bg-slate-800/70 text-slate-300',
+  }[status] || 'border-slate-700 bg-slate-800/70 text-slate-300'
+
+  return <span className={'badge border ' + tone}>{status === 'pending' ? 'Pending review' : status}</span>
+}
+
+function EvidenceBadge({ tone = 'slate', children }) {
+  const tones = {
+    emerald: 'border-emerald-800/60 bg-emerald-950/50 text-emerald-300',
+    amber: 'border-amber-800/60 bg-amber-950/50 text-amber-300',
+    rose: 'border-rose-800/60 bg-rose-950/50 text-rose-300',
+    slate: 'border-slate-700 bg-slate-800/70 text-slate-300',
   }
-  const s = styles[status] || styles.dismissed
+  return <span className={'inline-flex w-fit items-center rounded-full border px-2 py-1 text-[11px] font-semibold ' + tones[tone]}>{children}</span>
+}
+
+function ReviewSafety({ item }) {
+  const verificationTone = item.verification_status === 'valid' ? 'emerald'
+    : ['invalid', 'disposable', 'not_found'].includes(item.verification_status) ? 'rose' : 'amber'
+  const associationTone = ['matched', 'approved'].includes(item.association_status) ? 'emerald'
+    : ['mismatched_source', 'invalid_format'].includes(item.association_status) ? 'rose' : 'amber'
+  const restrictedByReply = ['stop', 'bounce', 'soft_bounce'].includes(item.reply_type)
+
   return (
-    <span style={{
-      background: s.bg, color: s.color,
-      fontSize: 11, fontWeight: 700, padding: '2px 10px',
-      borderRadius: 20, letterSpacing: '0.5px', whiteSpace: 'nowrap',
-    }}>
-      {s.label}
-    </span>
+    <div className="mt-3 grid gap-2 border-t border-slate-800 pt-3 sm:grid-cols-3">
+      <div>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Verification</p>
+        <EvidenceBadge tone={verificationTone}>{VERIFICATION_LABELS[item.verification_status] || item.verification_status || 'Unverified mailbox'}</EvidenceBadge>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+          {item.mailbox_confirmed ? 'Mailbox confirmation recorded.' : 'Routeability is not mailbox confirmation.'}
+        </p>
+      </div>
+      <div>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Business association</p>
+        <EvidenceBadge tone={associationTone}>{ASSOCIATION_LABELS[item.association_status] || item.association_status || 'Association unconfirmed'}</EvidenceBadge>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{item.association_reason || 'No association reason recorded.'}</p>
+      </div>
+      <div>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Campaign safety</p>
+        {item.is_quarantined ? (
+          <>
+            <EvidenceBadge tone="rose">Quarantined</EvidenceBadge>
+            <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{item.quarantine_reason || 'Existing quarantine restriction.'}</p>
+          </>
+        ) : restrictedByReply ? (
+          <>
+            <EvidenceBadge tone="rose">Existing {item.reply_type} restriction</EvidenceBadge>
+            <p className="mt-1 text-[11px] leading-relaxed text-rose-300">The existing reply restriction remains in force.</p>
+          </>
+        ) : (
+          <>
+            <EvidenceBadge tone="slate">No extra restriction recorded</EvidenceBadge>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">Eligibility is still enforced by the existing campaign gate.</p>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
-function EmptyState({ filter, onScan, scanning }) {
+function CorrectionCard({ item, acting, onAccept, onDismiss }) {
+  const evidenceUrl = item.email_source_url || item.website
+  const sourceLabel = SOURCE_LABELS[item.email_source_type || item.source] || item.email_source_type || item.source || 'Website evidence'
+
   return (
-    <div style={{
-      textAlign: 'center', padding: '72px 24px',
-      color: 'var(--color-text-muted)',
-    }}>
-      <Inbox size={52} strokeWidth={1.2} style={{ margin: '0 auto 16px', opacity: 0.35 }} />
-      <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>
-        {filter === 'pending' ? 'No pending email corrections' : 'No corrections found'}
-      </p>
-      <p style={{ fontSize: 13, maxWidth: 380, margin: '0 auto 24px' }}>
-        {filter === 'pending'
-          ? 'Run a scan to check all leads for domain-matched email addresses.'
-          : 'Change the filter above to see accepted or dismissed corrections.'}
+    <article className="card border-slate-800 bg-slate-900/50 p-4 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-sm font-bold text-white">{item.business_name || 'Unknown business'}</h2>
+            <CorrectionStatus status={item.status} />
+            {item.email_domain_match === true && <EvidenceBadge tone="emerald">Domain matched</EvidenceBadge>}
+            {item.email_domain_match === false && <EvidenceBadge tone="rose">Domain mismatch</EvidenceBadge>}
+          </div>
+
+          <div className="mt-3 grid gap-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current address</p>
+              <p className="mt-1 break-all font-mono text-xs text-rose-300">{item.old_email || 'Not recorded'}</p>
+            </div>
+            <span className="hidden text-center text-slate-600 sm:block">to</span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Suggested website address</p>
+              <p className="mt-1 break-all font-mono text-xs text-emerald-300">{item.new_email || 'Not recorded'}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+            <span>Evidence: <strong className="font-medium text-slate-300">{sourceLabel}</strong></span>
+            <span>Detected {timeAgo(item.detected_at)}</span>
+            {item.reviewed_at && <span>Reviewed {timeAgo(item.reviewed_at)}</span>}
+            {evidenceUrl && (
+              <a href={evidenceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300">
+                Open evidence <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+
+          <ReviewSafety item={item} />
+        </div>
+
+        {item.status === 'pending' && (
+          <div className="flex shrink-0 gap-2 lg:w-32 lg:flex-col">
+            <button onClick={() => onAccept(item.id)} disabled={acting === item.id} className="btn-primary flex-1 justify-center px-3 py-2 text-xs">
+              {acting === item.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Accept
+            </button>
+            <button onClick={() => onDismiss(item.id)} disabled={acting === item.id} className="btn-secondary flex-1 justify-center border border-slate-700 px-3 py-2 text-xs">
+              <X size={14} /> Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function QueueEmptyState({ filter, scanning, onScan }) {
+  return (
+    <div className="card border-slate-800 py-16 text-center">
+      <Inbox size={36} className="mx-auto mb-3 text-slate-600" />
+      <p className="text-sm font-semibold text-slate-200">{filter === 'pending' ? 'No pending mismatch reviews.' : 'No corrections match this filter.'}</p>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-500">
+        {filter === 'pending' ? 'A scan creates evidence-backed suggestions; it does not approve an association or change campaign eligibility.' : 'Select another review state to inspect recorded decisions.'}
       </p>
       {filter === 'pending' && (
-        <button
-          className="btn-primary"
-          onClick={onScan}
-          disabled={scanning}
-          style={{ gap: 8 }}
-        >
-          {scanning
-            ? <><Loader2 size={15} className="spin" /> Scanning…</>
-            : <><RefreshCw size={15} /> Scan All Leads Now</>}
+        <button onClick={onScan} disabled={scanning} className="btn-primary mt-4 text-sm">
+          {scanning ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Scan all leads
         </button>
       )}
     </div>
   )
 }
 
-// ── Correction row ────────────────────────────────────────────────────────────
-function CorrectionRow({ item, onAccept, onDismiss, acting }) {
-  return (
-    <div style={{
-      background: 'var(--color-surface-card)',
-      border: '1px solid var(--color-surface-border)',
-      borderRadius: 12,
-      padding: '16px 20px',
-      display: 'grid',
-      gridTemplateColumns: '1fr auto',
-      gap: 12,
-      alignItems: 'start',
-    }}>
-      {/* Left: info */}
-      <div style={{ minWidth: 0 }}>
-        {/* Row 1: business name + status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>
-            {item.business_name}
-          </span>
-          <StatusPill status={item.status} />
-          {item.website && (
-            <a
-              href={item.website}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: 'var(--color-brand)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}
-            >
-              <ExternalLink size={11} /> {item.website.replace(/^https?:\/\/(www\.)?/, '')}
-            </a>
-          )}
-        </div>
-
-        {/* Row 2: Email comparison */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-          background: 'var(--color-surface)', borderRadius: 8, padding: '10px 14px',
-          border: '1px solid var(--color-surface-border)', marginBottom: 8,
-        }}>
-          {/* Old */}
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 2, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-              Current Email in DB
-            </div>
-            <div style={{
-              fontSize: 13, color: '#b91c1c', fontFamily: 'monospace',
-              background: '#fef2f2', padding: '3px 8px', borderRadius: 6,
-              border: '1px solid #fecaca',
-            }}>
-              {item.old_email}
-            </div>
-          </div>
-
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 18, fontWeight: 300 }}>→</div>
-
-          {/* New */}
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 2, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-              Found on Website
-            </div>
-            <div style={{
-              fontSize: 13, color: '#166534', fontFamily: 'monospace',
-              background: '#dcfce7', padding: '3px 8px', borderRadius: 6,
-              border: '1px solid #bbf7d0',
-            }}>
-              {item.new_email}
-            </div>
-          </div>
-        </div>
-
-        {/* Row 3: meta */}
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, color: 'var(--color-text-muted)' }}>
-          <span>Source: <strong>{SOURCE_LABELS[item.source] || item.source}</strong></span>
-          <span>Detected: {timeAgo(item.detected_at)}</span>
-          {item.reviewed_at && <span>Reviewed: {timeAgo(item.reviewed_at)}</span>}
-          {item.lead_status && (
-            <span>Lead status: <strong style={{ color: 'var(--color-brand)' }}>{item.lead_status}</strong></span>
-          )}
-        </div>
-      </div>
-
-      {/* Right: action buttons (only for pending) */}
-      {item.status === 'pending' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 120 }}>
-          <button
-            className="btn-primary"
-            onClick={() => onAccept(item.id)}
-            disabled={acting === item.id}
-            style={{ fontSize: 12, padding: '7px 14px', gap: 6 }}
-          >
-            {acting === item.id
-              ? <Loader2 size={13} className="spin" />
-              : <Check size={13} />}
-            Accept
-          </button>
-          <button
-            onClick={() => onDismiss(item.id)}
-            disabled={acting === item.id}
-            style={{
-              fontSize: 12, padding: '7px 14px',
-              background: 'transparent',
-              border: '1px solid var(--color-surface-border)',
-              borderRadius: 8, color: 'var(--color-text-muted)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center',gap: 6,
-              justifyContent: 'center',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#b91c1c' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--color-surface-border)'; e.currentTarget.style.color = 'var(--color-text-muted)' }}
-          >
-            <X size={13} /> Dismiss
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function EmailReview() {
-  const [items, setItems]       = useState([])
-  const [stats, setStats]       = useState({ pending: 0, accepted: 0, dismissed: 0, total: 0 })
-  const [filter, setFilter]     = useState('pending')
-  const [loading, setLoading]   = useState(false)
+  const [workspace, setWorkspace] = useState('verification')
+  const [items, setItems] = useState([])
+  const [stats, setStats] = useState({ pending: 0, accepted: 0, dismissed: 0 })
+  const [filter, setFilter] = useState('pending')
+  const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
-  const [acting, setActing]     = useState(null)
-  const [toast, setToast]       = useState(null)
+  const [acting, setActing] = useState(null)
+  const [error, setError] = useState('')
+  const [toast, setToast] = useState(null)
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type })
+    window.setTimeout(() => setToast(null), 3500)
+  }, [])
 
   const loadStats = useCallback(async () => {
     try {
-      const r = await getEmailReviewStats()
-      setStats(r.data)
-    } catch {}
+      const response = await getEmailReviewStats()
+      setStats(response.data || {})
+    } catch {
+      // The queue can still be loaded and provides the more useful error state.
+    }
   }, [])
 
   const loadItems = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
-      const r = await getEmailCorrections(filter)
-      setItems(r.data.items || [])
-    } catch (e) {
-      showToast('Failed to load corrections.', 'error')
+      const response = await getEmailCorrections(filter)
+      setItems(response.data?.items || [])
+    } catch (requestError) {
+      setItems([])
+      setError(requestError.response?.data?.detail || 'Mismatch reviews could not be loaded. Refresh to try again.')
     } finally {
       setLoading(false)
     }
@@ -229,207 +230,134 @@ export default function EmailReview() {
   useEffect(() => {
     loadStats()
     loadItems()
-  }, [loadStats, loadItems])
+  }, [loadItems, loadStats])
 
-  const handleScan = async () => {
-    const onlyUnscanned = window.confirm("Do you want to scan ONLY the leads that have never been scanned?\n\nClick OK for Unscanned only.\nClick Cancel to scan ALL leads in the database.")
+  async function handleScan() {
+    const onlyUnscanned = window.confirm('Scan only leads that have never been scanned? Choose Cancel to scan all leads.')
     setScanning(true)
     try {
       await scanEmails(onlyUnscanned)
-      showToast('Email scan started! Results will appear within a few minutes.')
-      // Poll for results after 5s
-      setTimeout(() => { loadItems(); loadStats() }, 5000)
-    } catch (e) {
-      showToast('Scan failed. Check backend logs.', 'error')
+      showToast('Email scan started. New evidence will appear when the background scan finishes.')
+      window.setTimeout(() => { loadItems(); loadStats() }, 5000)
+    } catch (requestError) {
+      showToast(requestError.response?.data?.detail || 'Scan failed. Check backend logs.', 'error')
     } finally {
       setScanning(false)
     }
   }
 
-  const handleAccept = async (id) => {
+  async function handleAccept(id) {
     setActing(id)
     try {
-      const r = await acceptCorrection(id)
-      showToast(`Email updated. Lead reset to NEW for fresh outreach.`)
+      await acceptCorrection(id)
+      showToast('Correction accepted. Existing verification, association, quarantine, and eligibility safeguards remain enforced.')
       loadItems()
       loadStats()
-    } catch (e) {
-      showToast(e?.response?.data?.detail || 'Accept failed.', 'error')
+    } catch (requestError) {
+      showToast(requestError.response?.data?.detail || 'Accept failed.', 'error')
     } finally {
       setActing(null)
     }
   }
 
-  const handleDismiss = async (id) => {
+  async function handleDismiss(id) {
     setActing(id)
     try {
       await dismissCorrection(id)
-      showToast('Dismissed — lead email unchanged.')
+      showToast('Correction dismissed; the recorded address is unchanged.')
       loadItems()
       loadStats()
-    } catch (e) {
-      showToast(e?.response?.data?.detail || 'Dismiss failed.', 'error')
+    } catch (requestError) {
+      showToast(requestError.response?.data?.detail || 'Dismiss failed.', 'error')
     } finally {
       setActing(null)
     }
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
-
-      {/* ── Toast ── */}
+    <div className="p-5 sm:p-8">
       {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 24, zIndex: 9999,
-          background: toast.type === 'error' ? '#b91c1c' : '#16a34a',
-          color: '#fff', borderRadius: 10, padding: '12px 20px',
-          fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-          animation: 'fadeIn 0.2s ease',
-        }}>
-          {toast.msg}
+        <div role="status" className={'fixed right-4 top-4 z-[60] max-w-sm rounded-lg border px-4 py-3 text-sm font-semibold shadow-2xl ' + (toast.type === 'error' ? 'border-rose-700 bg-rose-950 text-rose-100' : 'border-emerald-700 bg-emerald-950 text-emerald-100')}>
+          {toast.message}
         </div>
       )}
 
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Mail size={18} color="#fff" />
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-indigo-700/50 bg-indigo-950/70 p-2.5 text-indigo-300"><MailCheck size={20} /></div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Email Verification & Mismatch Review</h1>
+              <p className="mt-1 max-w-3xl text-sm text-slate-500">Operational evidence for address routeability, business association, and human-reviewed correction decisions.</p>
             </div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)', margin: 0 }}>
-              Email Review
-            </h1>
-            {stats.pending > 0 && (
-              <span style={{
-                background: '#dc2626', color: '#fff',
-                fontSize: 11, fontWeight: 800, padding: '2px 8px',
-                borderRadius: 20, marginLeft: 4,
-              }}>
-                {stats.pending}
-              </span>
-            )}
           </div>
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>
-            Review auto-detected email mismatches. Accept to update the lead and move to <strong>NEW</strong> for re-audit.
-          </p>
         </div>
-
-        {/* Scan button */}
-        <button
-          className="btn-primary"
-          onClick={handleScan}
-          disabled={scanning}
-          style={{ gap: 8, whiteSpace: 'nowrap' }}
-        >
-          {scanning
-            ? <><Loader2 size={15} className="spin" /> Scanning All Leads…</>
-            : <><RefreshCw size={15} /> Scan All Leads</>}
-        </button>
-      </div>
-
-      {/* ── Stats cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
-        {[
-          { label: 'Pending Review', value: stats.pending,   color: '#d97706', bg: '#fef3c7' },
-          { label: 'Accepted',       value: stats.accepted,  color: '#16a34a', bg: '#dcfce7' },
-          { label: 'Dismissed',      value: stats.dismissed, color: '#64748b', bg: '#f1f5f9' },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} style={{
-            background: 'var(--color-surface-card)',
-            border: '1px solid var(--color-surface-border)',
-            borderRadius: 12, padding: '14px 18px',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color }} >{value}</div>
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Filter tabs ── */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {['pending', 'accepted', 'dismissed', 'all'].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', border: 'none',
-              background: filter === f ? 'var(--color-brand)' : 'var(--color-surface-card)',
-              color: filter === f ? '#fff' : 'var(--color-text-muted)',
-              transition: 'all 0.15s',
-              textTransform: 'capitalize',
-            }}
-          >
-            {f}
+        {workspace === 'review' && (
+          <button onClick={handleScan} disabled={scanning} className="btn-primary text-sm">
+            {scanning ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Scan leads
           </button>
-        ))}
-        <button
-          onClick={() => { loadItems(); loadStats() }}
-          style={{
-            marginLeft: 'auto', background: 'transparent',
-            border: '1px solid var(--color-surface-border)',
-            borderRadius: 8, padding: '6px 12px',
-            cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 12,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          <RefreshCw size={12} /> Refresh
+        )}
+      </header>
+
+      <div role="tablist" aria-label="Email operations workspace" className="mb-6 flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+        <button id="verification-tab" role="tab" aria-selected={workspace === 'verification'} aria-controls="verification-panel" onClick={() => setWorkspace('verification')} className={'tab-pill ' + (workspace === 'verification' ? 'tab-pill-active' : '')}>
+          <ShieldCheck size={15} /> Verification workspace
+        </button>
+        <button id="review-tab" role="tab" aria-selected={workspace === 'review'} aria-controls="review-panel" onClick={() => setWorkspace('review')} className={'tab-pill ' + (workspace === 'review' ? 'tab-pill-active' : '')}>
+          <ShieldAlert size={15} /> Mismatch review {stats.pending > 0 ? '(' + stats.pending + ')' : ''}
         </button>
       </div>
 
-      {/* ── Content ── */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-muted)' }}>
-          <Loader2 size={28} className="spin" style={{ margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 13 }}>Loading corrections…</p>
-        </div>
-      ) : items.length === 0 ? (
-        <EmptyState filter={filter} onScan={handleScan} scanning={scanning} />
+      {workspace === 'verification' ? (
+        <section id="verification-panel" role="tabpanel" aria-labelledby="verification-tab">
+          <p className="mb-4 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3 text-xs leading-relaxed text-slate-400">
+            A routeable address has passed stored syntax and DNS/MX checks. That does not confirm mailbox ownership or business association; standard outreach stays behind the existing fail-closed checks until the existing eligibility controls are satisfied.
+          </p>
+          <EmailVerificationAudit />
+        </section>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {items.map(item => (
-            <CorrectionRow
-              key={item.id}
-              item={item}
-              onAccept={handleAccept}
-              onDismiss={handleDismiss}
-              acting={acting}
-            />
-          ))}
-        </div>
+        <section id="review-panel" role="tabpanel" aria-labelledby="review-tab">
+          <div className="mb-5 grid gap-3 sm:grid-cols-3">
+            {[
+              ['Pending review', stats.pending, 'text-amber-300'],
+              ['Accepted', stats.accepted, 'text-emerald-300'],
+              ['Dismissed', stats.dismissed, 'text-slate-300'],
+            ].map(([label, value, color]) => (
+              <div key={label} className="card border-slate-800 bg-slate-900/50 p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+                <p className={'mt-1 text-2xl font-bold ' + color}>{value ?? 0}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {['pending', 'accepted', 'dismissed', 'all'].map((value) => (
+              <button key={value} onClick={() => setFilter(value)} className={'tab-pill capitalize ' + (filter === value ? 'tab-pill-active' : '')}>{value}</button>
+            ))}
+            <button onClick={() => { loadItems(); loadStats() }} disabled={loading} className="btn-secondary ml-auto py-2 text-xs" aria-label="Refresh mismatch reviews">
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
+
+          <div className="mb-4 flex gap-3 rounded-xl border border-amber-800/50 bg-amber-950/20 p-4 text-xs leading-relaxed text-amber-100">
+            <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-400" />
+            <p><strong>Review safeguard:</strong> Accept applies only the selected email correction. It does not approve business association, clear quarantine, remove a suppression or bounce restriction, or make a lead campaign-eligible.</p>
+          </div>
+
+          {error ? (
+            <div className="card border-rose-800/70 bg-rose-950/30 p-5 text-sm text-rose-200">
+              <p>{error}</p>
+              <button onClick={loadItems} className="mt-3 text-xs font-semibold underline">Retry</button>
+            </div>
+          ) : loading ? (
+            <div className="card border-slate-800 py-16 text-center text-slate-400"><Loader2 size={26} className="mx-auto animate-spin" /><p className="mt-3 text-sm">Loading mismatch reviews...</p></div>
+          ) : items.length ? (
+            <div className="space-y-3">{items.map((item) => <CorrectionCard key={item.id} item={item} acting={acting} onAccept={handleAccept} onDismiss={handleDismiss} />)}</div>
+          ) : (
+            <QueueEmptyState filter={filter} scanning={scanning} onScan={handleScan} />
+          )}
+        </section>
       )}
-
-      {/* ── Info box ── */}
-      <div style={{
-        marginTop: 32, background: 'var(--color-surface-card)',
-        border: '1px solid var(--color-surface-border)',
-        borderRadius: 12, padding: '16px 20px',
-        display: 'flex', gap: 14, alignItems: 'flex-start',
-      }}>
-        <AlertTriangle size={18} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' }}>
-            How this works
-          </p>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.7 }}>
-            <strong>Scan</strong> crawls every lead's website and looks for email addresses that match the lead's own domain (e.g. <code>@vertexindustries.es</code>), ignoring free providers (Gmail, Webador, Wix, etc.).<br />
-            <strong>Accept</strong> — updates the lead's email to the domain-matched address and moves the lead to <strong>NEW</strong> so it can be re-audited and re-emailed fresh.<br />
-            <strong>Dismiss</strong> — keeps the existing email and marks the suggestion as reviewed.
-          </p>
-        </div>
-      </div>
-
-      <style>{`
-        .spin { animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
     </div>
   )
 }

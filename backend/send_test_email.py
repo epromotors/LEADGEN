@@ -20,7 +20,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sqlalchemy import select, text
 from app.database import AsyncSessionLocal
 from app.models import Lead, Audit
-from app.engines.outreach_engine import build_minimal_html_email, build_plain_outreach_email, _send_email_sync, DEFAULT_SUBJECT_TEMPLATE
+from app.engines.outreach_engine import (
+    build_minimal_html_email, build_plain_outreach_email, _send_email_sync,
+    DEFAULT_SUBJECT_TEMPLATE, classify_smtp_error,
+)
 from app.utils.spintax import process_template
 from app.config import settings
 from app.logger import setup_logging
@@ -127,9 +130,17 @@ async def main():
         print("  If it landed in Spam, your domain reputation may need")
         print("  warming up or SPF/DKIM tuning.")
     else:
-        logger.error("Send failed: %s", error)
-        print(f"\n  [FAIL]  Send failed: {error}")
-        print("  Check SMTP credentials in backend/.env and Hostinger SMTP settings.")
+        err_info = classify_smtp_error(error)
+        logger.error("Send failed [%s]: %s", err_info["category"], err_info["sanitized_message"])
+        print(f"\n  [FAIL]  Send failed: {err_info['sanitized_message']}")
+        if err_info["category"] == "sender_configuration":
+            print(f"          Sender account: {account['email']}")
+            print("          Operator Action: Check Hostinger hPanel -> Emails for tebsolutions.in.")
+            print("          Verify that this mailbox is active, its email plan is not expired,")
+            print("          and that sender ownership or aliases are configured.")
+        elif err_info["category"] == "authentication":
+            print("          Operator Action: Verify SMTP password in backend/.env matches the Hostinger mailbox.")
+        print()
 
 
 if __name__ == "__main__":

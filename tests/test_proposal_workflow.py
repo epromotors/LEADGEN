@@ -87,3 +87,22 @@ def test_proposal_lifecycle_and_approval_gate():
     assert res["success"] is True
     assert res["mode"] == "dry_run"
     assert res["approved_by"] == "manager@tebsolutions.in"
+
+
+def test_proposal_contact_email_defaults_to_info_tebsolutions():
+    """Verify that generated proposal drafts use info@tebsolutions.in and never contact@tebsolutions.in."""
+    lead_id = "test-lead-email-check-5678"
+    audit_results = {
+        "technical": {"ssl": {"status": "FAIL", "message": "SSL expired"}},
+    }
+    prop = ProposalService.get_or_create_proposal(
+        lead_id=lead_id,
+        business_name="Affhan Motors",
+        website_url="https://affhanmotors.com",
+        audit_results=audit_results,
+    )
+
+    assert "info@tebsolutions.in" in prop["body_html"]
+    assert "info@tebsolutions.in" in prop["body_text"]
+    assert "contact@tebsolutions.in" not in prop["body_html"]
+    assert "contact@tebsolutions.in" not in prop["body_text"]

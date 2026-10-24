@@ -260,3 +260,72 @@
   to   { opacity: 1; transform: translateY(0);     max-height: 2000px; }
 }
 
+/* ── Phase 4A: Modern Audit Results Experience Design Tokens ── */
+.audit-shell {
+  background: #090e17;
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.audit-panel-header {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+  border: 1px solid #1e293b;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+}
+
+.finding-card {
+  background: linear-gradient(145deg, #101827 0%, #0c121e 100%);
+  border: 1px solid #1e293b;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.finding-card:hover {
+  border-color: #334155;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.category-pill-card {
+  background: #0b111e;
+  border: 1px solid #1e293b;
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.category-pill-card:hover {
+  border-color: #38bdf8;
+  background: #111a2e;
+  transform: translateY(-1px);
+}
+.category-pill-card-active {
+  background: linear-gradient(145deg, #132238 0%, #0e1726 100%);
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+.evidence-block {
+  background: #070b12;
+  border: 1px solid #1e293b;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: #93c5fd;
+  word-break: break-all;
+}
+
+.segmented-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #1e293b;
+}
+.segmented-bar-pass { background: #22c55e; }
+.segmented-bar-warn { background: #f59e0b; }
+.segmented-bar-fail { background: #ef4444; }
+.segmented-bar-error { background: #dc2626; }
+

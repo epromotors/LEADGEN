@@ -8,12 +8,12 @@ echo    TEB Solutions LeadGen OS — Stopping All Services
 echo  ===========================================================
 echo.
 
-echo  Stopping Python (FastAPI/Uvicorn)...
-taskkill /F /IM python.exe >nul 2>&1
+echo  Stopping Python (FastAPI/Uvicorn on port 8001)...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8001 ^| findstr LISTENING') do taskkill /F /T /PID %%a >nul 2>&1
 echo  Done.
 
-echo  Stopping Node.js (Vite frontend)...
-taskkill /F /IM node.exe >nul 2>&1
+echo  Stopping Node.js (Vite frontend on port 5174)...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5174 ^| findstr LISTENING') do taskkill /F /T /PID %%a >nul 2>&1
 echo  Done.
 
 echo.

@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from pypdf import PdfReader
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "auditor" / "auditor"))
 
 from reporter.pdf_report import build_pdf
@@ -78,3 +80,48 @@ class PdfContractTests(unittest.TestCase):
             )
             self.assertTrue(output.is_file())
             self.assertGreater(output.stat().st_size, 10000, "Comprehensive PDF should be larger than 10KB")
+            extracted = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
+            self.assertIn("Methodology & Limitations", extracted)
+            self.assertIn("Canonical audit results", extracted)
+            self.assertIn("No browser lab metrics were captured", extracted)
+
+    def test_detailed_findings_and_crawl_diagnostics_use_recorded_evidence(self):
+        result = {
+            "technical": {
+                "robots": {
+                    "id": "technical.robots", "status": "WARN", "value": None,
+                    "score": 0, "max_score": 7, "severity": "review",
+                    "message": "Could not fetch robots.txt: request timed out.",
+                    "detail": "URL: https://example.test/robots.txt timed out.",
+                    "fix": "Ensure the server responds promptly to /robots.txt requests.",
+                    "evidence": [{"url": "https://example.test/robots.txt", "timeout": True}],
+                    "engine": "http_raw_dom", "checked_at": "2026-10-21T10:00:00+00:00",
+                    "duration_ms": 5000, "confidence": 0.8,
+                },
+                "sitemap": {
+                    "id": "technical.sitemap", "status": "PASS", "value": True,
+                    "score": 8, "max_score": 8, "severity": "low",
+                    "message": "Sitemap found: https://example.test/sitemap.xml (4 URLs)",
+                    "detail": "https://example.test/sitemap.xml [HTTP 200]: Valid XML urlset (4 URLs)",
+                    "fix": "", "evidence": [{"url": "https://example.test/sitemap.xml", "status_code": 200}],
+                },
+            }
+        }
+        site_summary = {
+            "total_pages": 2,
+            "sitemap_url_count": 4,
+            "link_discovered_count": 1,
+            "total_discovered_count": 5,
+            "crawl_limit_hit": True,
+            "discovery_explanation": "Crawl limit (2 pages) prevented full coverage.",
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "evidence_report.pdf"
+            build_pdf("https://example.test", result, 72, str(output), site_summary=site_summary)
+            extracted = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
+            self.assertIn("Affected URL:", extracted)
+            self.assertIn("Collected Evidence:", extracted)
+            self.assertIn("source: http_raw_dom", extracted)
+            self.assertIn("Technical Crawl, Robots & Sitemap Diagnostics", extracted)
+            self.assertIn("robots.txt retrieval", extracted)
+            self.assertIn("Crawl limit reached; coverage is intentionally bounded.", extracted)

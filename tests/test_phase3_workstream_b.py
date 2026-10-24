@@ -17,7 +17,7 @@ import pytest
 
 # Ensure auditor and backend/app are on sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/leadgen")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://dummy_user:dummy_password@localhost:5432/dummy_isolated_db")
 os.environ.setdefault("JWT_SECRET", "test-secret-min-32-chars-long-for-jwt-signing-123")
 
 if str(REPO_ROOT / "auditor" / "auditor") not in sys.path:
@@ -251,3 +251,194 @@ class TestScoreNeutralityAndFactorInvariance:
         assert '"strict_valid": true' in res.stdout
         assert '"code_factors": 62' in res.stdout
         assert '"registry_factors": 62' in res.stdout
+
+
+# ── 4. Lab Metrics Extraction Validation ───────────────────────────────────────
+
+class TestLabMetricsExtractionValidation:
+    def test_validation_semantics(self):
+        """Validate defensive sanitization of raw evaluator output."""
+        def sanitize_metrics(raw_res):
+            lcp = raw_res.get("lcp_ms")
+            lcp_out = int(round(lcp)) if isinstance(lcp, (int, float)) and math.isfinite(lcp) and lcp > 0 else None
+
+            cls_val = raw_res.get("cls")
+            cls_out = round(float(cls_val), 4) if isinstance(cls_val, (int, float)) and math.isfinite(cls_val) and cls_val >= 0 else None
+
+            ttfb = raw_res.get("ttfb_ms")
+            ttfb_out = int(round(ttfb)) if isinstance(ttfb, (int, float)) and math.isfinite(ttfb) and ttfb > 0 else None
+
+            has_any = any(x is not None for x in [lcp_out, cls_out, ttfb_out])
+            available = bool(raw_res.get("available")) and has_any
+            return {"lcp": lcp_out, "cls": cls_out, "ttfb": ttfb_out, "available": available}
+
+        # Case 1: valid numbers
+        res1 = sanitize_metrics({"lcp_ms": 1420.4, "cls": 0.05123, "ttfb_ms": 230.1, "available": True})
+        assert res1["lcp"] == 1420
+        assert res1["cls"] == 0.0512
+        assert res1["ttfb"] == 230
+        assert res1["available"] is True
+
+        # Case 2: genuine zero CLS with available=True
+        res2 = sanitize_metrics({"lcp_ms": None, "cls": 0.0, "ttfb_ms": None, "available": True})
+        assert res2["lcp"] is None
+        assert res2["cls"] == 0.0
+        assert res2["available"] is True
+
+        # Case 3: invalid/negative values rejected
+        res3 = sanitize_metrics({"lcp_ms": -50, "cls": -0.1, "ttfb_ms": 0, "available": True})
+        assert res3["lcp"] is None
+        assert res3["cls"] is None
+        assert res3["ttfb"] is None
+        assert res3["available"] is False
+
+        # Case 4: non-finite (NaN / inf) values rejected
+        res4 = sanitize_metrics({"lcp_ms": float("inf"), "cls": float("nan"), "ttfb_ms": 100, "available": True})
+        assert res4["lcp"] is None
+        assert res4["cls"] is None
+        assert res4["ttfb"] == 100
+        assert res4["available"] is True
+
+
+# ── 5. PDF Report Lab Metrics Integration ──────────────────────────────────────
+
+class TestPDFReportLabIntegration:
+    def test_build_pdf_with_lab_metrics(self, tmp_path):
+        """PDF report builds successfully with lab metrics labeled."""
+        from reporter.pdf_report import build_pdf
+
+        sample_results = {
+            "technical": {
+                "ssl": {"id": "technical.ssl", "status": "PASS", "score": 10, "max_score": 10, "message": "SSL valid"},
+            },
+            "performance": {
+                "response_time": {"id": "performance.response_time", "status": "PASS", "score": 8, "max_score": 8, "message": "Fast response"},
+            },
+        }
+        site_summary = {
+            "browser_evidence": {
+                "provider_status": "SUCCESS",
+                "lab_lcp_ms": 1450,
+                "lab_cls": 0.0,
+                "lab_ttfb_ms": 185,
+                "lab_metrics_available": True,
+            }
+        }
+        out_pdf = str(tmp_path / "test_lab_report.pdf")
+        res = build_pdf(
+            url="https://example.test",
+            audit_results=sample_results,
+            score=95,
+            output_path=out_pdf,
+            site_summary=site_summary,
+        )
+        assert res == out_pdf
+        assert Path(out_pdf).exists()
+        assert Path(out_pdf).stat().st_size > 1000
+
+    def test_build_pdf_graceful_fallback_without_lab_metrics(self, tmp_path):
+        """PDF report builds gracefully when lab metrics are unavailable."""
+        from reporter.pdf_report import build_pdf
+
+        sample_results = {
+            "technical": {
+                "ssl": {"id": "technical.ssl", "status": "PASS", "score": 10, "max_score": 10, "message": "SSL valid"},
+            },
+        }
+        site_summary = {
+            "browser_evidence": {
+                "provider_status": "UNAVAILABLE",
+                "lab_lcp_ms": None,
+                "lab_cls": None,
+                "lab_ttfb_ms": None,
+                "lab_metrics_available": False,
+            }
+        }
+        out_pdf = str(tmp_path / "test_fallback_report.pdf")
+        res = build_pdf(
+            url="https://example.test",
+            audit_results=sample_results,
+            score=80,
+            output_path=out_pdf,
+            site_summary=site_summary,
+        )
+        assert res == out_pdf
+        assert Path(out_pdf).exists()
+        assert Path(out_pdf).stat().st_size > 1000
+
+    def test_pdf_engine_generate_pdf_with_lab_metrics(self, tmp_path, monkeypatch):
+        """backend.app.engines.pdf_engine.generate_pdf handles lab metrics cleanly."""
+        from app.engines.pdf_engine import generate_pdf
+        from types import SimpleNamespace
+        import uuid
+
+        # Mock settings.REPORTS_DIR
+        import app.engines.pdf_engine as pe
+        monkeypatch.setattr(pe.settings, "REPORTS_DIR", str(tmp_path))
+
+        lead = SimpleNamespace(
+            id=uuid.uuid4(),
+            business_name="Acme Corp",
+            email="info@acme.test",
+            phone="+1234567890",
+            website="https://acme.test",
+        )
+        audit = SimpleNamespace(
+            ssl_valid=True,
+            has_sitemap=True,
+            has_robots=True,
+            broken_links_count=0,
+            missing_h1=False,
+            missing_alt_count=0,
+            uses_webp=True,
+            has_json_ld=True,
+            mobile_friendly=True,
+            missing_social=[],
+            audit_summary="Good site summary",
+            ux_score=85,
+            has_cta=True,
+            cta_above_fold=True,
+            has_hero_headline=True,
+            font_size_ok=True,
+            contrast_ok=True,
+            nav_links_count=5,
+            has_cookie_notice=True,
+            has_live_chat=False,
+            has_noindex=False,
+            url_structure_ok=True,
+            www_nonwww_ok=True,
+            soft_404_ok=True,
+            word_count=500,
+            duplicate_meta_ok=True,
+            keyword_in_title_ok=True,
+            reading_level_ok=True,
+            has_nap=True,
+            has_local_business_schema=True,
+            has_google_maps=True,
+            city_in_title_ok=True,
+            has_business_hours=True,
+            response_time_ms=250,
+            page_size_ok=True,
+            render_blocking_ok=True,
+            gzip_enabled=True,
+            webp_coverage_ok=True,
+            minification_ok=True,
+            has_faq_schema=True,
+            has_product_schema=False,
+            has_breadcrumb_schema=True,
+            has_review_schema=False,
+            schema_graph_ok=True,
+            site_summary={
+                "browser_evidence": {
+                    "lab_lcp_ms": 1300,
+                    "lab_cls": 0.005,
+                    "lab_ttfb_ms": 190,
+                    "lab_metrics_available": True,
+                }
+            },
+        )
+        pdf_path = generate_pdf(lead, audit)
+        assert Path(pdf_path).exists()
+        assert Path(pdf_path).stat().st_size > 1000
+
+

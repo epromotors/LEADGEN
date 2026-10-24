@@ -16,7 +16,8 @@ import {
   pauseDiscoveryJob,
   resumeDiscoveryJob,
   cancelDiscoveryJob,
-  getDiscoveryExportUrl
+  getDiscoveryExportUrl,
+  downloadDiscoveryExport
 } from '../api/client'
 
 export default function BulkImportDiscovery({ onLeadsImported }) {
@@ -774,20 +775,29 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                       <Square size={13} /> Cancel
                     </button>
                   )}
-                  <a
-                    href={getDiscoveryExportUrl(activeJob.job_id, 'leadgen')}
-                    download
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold flex items-center gap-1.5 border border-slate-700"
+                  <button
+                    type="button"
+                    onClick={() => downloadDiscoveryExport(activeJob.job_id, 'leadgen')}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
+                    title="Export all discovered leads"
                   >
                     <Download size={13} /> Full CSV
-                  </a>
-                  <a
-                    href={getDiscoveryExportUrl(activeJob.job_id, 'simple')}
-                    download
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700"
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadDiscoveryExport(activeJob.job_id, 'leadgen', true)}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 border border-emerald-800/60 shadow-sm cursor-pointer"
+                    title="Export only sendable (non-quarantined) leads"
+                  >
+                    <ShieldCheck size={13} /> Sendable CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadDiscoveryExport(activeJob.job_id, 'simple')}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
                   >
                     <Download size={13} /> 3-Col CSV
-                  </a>
+                  </button>
                 </div>
               </div>
 
@@ -844,7 +854,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                       Discovered Leads ({activeJob.discovered_leads.length})
                     </span>
                   </div>
-                  <div className="max-h-60 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/60">
+                  <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/60">
                     <table className="w-full text-left text-xs text-slate-300">
                       <thead className="bg-slate-800/80 text-slate-400 uppercase text-[10px] sticky top-0">
                         <tr>
@@ -852,6 +862,7 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                           <th className="p-2.5">Email</th>
                           <th className="p-2.5">Website</th>
                           <th className="p-2.5">Classification</th>
+                          <th className="p-2.5">Association & Safety</th>
                           <th className="p-2.5">Source & Method</th>
                         </tr>
                       </thead>
@@ -859,19 +870,58 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                         {activeJob.discovered_leads.map((lead, idx) => (
                           <tr key={idx} className="hover:bg-slate-800/40">
                             <td className="p-2.5 font-medium text-white">{lead.business_name}</td>
-                            <td className="p-2.5 text-blue-400 font-mono text-[11px]">{lead.email}</td>
+                            <td className="p-2.5 font-mono text-[11px]">
+                              <div className="flex items-center gap-1.5">
+                                <span className={lead.is_quarantined ? 'text-amber-300' : 'text-blue-400'}>
+                                  {lead.email}
+                                </span>
+                                {lead.is_quarantined && (
+                                  <AlertTriangle
+                                    size={12}
+                                    className="text-amber-400 flex-shrink-0"
+                                    title={lead.quarantine_reason || lead.email_association_reason || 'Quarantined'}
+                                  />
+                                )}
+                              </div>
+                            </td>
                             <td className="p-2.5 truncate max-w-[150px]">
                               {lead.website ? (
-                                <a
-                                  href={lead.website}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-slate-300 hover:text-white underline truncate block"
-                                >
-                                  {lead.website}
-                                </a>
+                                <div className="flex items-center gap-1 truncate">
+                                  <a
+                                    href={lead.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-slate-300 hover:text-white underline truncate block"
+                                  >
+                                    {lead.website}
+                                  </a>
+                                  {lead.website_association_status === 'candidate_match' && (
+                                    <span
+                                      className="text-[9px] px-1 py-0.2 bg-blue-500/10 text-blue-300 rounded border border-blue-500/20"
+                                      title="Candidate website discovered via search ranking"
+                                    >
+                                      Candidate
+                                    </span>
+                                  )}
+                                  {lead.website_association_status === 'conflicting' && (
+                                    <span
+                                      className="text-[9px] px-1 py-0.2 bg-purple-500/10 text-purple-300 rounded border border-purple-500/20"
+                                      title="Multiple competing candidate websites found - requires review"
+                                    >
+                                      Conflicting
+                                    </span>
+                                  )}
+                                </div>
                               ) : (
-                                <span className="text-slate-400 italic">No Website</span>
+                                <span className="text-slate-400 italic">
+                                  {lead.website_association_status === 'inconclusive'
+                                    ? 'Discovery Inconclusive'
+                                    : lead.website_association_status === 'unverified_search'
+                                    ? 'Unverified Search'
+                                    : lead.website_association_status === 'candidate_match' || (lead.website_candidates && lead.website_candidates.length > 0)
+                                    ? 'Candidate Found'
+                                    : 'No Website'}
+                                </span>
                               )}
                             </td>
                             <td className="p-2.5">
@@ -888,8 +938,44 @@ export default function BulkImportDiscovery({ onLeadsImported }) {
                                 {lead.site_classification?.replace('_', ' ')}
                               </span>
                             </td>
+                            <td className="p-2.5">
+                              <div className="flex flex-col gap-1 items-start">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                    lead.email_business_association_status === 'matched' || lead.email_business_association_status === 'approved'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                      : lead.email_business_association_status === 'external_domain_review'
+                                      ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+                                      : lead.email_business_association_status === 'mismatched_source'
+                                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                      : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                  }`}
+                                  title={lead.email_association_reason || lead.email_business_association_status}
+                                >
+                                  {lead.email_business_association_status === 'matched'
+                                    ? 'Matched Domain'
+                                    : lead.email_business_association_status === 'approved'
+                                    ? 'Approved Review'
+                                    : lead.email_business_association_status === 'external_domain_review'
+                                    ? 'Provider Review'
+                                    : lead.email_business_association_status === 'mismatched_source'
+                                    ? 'Mismatched Source'
+                                    : 'Unverified'}
+                                </span>
+                                {lead.is_quarantined && (
+                                  <span
+                                    className="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/40 text-rose-300 border border-rose-800/40"
+                                    title={lead.quarantine_reason || 'Non-sendable lead quarantined'}
+                                  >
+                                    Quarantined
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td className="p-2.5 text-[11px] text-slate-400 font-mono">
-                              {lead.source} [{lead.extraction_method}]
+                              <span title={lead.email_source_url || lead.website || ''}>
+                                {lead.source} [{lead.extraction_method}]
+                              </span>
                             </td>
                           </tr>
                         ))}

@@ -3,6 +3,7 @@
 
 import os
 import datetime
+import json
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -13,8 +14,20 @@ from reportlab.platypus import (
     HRFlowable, PageBreak, KeepTogether, ListFlowable, ListItem
 )
 from reportlab.platypus.flowables import HRFlowable
-from reportlab.lib.utils import simpleSplit
-from config import BRANDING, SCORE_BANDS
+try:
+    from config import BRANDING, SCORE_BANDS
+except (ImportError, KeyError):
+    try:
+        from auditor.config import BRANDING, SCORE_BANDS
+    except (ImportError, KeyError):
+        import importlib.util
+        from pathlib import Path
+        _cfg_path = Path(__file__).resolve().parent.parent / "config.py"
+        _spec = importlib.util.spec_from_file_location("auditor_local_config", _cfg_path)
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        BRANDING = _mod.BRANDING
+        SCORE_BANDS = _mod.SCORE_BANDS
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
 def _c(r, g, b): return colors.Color(r, g, b)
@@ -152,6 +165,32 @@ def _trunc(text: str, n: int) -> str:
         return ""
     text = str(text)
     return text if len(text) <= n else text[:n-1] + "\u2026"
+
+
+def _breakable(text: str) -> str:
+    """Escape URL/evidence text for ReportLab without unsupported glyphs."""
+    return _safe(text)
+
+
+def _evidence_text(evidence) -> str:
+    """Summarise persisted evidence without manufacturing a new conclusion."""
+    if not evidence:
+        return ""
+    try:
+        value = json.dumps(evidence, ensure_ascii=True, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        value = str(evidence)
+    return _trunc(value, 700)
+
+
+def _affected_url(result: dict, fallback_url: str) -> str:
+    """Use a recorded URL where available, otherwise identify the audited target."""
+    for entry in result.get("evidence") or []:
+        if isinstance(entry, dict):
+            for key in ("url", "source_url", "final_url", "origin"):
+                if entry.get(key):
+                    return str(entry[key])
+    return fallback_url
 
 
 # ── Cover page ────────────────────────────────────────────────────────────────
@@ -332,7 +371,7 @@ def _group_table(audit_results, styles):
 
 
 # ── Individual test card ──────────────────────────────────────────────────────
-def _test_card(test_id: str, result: dict, styles) -> list:
+def _test_card(test_id: str, result: dict, styles, fallback_url: str) -> list:
     status  = result.get("status", "FAIL")
     icon    = STATUS_ICONS.get(status, "?")
     color   = STATUS_COLORS.get(status, C_DANGER)
@@ -355,9 +394,19 @@ def _test_card(test_id: str, result: dict, styles) -> list:
 
     # Content (right column)
     name_text = test_id.replace("_", " ").title()
-    content = [Paragraph(f"<b>{_safe(name_text)}</b> &nbsp;&nbsp;<font size=7.5 color='#555'>[{priority}]</font>", styles["h3"])]
+    content = [Paragraph(
+        f"<b>{_safe(name_text)}</b> &nbsp;&nbsp;<font size=7.5 color='#555'>"
+        f"[{label} - {priority}]</font>",
+        styles["h3"],
+    )]
+    factor_id = result.get("id") or test_id
+    content.append(Paragraph(f"<b>Factor ID:</b> {_safe(factor_id)}", styles["body_small"]))
+    content.append(Paragraph(
+        f"<b>Affected URL:</b> {_breakable(_affected_url(result, fallback_url))}",
+        styles["td_url"],
+    ))
     if result.get("message"):
-        content.append(Paragraph(_safe(result["message"]), styles["body"]))
+        content.append(Paragraph(f"<b>Finding:</b> {_safe(result['message'])}", styles["body"]))
     if result.get("value") is not None and str(result.get("value")).strip() != "":
         val_str = str(result.get("value"))
         unit = str(result.get("unit") or "")
@@ -374,7 +423,21 @@ def _test_card(test_id: str, result: dict, styles) -> list:
     if result.get("fix"):
         content.append(Paragraph(f"<b>Recommended Action:</b> {_safe(result['fix'])}", styles["fix"]))
     if result.get("detail"):
-        content.append(Paragraph(_safe(result["detail"]), styles["detail"]))
+        content.append(Paragraph(f"<b>Explanation:</b> {_safe(result['detail'])}", styles["detail"]))
+    evidence = _evidence_text(result.get("evidence"))
+    if evidence:
+        content.append(Paragraph(f"<b>Collected Evidence:</b> {_breakable(evidence)}", styles["body_small"]))
+    provenance = []
+    if result.get("engine"):
+        provenance.append(f"source: {result['engine']}")
+    if result.get("checked_at"):
+        provenance.append(f"checked: {result['checked_at']}")
+    if result.get("duration_ms") is not None:
+        provenance.append(f"duration: {result['duration_ms']} ms")
+    if result.get("confidence") is not None:
+        provenance.append(f"confidence: {result['confidence']}")
+    if provenance:
+        content.append(Paragraph(f"<b>Provenance:</b> {_safe(' | '.join(provenance))}", styles["detail"]))
 
     # 2-col layout: badge | content
     card_data = [[badge, content]]
@@ -835,8 +898,10 @@ def _client_diagnostics_section(site_summary: dict | None, styles) -> list:
     mob = site_summary.get("mobile_usability")
     perf = site_summary.get("lighthouse_performance")
     meta = site_summary.get("onpage_metadata_diagnostics")
+    bev = site_summary.get("browser_evidence")
 
-    if not (mob or perf or meta):
+    has_lab = bool(bev and bev.get("lab_metrics_available"))
+    if not (mob or perf or meta or has_lab):
         return []
 
     story = []
@@ -988,6 +1053,76 @@ def _client_diagnostics_section(site_summary: dict | None, styles) -> list:
             story.append(t_opp)
             story.append(Spacer(1, 4*mm))
 
+    # 2b. Lab Web Vitals (Headless Browser Synthetic Measurements)
+    # Rendered when lab metrics are available from the browser provider.
+    # Clearly labeled as lab measurements, not field / CrUX data.
+    if not perf and bev and bev.get("lab_metrics_available"):
+        story.append(Paragraph("<b>Lab Performance Metrics (Headless Browser):</b>", styles["h2"]))
+        story.append(Paragraph(
+            "Captured in isolated headless browser under synthetic lab conditions.<br/>"
+            "<i>Note: These are lab metrics, not real-user monitoring (CrUX) field data.</i>",
+            styles["body_small"]
+        ))
+        story.append(Spacer(1, 2*mm))
+
+        lcp_val = bev.get("lab_lcp_ms")
+        lcp_display = f"{lcp_val} ms" if isinstance(lcp_val, (int, float)) else "Unavailable"
+        lcp_rating = (
+            "Good" if lcp_val <= 2500 else ("Needs Improvement" if lcp_val <= 4000 else "Poor")
+        ) if isinstance(lcp_val, (int, float)) else "—"
+
+        cls_val = bev.get("lab_cls")
+        cls_display = f"{cls_val:.4f}" if isinstance(cls_val, (int, float)) else "Unavailable"
+        cls_rating = (
+            "Good" if cls_val <= 0.100 else ("Needs Improvement" if cls_val <= 0.250 else "Poor")
+        ) if isinstance(cls_val, (int, float)) else "—"
+
+        ttfb_val = bev.get("lab_ttfb_ms")
+        ttfb_display = f"{ttfb_val} ms" if isinstance(ttfb_val, (int, float)) else "Unavailable"
+        ttfb_rating = (
+            "Good" if ttfb_val <= 800 else ("Needs Improvement" if ttfb_val <= 1800 else "Poor")
+        ) if isinstance(ttfb_val, (int, float)) else "—"
+
+        cwv_rows = [
+            [
+                Paragraph("Lab Metric", styles["th"]),
+                Paragraph("Observed Lab Value", styles["th"]),
+                Paragraph("Google CWV Target", styles["th"]),
+                Paragraph("Lab Rating", styles["th"]),
+            ],
+            [
+                Paragraph("<b>Largest Contentful Paint (LCP)</b>", styles["body"]),
+                Paragraph(lcp_display, styles["td_center"]),
+                Paragraph("&le; 2500 ms", styles["td_center"]),
+                Paragraph(lcp_rating, styles["td_center"]),
+            ],
+            [
+                Paragraph("<b>Cumulative Layout Shift (CLS)</b>", styles["body"]),
+                Paragraph(cls_display, styles["td_center"]),
+                Paragraph("&le; 0.100", styles["td_center"]),
+                Paragraph(cls_rating, styles["td_center"]),
+            ],
+            [
+                Paragraph("<b>Time to First Byte (TTFB)</b>", styles["body"]),
+                Paragraph(ttfb_display, styles["td_center"]),
+                Paragraph("&le; 800 ms", styles["td_center"]),
+                Paragraph(ttfb_rating, styles["td_center"]),
+            ],
+        ]
+        t_cwv = Table(cwv_rows, colWidths=[55*mm, 35*mm, 40*mm, 40*mm], repeatRows=1)
+        t_cwv.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,0), C_DARK),
+            ("FONTSIZE",      (0,0), (-1,-1), 8),
+            ("ROWBACKGROUNDS",(0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+            ("GRID",          (0,0), (-1,-1), 0.3, _c(0.82,0.82,0.88)),
+            ("TOPPADDING",    (0,0), (-1,-1), 3),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+            ("LEFTPADDING",   (0,0), (-1,-1), 6),
+            ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+        ]))
+        story.append(t_cwv)
+        story.append(Spacer(1, 3*mm))
+
     # 3. On-Page Metadata Exact Observed Values
     if meta:
         story.append(Paragraph("<b>Metadata & On-Page SEO Diagnostics (Exact Observed Values):</b>", styles["h2"]))
@@ -1127,37 +1262,68 @@ def _priority_table(audit_results, styles):
     return [t]
 
 
-def _diagnostics_section(url, url_info, audit_results, styles):
-    story = []
-    story += _section("Technical & Search Diagnostics", styles)
+def _lookup_result(audit_results: dict, *keys: str) -> dict | None:
+    """Find a persisted factor without relying on a single display-name convention."""
+    wanted = {key.lower() for key in keys}
+    for group in audit_results.values():
+        for key, result in group.items():
+            factor_id = str(result.get("id") or key).lower()
+            if str(key).lower() in wanted or factor_id.rsplit(".", 1)[-1] in wanted:
+                return result
+    return None
 
-    req_url = (url_info.get("requested_url") if url_info else None) or url
-    final_url = (url_info.get("final_url") if url_info else None) or req_url
 
-    diag_rows = [
-        [Paragraph("Diagnostic Domain", styles["th"]), Paragraph("Audit Observation & System Status", styles["th"])],
-        [
-            Paragraph("<b>Origin Robots.txt Discovery</b>", styles["body_small"]),
-            Paragraph("Resolved exclusively from the root origin host (scheme + domain). Subpath route concatenation strictly avoided.", styles["td"]),
-        ],
-        [
-            Paragraph("<b>XML Sitemap Integrity</b>", styles["body_small"]),
-            Paragraph("Verified XML structure (&lt;urlset&gt; or &lt;sitemapindex&gt;). HTTP 200 HTML soft responses rejected. Child sitemaps capped at 5.", styles["td"]),
-        ],
-        [
-            Paragraph("<b>AI-Search Readiness</b>", styles["body_small"]),
-            Paragraph("Evaluates robot crawl permissions (GPTBot, ClaudeBot, Google-Extended), NAP entity alignment, and structured Q&amp;A content.", styles["td"]),
-        ],
-        [
-            Paragraph("<b>Synthetic Lab Web Vitals</b>", styles["body_small"]),
-            Paragraph("TTFB, LCP, and CLS are lab synthetic measurements. Real-user Core Web Vitals require CrUX or field data tracking.", styles["td"]),
-        ],
-        [
-            Paragraph("<b>Google Search Console</b>", styles["body_small"]),
-            Paragraph("Read-only OAuth integration available upon property authorization. Live queries, impressions, and clicks require connected property.", styles["td"]),
-        ],
-    ]
-    diag_table = Table(diag_rows, colWidths=[48*mm, CONTENT_W - 48*mm])
+def _diagnostic_observation(result: dict) -> str:
+    parts = [f"<b>Status:</b> {_safe(result.get('status', 'UNAVAILABLE'))}"]
+    if result.get("message"):
+        parts.append(f"<b>Observation:</b> {_safe(result['message'])}")
+    if result.get("detail"):
+        parts.append(f"<b>Validation detail:</b> {_breakable(result['detail'])}")
+    evidence = _evidence_text(result.get("evidence"))
+    if evidence:
+        parts.append(f"<b>Collected evidence:</b> {_breakable(evidence)}")
+    return "<br/>".join(parts)
+
+
+def _diagnostics_section(url, url_info, audit_results, site_summary, styles):
+    """Show only retrieval and discovery facts recorded by the audit itself."""
+    rows = [[Paragraph("Diagnostic", styles["th"]), Paragraph("Recorded audit evidence", styles["th"])]]
+    robots = _lookup_result(audit_results, "robots")
+    sitemap = _lookup_result(audit_results, "sitemap")
+    if robots:
+        rows.append([
+            Paragraph("<b>robots.txt retrieval</b>", styles["body_small"]),
+            Paragraph(_diagnostic_observation(robots), styles["td"]),
+        ])
+    if sitemap:
+        rows.append([
+            Paragraph("<b>XML sitemap discovery</b>", styles["body_small"]),
+            Paragraph(_diagnostic_observation(sitemap), styles["td"]),
+        ])
+
+    summary = site_summary or {}
+    crawl_keys = ("total_pages", "sitemap_url_count", "link_discovered_count", "total_discovered_count", "crawl_limit_hit", "crawl_error")
+    if any(key in summary for key in crawl_keys):
+        coverage = [
+            f"Pages audited: {summary.get('total_pages', 0)}",
+            f"Sitemap-discovered URLs: {summary.get('sitemap_url_count', 0)}",
+            f"Link-discovered URLs: {summary.get('link_discovered_count', 0)}",
+            f"Total discovered URLs: {summary.get('total_discovered_count', summary.get('total_pages', 0))}",
+        ]
+        if summary.get("crawl_limit_hit"):
+            coverage.append("Crawl limit reached; coverage is intentionally bounded.")
+        if summary.get("discovery_explanation"):
+            coverage.append(str(summary["discovery_explanation"]))
+        if summary.get("crawl_error"):
+            coverage.append(f"Retrieval failure: {summary['crawl_error']}")
+        rows.append([
+            Paragraph("<b>Bounded crawl coverage</b>", styles["body_small"]),
+            Paragraph("<br/>".join(_breakable(item) for item in coverage), styles["td"]),
+        ])
+
+    if len(rows) == 1:
+        return []
+    diag_table = Table(rows, colWidths=[48*mm, CONTENT_W - 48*mm], repeatRows=1)
     diag_table.setStyle(TableStyle([
         ("BACKGROUND",    (0,0), (-1,0), C_DARK),
         ("FONTSIZE",      (0,0), (-1,-1), 8),
@@ -1168,12 +1334,51 @@ def _diagnostics_section(url, url_info, audit_results, styles):
         ("LEFTPADDING",   (0,0), (-1,-1), 8),
         ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
     ]))
-    story.append(diag_table)
-    story.append(Spacer(1, 4*mm))
-    return story
+    return _section("Technical Crawl, Robots & Sitemap Diagnostics", styles) + [diag_table, Spacer(1, 4*mm)]
 
 
 # ── Main builder ──────────────────────────────────────────────────────────────
+def _methodology_and_limitations(site_summary, styles):
+    """Describe exactly what supports this report without inventing unavailable data."""
+    browser = (site_summary or {}).get("browser_evidence") or {}
+    has_lab = bool(browser.get("lab_metrics_available"))
+    rows = [
+        [Paragraph("Report basis", styles["th"]), Paragraph("What this means", styles["th"])],
+        [
+            Paragraph("Canonical audit results", styles["body_small"]),
+            Paragraph("Scores, statuses, findings and priority recommendations use the unchanged 62-factor audit result contract.", styles["td"]),
+        ],
+        [
+            Paragraph("URL and crawl scope", styles["body_small"]),
+            Paragraph("Requested, final and declared canonical URLs are reported separately. Crawl coverage reflects only the bounded pages successfully inspected during this audit.", styles["td"]),
+        ],
+        [
+            Paragraph("Performance evidence", styles["body_small"]),
+            Paragraph(
+                "Synthetic lab measurements are shown only when captured in browser evidence; they are not real-user field metrics."
+                if has_lab else "No browser lab metrics were captured for this report; real-user field metrics are not represented.",
+                styles["td"],
+            ),
+        ],
+        [
+            Paragraph("Data limitations", styles["body_small"]),
+            Paragraph("A retrieval limitation, missing source, or unavailable integration is not presented as a confirmed website defect. Search Console, AI visibility and third-party data require their own authorized source evidence.", styles["td"]),
+        ],
+    ]
+    table = Table(rows, colWidths=[48*mm, CONTENT_W - 48*mm])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), C_DARK),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, _c(0.97, 0.97, 0.99)]),
+        ("GRID", (0, 0), (-1, -1), 0.3, _c(0.82, 0.82, 0.88)),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    return _section("Methodology & Limitations", styles) + [table]
+
+
 def build_pdf(
     url: str,
     audit_results: dict,
@@ -1239,7 +1444,12 @@ def build_pdf(
         title = GROUP_TITLES.get(group_key, group_key.title())
         story += _section(title, styles)
         for test_id, result in tests.items():
-            story += _test_card(test_id, result, styles)
+            story += _test_card(
+                test_id,
+                result,
+                styles,
+                (effective_url_info or {}).get("final_url") or header_url,
+            )
         story.append(Spacer(1, 4*mm))
 
     # ─── Priority Action Plan ──────────────────────────────────────────────────
@@ -1268,8 +1478,16 @@ def build_pdf(
         ))
 
     # ─── Technical Diagnostics Advisory ──────────────────────────────────────
-    story.append(PageBreak())
-    story += _diagnostics_section(header_url, effective_url_info, audit_results, styles)
+    diagnostics_story = _diagnostics_section(
+        header_url,
+        effective_url_info,
+        audit_results,
+        site_summary,
+        styles,
+    )
+    if diagnostics_story:
+        story.append(PageBreak())
+        story += diagnostics_story
 
     # ─── Target Keyword & Content Density Diagnostics ────────────────────────
     kw_analysis = keyword_analysis or (site_summary.get("keyword_analysis") if site_summary else None)
@@ -1317,6 +1535,8 @@ def build_pdf(
             story += _page_detail_table(page_audits, url, styles)
 
     # ─── Footer note ──────────────────────────────────────────────────────────
+    story.append(PageBreak())
+    story += _methodology_and_limitations(site_summary, styles)
     story.append(Spacer(1, 8*mm))
     story.append(HRFlowable(width="100%", thickness=0.5, color=C_LIGHT))
     story.append(Spacer(1, 3*mm))

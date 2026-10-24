@@ -2,29 +2,39 @@ import io
 import csv
 import re
 from typing import List, Dict
+from urllib.parse import urlparse, urlunparse
 
 
 def clean_website(url: str) -> str:
     """
     Normalise a website URL to its root (scheme + domain + trailing slash).
+    Rejects third-party directory, registry, or aggregator URLs (returns empty string).
 
     Examples
     --------
     https://balanicustom.com/custom-suits-indianapolis  →  https://balanicustom.com/
     balanicustom.com/custom-suits                       →  https://balanicustom.com/
     https://www.example.com                             →  https://www.example.com/
+    https://www.zaubacorp.com/company/ACME              →  ""
     """
-    from urllib.parse import urlparse, urlunparse
+    from app.utils.email_constants import is_third_party_directory_or_aggregator
 
     url = url.strip()
     if not url:
-        return url
+        return ""
+
+    if is_third_party_directory_or_aggregator(url):
+        return ""
 
     # Add scheme if missing so urlparse works correctly
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
 
     parsed = urlparse(url)
+    netloc = parsed.netloc.lower()
+    if is_third_party_directory_or_aggregator(netloc):
+        return ""
+
     # Rebuild with only scheme + netloc; drop path, params, query, fragment
     root = urlunparse((parsed.scheme, parsed.netloc, "/", "", "", ""))
     return root
@@ -118,27 +128,58 @@ def parse_and_clean_csv(content: bytes) -> List[Dict[str, str]]:
             or ""
         )
 
-        # Skip rows without email or website
-        if not email or not website:
-            continue
-
         # Basic email validation
-        email = email.lower()
+        if not email:
+            continue
+        email = email.lower().strip()
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             continue
+
+        from app.utils.email_constants import (
+            infer_website_candidate_from_email,
+            is_third_party_directory_or_aggregator,
+        )
+
+        raw_website = (website or "").strip()
+        evidence_source_url = ""
+
+        if raw_website:
+            # Check if raw_website is a directory URL
+            if is_third_party_directory_or_aggregator(raw_website):
+                parsed = urlparse(raw_website if raw_website.startswith(("http://", "https://")) else "https://" + raw_website)
+                evidence_source_url = urlunparse((parsed.scheme, parsed.netloc, "/", "", "", ""))
+                cleaned_site = ""
+            else:
+                cleaned_site = clean_website(raw_website)
+        else:
+            cleaned_site = ""
+
+        is_inferred = False
+        if not cleaned_site:
+            inferred = infer_website_candidate_from_email(email)
+            if inferred:
+                cleaned_site = inferred
+                is_inferred = True
+            else:
+                cleaned_site = ""
 
         # Deduplicate by email
         if email in seen_emails:
             continue
         seen_emails.add(email)
 
-        rows.append({
+        row_data = {
             "business_name": clean_business_name(
                 business_name or email.split("@")[0].replace(".", " ").title()
             ),
             "email": email,
             "phone": clean_phone(phone),
-            "website": clean_website(website),
-        })
+            "website": cleaned_site,
+            "is_inferred_website": is_inferred,
+        }
+        if evidence_source_url:
+            row_data["email_source_url"] = evidence_source_url
+
+        rows.append(row_data)
 
     return rows

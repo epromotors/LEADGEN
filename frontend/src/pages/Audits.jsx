@@ -3,14 +3,24 @@ import {
   RefreshCw, Download, ChevronDown, ChevronUp, AlertTriangle, Search, X,
   Globe, ShieldCheck, FileCode, CheckCircle2, AlertCircle, XCircle, ArrowRight,
   ExternalLink, Layers, Cpu, Compass, LayoutGrid, ListFilter, Bot, Check, AlertOctagon,
-  Send, CheckCheck, FileText, Play, Smartphone, Zap, Gauge
+  Send, CheckCheck, FileText, Play, Smartphone, Zap, Gauge, Mail
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
-  getLeads, getAudit, getPdfUrl, triggerAudit, getProposal, approveProposal, sendProposal,
+  getLeads, getAudit, getPdfUrl, triggerAudit, getProposal, editProposal, approveProposal, sendProposal,
   getAiSearchStatus, getAiReadiness, runAiVisibilityCheck, getAiSearchHistory, getLatestAiSearchRun
 } from '../api/client'
 import BrowserEvidence from '../components/BrowserEvidence'
+import EmailVerificationAudit from '../components/EmailVerificationAudit'
+import UrlIdentityBanner from '../components/audit/UrlIdentityBanner'
+import AuditOverviewHeader from '../components/audit/AuditOverviewHeader'
+import CategoryBreakdown from '../components/audit/CategoryBreakdown'
+import PrioritizedFindingCard from '../components/audit/PrioritizedFindingCard'
+import CrawlSitemapDiagnostics from '../components/audit/CrawlSitemapDiagnostics'
+import SearchConsolePanel from '../components/SearchConsolePanel'
+import AiVisibilityObservationsPanel from '../components/AiVisibilityObservationsPanel'
+import { AuditSkippedState, EmptyFindingsState } from '../components/audit/AuditStateView'
+import ProposalEvidenceDrawer from '../components/ProposalEvidenceDrawer'
 
 // ── Audit check definitions: label, explanation, fix hint ─────────────────
 const AXIS_COLORS = {
@@ -581,8 +591,13 @@ function AuditRow({ lead }) {
 
   const [proposal, setProposal] = useState(null)
   const [loadingProposal, setLoadingProposal] = useState(false)
+  const [editingProposal, setEditingProposal] = useState(false)
+  const [savingProposal, setSavingProposal] = useState(false)
+  const [draftSubject, setDraftSubject] = useState('')
+  const [draftBody, setDraftBody] = useState('')
   const [approving, setApproving] = useState(false)
   const [sendingSimulation, setSendingSimulation] = useState(false)
+  const [selectedEvidenceOpportunity, setSelectedEvidenceOpportunity] = useState(null)
 
   const [kwInput, setKwInput] = useState('')
   const [retriggering, setRetriggering] = useState(false)
@@ -611,6 +626,8 @@ function AuditRow({ lead }) {
     try {
       const res = await getProposal(lead.id)
       setProposal(res.data)
+      setDraftSubject(res.data.subject || '')
+      setDraftBody(res.data.body_text || '')
     } catch {
       toast.error('Could not load proposal for this lead')
     } finally {
@@ -618,21 +635,38 @@ function AuditRow({ lead }) {
     }
   }
 
+  async function handleSaveProposalEdit() {
+    if (!proposal || savingProposal) return
+    setSavingProposal(true)
+    try {
+      const res = await editProposal(lead.id, { subject: draftSubject, body_text: draftBody })
+      setProposal(res.data)
+      setEditingProposal(false)
+      toast.success('Draft saved. Human approval has been reset for review.')
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to save proposal edits')
+    } finally {
+      setSavingProposal(false)
+    }
+  }
+
   async function handleApproveProposal() {
+    if (approving) return
     setApproving(true)
     try {
       const res = await approveProposal(lead.id)
       setProposal(res.data)
       toast.success('Proposal explicitly approved for outreach!')
-    } catch {
-      toast.error('Failed to record approval')
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Failed to record approval'
+      toast.error(typeof detail === 'string' ? detail : JSON.stringify(detail))
     } finally {
       setApproving(false)
     }
   }
 
   async function handleSendSimulation() {
-    if (!proposal?.approved) {
+    if (sendingSimulation || !proposal?.approved) {
       toast.error('Human approval is required before delivery!')
       return
     }
@@ -641,7 +675,8 @@ function AuditRow({ lead }) {
       const res = await sendProposal(lead.id, lead.email, true)
       toast.success(res.data?.message || 'Simulation test successful (dry run)!')
     } catch (e) {
-      toast.error(e.response?.data?.detail?.message || 'Delivery simulation failed')
+      const detail = e.response?.data?.detail?.message || e.response?.data?.detail || 'Delivery simulation failed'
+      toast.error(typeof detail === 'string' ? detail : JSON.stringify(detail))
     } finally {
       setSendingSimulation(false)
     }
@@ -655,6 +690,7 @@ function AuditRow({ lead }) {
   const [runningAiCheck, setRunningAiCheck] = useState(false)
   const [expandedQueryIdx, setExpandedQueryIdx] = useState(null)
   const [selectedProvider, setSelectedProvider] = useState('gemini')
+  const [searchSubTab, setSearchSubTab] = useState('gsc')
 
   async function loadAiData() {
     setLoadingAiData(true)
@@ -827,179 +863,45 @@ function AuditRow({ lead }) {
           <td colSpan={5} style={{ background: '#080d17', padding: 0 }}>
             <div style={{ padding: '28px 32px' }} className="page-enter">
               {isSkipped ? (
-                <div className="flex items-start gap-3 p-4 bg-amber-950/30 border border-amber-800/50 rounded-xl">
-                  <AlertTriangle size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-300 mb-1">Audit Skipped</p>
-                    <p className="text-sm text-slate-400 leading-relaxed">{audit.audit_summary}</p>
-                    <p className="text-xs text-slate-600 mt-2">Target site did not respond as a real/active website.</p>
-                  </div>
-                </div>
+                <AuditSkippedState audit={audit} />
               ) : (
-                <>
-                  {/* ── 1. Executive URL Identity & Overview Hero ── */}
-                  <div className="card-elevated p-6 mb-6">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
-                            {lead.business_name}
-                          </h2>
-                          <span className="badge badge-blue">Verified Audit</span>
-                          {audit.browser_status === 'SUCCESS' && (
-                            <span className="badge badge-green" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                              <Cpu size={11} /> Browser Rendered
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ color: '#94a3b8', fontSize: 13, maxWidth: 750, lineHeight: 1.6 }}>
-                          {audit.audit_summary}
-                        </p>
-                      </div>
+                <div className="audit-shell space-y-6">
+                  {/* ── 1. Modern Audit Overview Header with score gauge & segmented bar ── */}
+                  <AuditOverviewHeader
+                    lead={lead}
+                    audit={audit}
+                    counts={counts}
+                    criticalCount={criticalCount}
+                    highCount={highCount}
+                    score={computeScore(audit)}
+                    pdfUrl={hasPdf ? getPdfUrl(lead.id) : null}
+                    onRetriggerWithKeywords={handleRetriggerWithKeywords}
+                    retriggering={retriggering}
+                  />
 
-                      {hasPdf && (
-                        <a href={getPdfUrl(lead.id)} target="_blank" rel="noreferrer"
-                          className="btn-primary" style={{ padding: '8px 16px', fontSize: 13, borderRadius: 8 }}>
-                          <Download size={15} /> Download Client PDF
-                        </a>
-                      )}
-                    </div>
+                  {/* ── 2. URL Identity Distinction (Requested, Final Destination, Canonical) ── */}
+                  <UrlIdentityBanner
+                    requestedUrl={requestedUrl}
+                    finalUrl={finalUrl}
+                    canonicalUrl={canonicalUrl}
+                    isRedirected={isRedirected}
+                    hasCanonical={hasCanonical}
+                    isCanonicalSame={isCanonicalSame}
+                  />
 
-                    {/* URL Identity Triple Block */}
-                    <div style={{
-                      background: '#090e18', border: '1px solid #1e293b', borderRadius: 10,
-                      padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14,
-                    }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Globe size={13} style={{ color: '#60a5fa' }} />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Requested Target
-                          </span>
-                        </div>
-                        <span className="url-badge" title={requestedUrl}>{requestedUrl}</span>
-                      </div>
-
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <ArrowRight size={13} style={{ color: isRedirected ? '#f59e0b' : '#10b981' }} />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Final Destination URL
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: isRedirected ? '#f59e0b' : '#10b981', marginLeft: 'auto' }}>
-                            {isRedirected ? 'Redirected' : 'Direct'}
-                          </span>
-                        </div>
-                        <span className="url-badge" title={finalUrl}>{finalUrl}</span>
-                      </div>
-
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <FileCode size={13} style={{ color: '#a855f7' }} />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Declared Canonical
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: isCanonicalSame ? '#10b981' : hasCanonical ? '#f59e0b' : '#64748b', marginLeft: 'auto' }}>
-                            {isCanonicalSame ? 'Self-Canonical' : hasCanonical ? 'Canonical Alternate' : 'None'}
-                          </span>
-                        </div>
-                        <span className="url-badge" title={canonicalUrl}>{canonicalUrl}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── 2. Primary Health & Score Counters Bar ── */}
-                  <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', marginBottom: 24, flexWrap: 'wrap' }}>
-                    <ScoreGauge score={computeScore(audit)} />
-
-                    <div style={{
-                      flex: 1, minWidth: 260, display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12,
-                    }}>
-                      <div style={{ background: '#0a1220', border: '1px solid #1e2c40', borderRadius: 12, padding: '14px 16px' }}>
-                        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>Verified Passes</span>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontSize: 28, fontWeight: 900, color: '#4ade80' }}>{counts.PASS ?? 0}</span>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>factors</span>
-                        </div>
-                      </div>
-
-                      <div style={{ background: '#14120a', border: '1px solid #33260a', borderRadius: 12, padding: '14px 16px' }}>
-                        <span style={{ fontSize: 11, color: '#facc15', fontWeight: 600, display: 'block', marginBottom: 4 }}>Warnings</span>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontSize: 28, fontWeight: 900, color: '#facc15' }}>{counts.WARN ?? 0}</span>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>warnings</span>
-                        </div>
-                      </div>
-
-                      <div style={{ background: '#1c0c0e', border: '1px solid #4a141b', borderRadius: 12, padding: '14px 16px' }}>
-                        <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600, display: 'block', marginBottom: 4 }}>Confirmed Defects</span>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontSize: 28, fontWeight: 900, color: '#f87171' }}>{counts.FAIL ?? 0}</span>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>defects</span>
-                        </div>
-                      </div>
-
-                      <div style={{ background: '#0e1626', border: '1px solid #1d2a42', borderRadius: 12, padding: '14px 16px' }}>
-                        <span style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600, display: 'block', marginBottom: 4 }}>Priority Actions</span>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          <span className="badge pri-critical" title="Critical blockers">{criticalCount} Critical</span>
-                          <span className="badge pri-high" title="High priority signals">{highCount} High</span>
-                        </div>
-                      </div>
-
-                      <div style={{ background: '#0a101d', border: '1px solid #1a2538', borderRadius: 12, padding: '14px 16px' }}>
-                        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>Pages Crawled</span>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontSize: 28, fontWeight: 900, color: '#e2e8f0' }}>{audit.site_summary?.total_pages || 1}</span>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>crawled</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── 3. 11 Canonical Category Performance Rings ── */}
-                  <div className="card-elevated p-5 mb-6">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                      <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                        Category Performance (Canonical 11-Axis Model)
-                      </p>
-                      <span style={{ fontSize: 11, color: '#64748b' }}>62 Factor Verified Contract</span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 10 }}>
-                      {(() => {
-                        const axisScore = (key) => {
-                          const grp = audit.audit_results?.[key]
-                          if (!grp) return null
-                          const vals = Object.values(grp)
-                          if (!vals.length) return null
-                          return Math.round(vals.reduce((s,r) => s + (r.status==='PASS'?1:r.status==='WARN'?0.5:0), 0) / vals.length * 100)
-                        }
-                        const checksScore = (keys) => {
-                          const valid = keys.map(k => getCheckStatus(k, audit)).filter(Boolean)
-                          if (!valid.length) return null
-                          return Math.round(valid.reduce((s,st) => s + (st==='PASS'?1:st==='WARN'?0.5:0), 0) / valid.length * 100)
-                        }
-                        return [
-                          { label: 'Technical',  icon: '🔧', score: axisScore('technical'),  color: '#3b82f6' },
-                          { label: 'On-Page',    icon: '📄', score: axisScore('onpage'),      color: '#a855f7' },
-                          { label: 'Images',     icon: '🖼️', score: axisScore('images'),      color: '#14b8a6' },
-                          { label: 'Links',      icon: '🔗', score: axisScore('links'),       color: '#f97316' },
-                          { label: 'Conversion', icon: '💼', score: axisScore('conversion'),  color: '#10b981' },
-                          { label: 'UI/UX',      icon: '🎨', score: audit.ux_score ?? null,   color: '#d946ef' },
-                          { label: 'Indexability',icon:'🗂️', score: checksScore(['has_noindex','url_structure_ok','www_nonwww_ok','soft_404_ok']), color: '#06b6d4' },
-                          { label: 'Content',    icon: '✍️', score: checksScore(['word_count_ok','duplicate_meta_ok','keyword_in_title_ok','reading_level_ok']), color: '#8b5cf6' },
-                          { label: 'Local SEO',  icon: '📍', score: checksScore(['has_nap','has_local_business_schema','has_google_maps','city_in_title_ok','has_business_hours']), color: '#f43f5e' },
-                          { label: 'Perf.',      icon: '⚡', score: checksScore(['response_time_ok','page_size_ok','render_blocking_ok','gzip_enabled','webp_coverage_ok','minification_ok']), color: '#facc15' },
-                          { label: 'Schema+',    icon: '🧩', score: checksScore(['has_faq_schema','has_product_schema','has_breadcrumb_schema','has_review_schema','schema_graph_ok']), color: '#34d399' },
-                        ].map(ax => <AxisRing key={ax.label} {...ax} />)
-                      })()}
-                    </div>
-                  </div>
+                  {/* ── 3. Interactive Category Breakdown (11 Canonical SEO Axes) ── */}
+                  <CategoryBreakdown
+                    audit={audit}
+                    allChecks={allChecks}
+                    selectedCategory={selectedGroup}
+                    onSelectCategory={(catId) => {
+                      setSelectedGroup(catId)
+                      setActiveTab('findings')
+                    }}
+                  />
 
                   {/* ── 4. Diagnostics Workspace Tabs Navigation ── */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', borderBottom: '1px solid #1e293b', paddingBottom: 12 }}>
+                  <div className="flex gap-2 mb-4 flex-wrap border-b border-slate-800/80 pb-3">
                     <button
                       onClick={() => setActiveTab('findings')}
                       className={`tab-pill ${activeTab === 'findings' ? 'tab-pill-active' : ''}`}
@@ -1042,145 +944,141 @@ function AuditRow({ lead }) {
 
                   {/* Tab 1: Findings & Checklist */}
                   {activeTab === 'findings' && (
-                    <div>
+                    <div className="space-y-4">
                       {/* Search and Filters Bar */}
-                      <div style={{
-                        background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10,
-                        padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center',
-                      }}>
-                        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
-                          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                      <div className="card-elevated p-4 flex flex-wrap gap-3 items-center justify-between">
+                        <div className="relative flex-1 min-w-[240px]">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                           <input
                             type="text"
-                            placeholder="Filter findings by keyword..."
+                            placeholder="Filter findings by keyword, factor ID, or evidence..."
                             value={findingSearch}
                             onChange={e => setFindingSearch(e.target.value)}
-                            style={{
-                              width: '100%', padding: '6px 10px 6px 30px', background: '#0e1626',
-                              border: '1px solid #24344d', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none',
-                            }}
+                            className="w-full pl-9 pr-8 py-2 bg-slate-900/90 border border-slate-700/80 rounded-lg text-slate-100 text-xs placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
                           />
+                          {findingSearch && (
+                            <button
+                              onClick={() => setFindingSearch('')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                            >
+                              <X size={13} />
+                            </button>
+                          )}
                         </div>
 
                         {/* Status filter */}
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800">
                           {['ALL', 'FAIL', 'WARN', 'PASS'].map(st => (
                             <button
                               key={st}
                               onClick={() => setStatusFilter(st)}
-                              style={{
-                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                                background: statusFilter === st ? '#1e3a8a' : '#0e1626',
-                                color: statusFilter === st ? '#93c5fd' : '#64748b',
-                                border: statusFilter === st ? '1px solid #3b82f6' : '1px solid #1e293b',
-                              }}
+                              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors ${
+                                statusFilter === st
+                                  ? st === 'FAIL' ? 'bg-red-950 text-red-300 border border-red-700'
+                                    : st === 'WARN' ? 'bg-amber-950 text-amber-300 border border-amber-700'
+                                    : st === 'PASS' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                                    : 'bg-blue-950 text-blue-300 border border-blue-700'
+                                  : 'text-slate-400 hover:text-slate-200'
+                              }`}
                             >
-                              {st}
+                              {st} {st !== 'ALL' && counts[st] !== undefined ? `(${counts[st]})` : ''}
                             </button>
                           ))}
                         </div>
 
                         {/* Priority filter */}
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800">
                           {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(pr => (
                             <button
                               key={pr}
                               onClick={() => setPriorityFilter(pr)}
-                              style={{
-                                padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800, cursor: 'pointer',
-                                background: priorityFilter === pr ? '#334155' : '#0e1626',
-                                color: priorityFilter === pr ? '#f8fafc' : '#64748b',
-                                border: priorityFilter === pr ? '1px solid #64748b' : '1px solid #1e293b',
-                              }}
+                              className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider transition-colors ${
+                                priorityFilter === pr
+                                  ? 'bg-slate-700 text-white'
+                                  : 'text-slate-500 hover:text-slate-300'
+                              }`}
                             >
                               {pr}
                             </button>
                           ))}
                         </div>
+
+                        {/* Active category pill */}
+                        {selectedGroup !== 'ALL' && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-950/80 border border-indigo-700 text-indigo-300 rounded-lg text-xs font-medium">
+                            <span>Filtering by category</span>
+                            <button
+                              onClick={() => setSelectedGroup('ALL')}
+                              className="hover:text-indigo-100 ml-1"
+                              title="Clear category filter"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Findings Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
-                        {structuredGroups(audit).map(group => {
-                          const checksInGroup = filteredChecks.filter(c => c.groupId === group.id)
-                          if (!checksInGroup.length) return null
+                      {/* Findings Grid / Empty State */}
+                      {filteredChecks.length === 0 ? (
+                        <EmptyFindingsState
+                          totalChecks={allChecks.length}
+                          onResetFilters={() => {
+                            setStatusFilter('ALL')
+                            setPriorityFilter('ALL')
+                            setSelectedGroup('ALL')
+                            setFindingSearch('')
+                          }}
+                        />
+                      ) : (
+                        <div className="space-y-6">
+                          {structuredGroups(audit).map(group => {
+                            const checksInGroup = filteredChecks.filter(c => c.groupId === group.id)
+                            if (!checksInGroup.length) return null
 
-                          return (
-                            <div key={group.id} className="card-elevated p-4">
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #1e293b' }}>
-                                <p style={{ fontWeight: 800, fontSize: 13, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span>{group.label}</span>
-                                </p>
-                                <span style={{ fontSize: 11, color: '#64748b' }}>
-                                  {checksInGroup.length} check{checksInGroup.length > 1 ? 's' : ''}
-                                </span>
+                            return (
+                              <div key={group.id} className="card-elevated p-5">
+                                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-base">{group.icon || '📌'}</span>
+                                    <h3 className="text-sm font-bold text-slate-100 tracking-wide uppercase">{group.label}</h3>
+                                    <span className="text-xs text-slate-500">
+                                      ({checksInGroup.length} check{checksInGroup.length > 1 ? 's' : ''})
+                                    </span>
+                                  </div>
+                                  {selectedGroup === group.id && (
+                                    <button
+                                      onClick={() => setSelectedGroup('ALL')}
+                                      className="text-xs text-blue-400 hover:text-blue-300 font-semibold"
+                                    >
+                                      Show all categories
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                  {checksInGroup.map(check => (
+                                    <PrioritizedFindingCard
+                                      key={check.key}
+                                      check={check}
+                                      audit={audit}
+                                      finalUrl={finalUrl}
+                                    />
+                                  ))}
+                                </div>
                               </div>
-
-                              {checksInGroup.map(check => (
-                                <CheckCard key={check.key} check={check} audit={audit} />
-                              ))}
-                            </div>
-                          )
-                        })}
-                      </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Tab 2: Robots & Sitemap Deep Diagnostics */}
+                  {/* Tab 2: Robots & Sitemap Diagnostics */}
                   {activeTab === 'sitemap' && (
-                    <div className="card-elevated p-6">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                        <FileCode size={20} style={{ color: '#38bdf8' }} />
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
-                          Robots.txt & XML Sitemap Diagnostics
-                        </h3>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 20 }}>
-                        {/* Robots Card */}
-                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Origin Robots Discovery
-                          </span>
-                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span className="url-badge">{audit.robots_url || `${new URL(requestedUrl.startsWith('http') ? requestedUrl : `https://${requestedUrl}`).origin}/robots.txt`}</span>
-                            <span className="badge badge-green">Checked at origin root</span>
-                          </div>
-                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10 }}>
-                            Robots.txt is always resolved from the domain origin, never from subpath routes.
-                          </p>
-                        </div>
-
-                        {/* Sitemap Card */}
-                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Sitemap Validation Status
-                          </span>
-                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span className="url-badge">{audit.sitemap_url || 'None declared'}</span>
-                            <span className={`badge ${audit.has_sitemap ? 'badge-green' : 'badge-yellow'}`}>
-                              {audit.has_sitemap ? 'Verified XML' : 'Not Detected'}
-                            </span>
-                          </div>
-                          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 10 }}>
-                            Rejects HTML 200 soft responses. Validates XML structure (&lt;urlset&gt; or &lt;sitemapindex&gt;).
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Diagnostic Summary Table */}
-                      <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, padding: '16px' }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 10 }}>
-                          Crawl & Parser Safeguards
-                        </h4>
-                        <ul style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.8, paddingLeft: 18 }}>
-                          <li><strong>Origin Root Derivation:</strong> Extracted scheme and host directly from URL; never appends /robots.txt to inner paths.</li>
-                          <li><strong>Structure Deciding Check:</strong> Content-Type hint verified; XML root tag validated; HTML error pages returning HTTP 200 are rejected.</li>
-                          <li><strong>Sitemap Index Bounds:</strong> Child sitemaps inspected up to a maximum safety cap of 5; max 100 discovered URLs.</li>
-                          <li><strong>Safe Fetching:</strong> SSRF controls, redirect depth limits, and 5MB payload caps strictly enforced.</li>
-                        </ul>
-                      </div>
-                    </div>
+                    <CrawlSitemapDiagnostics
+                      audit={audit}
+                      requestedUrl={requestedUrl}
+                    />
                   )}
 
                   {/* Tab 3: Crawl Coverage & Target Keyword Diagnostics */}
@@ -1800,7 +1698,46 @@ function AuditRow({ lead }) {
 
                   {/* Tab 5: AI-Search & GSC Readiness */}
                   {activeTab === 'ai_search' && (
-                    <div className="card-elevated p-6">
+                    <div className="space-y-4">
+                      {/* Sub-navigation tabs: Google Search Console vs AI-Search */}
+                      <div style={{
+                        display: 'flex', gap: 10, background: '#0a101d', border: '1px solid #1e293b',
+                        padding: '6px 10px', borderRadius: 10, width: 'fit-content'
+                      }}>
+                        <button
+                          onClick={() => setSearchSubTab('gsc')}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                            cursor: 'pointer', transition: 'all 0.15s ease',
+                            background: searchSubTab === 'gsc' ? '#1e3a5f' : 'transparent',
+                            color: searchSubTab === 'gsc' ? '#38bdf8' : '#94a3b8',
+                            border: `1px solid ${searchSubTab === 'gsc' ? '#38bdf8' : 'transparent'}`,
+                          }}
+                        >
+                          <Search size={14} /> Google Search Console
+                        </button>
+                        <button
+                          onClick={() => { setSearchSubTab('ai'); if (!aiStatus) loadAiData(); }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                            cursor: 'pointer', transition: 'all 0.15s ease',
+                            background: searchSubTab === 'ai' ? '#1e3a5f' : 'transparent',
+                            color: searchSubTab === 'ai' ? '#38bdf8' : '#94a3b8',
+                            border: `1px solid ${searchSubTab === 'ai' ? '#38bdf8' : 'transparent'}`,
+                          }}
+                        >
+                          <Bot size={14} /> AI-Search Live Visibility
+                        </button>
+                      </div>
+
+                      {searchSubTab === 'gsc' && (
+                        <SearchConsolePanel lead={lead} />
+                      )}
+
+                      {searchSubTab === 'ai' && (
+                        <div className="card-elevated p-6">
                       {/* Tab 5 Header */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2259,6 +2196,11 @@ function AuditRow({ lead }) {
                           )}
                         </div>
                       )}
+
+                          {/* 5. Dated Observations Ledger & Comparison */}
+                          <AiVisibilityObservationsPanel lead={lead} />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2308,28 +2250,151 @@ function AuditRow({ lead }) {
                           {/* Selected Observations Section */}
                           <div style={{ marginBottom: 24 }}>
                             <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
-                              Curated Service Opportunities ({proposal.selected_opportunities_count} Salient Findings)
+                              Curated Service Opportunities ({proposal.selected_opportunities_count || 0} Salient Findings)
                             </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-                              {proposal.observations?.map((obs, idx) => (
-                                <div key={idx} style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 8, padding: 14 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>{obs.service_name}</span>
-                                    <span className="badge badge-grey" style={{ fontSize: 10, textTransform: 'uppercase' }}>{obs.scope}</span>
-                                  </div>
-                                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 8px 0' }}>
-                                    <strong>Evidence:</strong> {obs.evidence}
-                                  </p>
-                                  <p style={{ fontSize: 11, color: '#60a5fa', margin: 0 }}>
-                                    → Action: {obs.next_step}
-                                  </p>
+                            {(!proposal.observations || proposal.observations.length === 0) ? (
+                              <div
+                                onClick={() => setSelectedEvidenceOpportunity({
+                                  service_name: 'Baseline Foundation Review',
+                                  service_category: 'Baseline Maintenance',
+                                  scope: 'maintenance',
+                                  confidence: 0.95,
+                                  factor_ids: [],
+                                  rationale: 'Automated scan observed core technical foundations are operational; no critical infrastructure defects identified.',
+                                  next_step: 'Periodic health checks and recurring visibility tracking to maintain baseline quality.',
+                                  evidence_type: 'audit_factor',
+                                  evidence_source: 'Canonical Audit',
+                                })}
+                                style={{
+                                  background: '#090e18',
+                                  border: selectedEvidenceOpportunity?.service_name === 'Baseline Foundation Review' ? '1px solid #10b981' : '1px solid #1e293b',
+                                  borderRadius: 8,
+                                  padding: 14,
+                                  cursor: 'pointer',
+                                  transition: 'border-color 0.2s',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>Baseline Foundation Review</span>
+                                  <span className="badge badge-green" style={{ fontSize: 10, textTransform: 'uppercase' }}>Maintenance</span>
                                 </div>
-                              ))}
-                            </div>
+                                <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 8px 0' }}>
+                                  <strong>Status:</strong> Automated scan observed core technical foundations are operational; no critical infrastructure defects identified.
+                                </p>
+                                <p style={{ fontSize: 11, color: '#60a5fa', margin: '0 0 10px 0' }}>
+                                  → Action: Periodic health checks and recurring visibility tracking to maintain baseline quality.
+                                </p>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedEvidenceOpportunity({
+                                        service_name: 'Baseline Foundation Review',
+                                        service_category: 'Baseline Maintenance',
+                                        scope: 'maintenance',
+                                        confidence: 0.95,
+                                        factor_ids: [],
+                                        rationale: 'Automated scan observed core technical foundations are operational; no critical infrastructure defects identified.',
+                                        next_step: 'Periodic health checks and recurring visibility tracking to maintain baseline quality.',
+                                        evidence_type: 'audit_factor',
+                                        evidence_source: 'Canonical Audit',
+                                      })
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      border: '1px solid #10b981',
+                                      borderRadius: 4,
+                                      color: '#34d399',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      padding: '3px 8px',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <Layers size={12} /> Inspect Baseline Status &rarr;
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+                                {proposal.observations.map((obs, idx) => {
+                                  const isSelected = selectedEvidenceOpportunity?.service_name === obs.service_name
+                                  return (
+                                    <div
+                                      key={idx}
+                                      onClick={() => setSelectedEvidenceOpportunity(obs)}
+                                      style={{
+                                        background: '#090e18',
+                                        border: isSelected ? '1px solid #3b82f6' : '1px solid #1e293b',
+                                        boxShadow: isSelected ? '0 0 12px rgba(59, 130, 246, 0.25)' : 'none',
+                                        borderRadius: 8,
+                                        padding: 14,
+                                        cursor: 'pointer',
+                                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>{obs.service_name}</span>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          {obs.evidence_source && obs.evidence_source !== 'Canonical Audit' && (
+                                            <span className="badge badge-blue" style={{ fontSize: 10 }}>{obs.evidence_source}</span>
+                                          )}
+                                          <span className="badge badge-grey" style={{ fontSize: 10, textTransform: 'uppercase' }}>{obs.scope}</span>
+                                        </div>
+                                      </div>
+                                      <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 8px 0' }}>
+                                        <strong>Evidence:</strong> {obs.evidence}
+                                      </p>
+                                      {obs.limitations && (
+                                        <p style={{ fontSize: 11, color: '#f59e0b', margin: '0 0 6px 0', fontStyle: 'italic' }}>
+                                          Note: {obs.limitations}
+                                        </p>
+                                      )}
+                                      <p style={{ fontSize: 11, color: '#60a5fa', margin: '0 0 10px 0' }}>
+                                        → Action: {obs.next_step}
+                                      </p>
+                                      <div style={{ fontSize: 10, color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #1a2436', paddingTop: 8 }}>
+                                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
+                                          IDs: {(obs.factor_ids || []).join(', ') || 'Not recorded'}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setSelectedEvidenceOpportunity(obs)
+                                          }}
+                                          style={{
+                                            background: isSelected ? '#1e293b' : 'transparent',
+                                            border: '1px solid #3b82f6',
+                                            borderRadius: 4,
+                                            color: '#60a5fa',
+                                            fontSize: 10,
+                                            fontWeight: 600,
+                                            padding: '2px 7px',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                          }}
+                                        >
+                                          <Layers size={11} /> Inspect &rarr;
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
                             <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>
-                              Contributing Factor IDs: {proposal.contributing_factor_ids?.map((fid) => (
+                              Contributing Factor IDs: {proposal.contributing_factor_ids?.length ? proposal.contributing_factor_ids.map((fid) => (
                                 <code key={fid} style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4, marginRight: 6, color: '#93c5fd' }}>{fid}</code>
-                              ))}
+                              )) : (
+                                <span style={{ color: '#64748b', fontStyle: 'italic' }}>None (baseline review)</span>
+                              )}
                             </div>
                           </div>
 
@@ -2337,11 +2402,19 @@ function AuditRow({ lead }) {
                           <div style={{ background: '#060a12', border: '1px solid #1e293b', borderRadius: 8, padding: 16, marginBottom: 20 }}>
                             <div style={{ borderBottom: '1px solid #1e293b', paddingBottom: 10, marginBottom: 12 }}>
                               <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Subject: </span>
-                              <span style={{ fontSize: 13, color: '#f8fafc', fontWeight: 700 }}>{proposal.subject}</span>
+                              {editingProposal ? (
+                                <input value={draftSubject} onChange={(e) => setDraftSubject(e.target.value)} aria-label="Proposal subject" className="input" style={{ width: '80%' }} />
+                              ) : (
+                                <span style={{ fontSize: 13, color: '#f8fafc', fontWeight: 700 }}>{proposal.subject}</span>
+                              )}
                             </div>
-                            <div style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 13, lineHeight: 1.6, maxHeight: 220, overflowY: 'auto' }}>
-                              {proposal.body_text}
-                            </div>
+                            {editingProposal ? (
+                              <textarea value={draftBody} onChange={(e) => setDraftBody(e.target.value)} aria-label="Proposal message" className="input" rows={12} style={{ width: '100%', resize: 'vertical' }} />
+                            ) : (
+                              <div style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 13, lineHeight: 1.6, maxHeight: 220, overflowY: 'auto' }}>
+                                {proposal.body_text}
+                              </div>
+                            )}
                           </div>
 
                           {/* Human Approval Action Gate Bar */}
@@ -2355,10 +2428,24 @@ function AuditRow({ lead }) {
                             </div>
 
                             <div style={{ display: 'flex', gap: 10 }}>
+                              {editingProposal ? (
+                                <>
+                                  <button onClick={handleSaveProposalEdit} disabled={savingProposal} className="btn btn-primary">
+                                    {savingProposal ? 'Saving...' : 'Save Draft'}
+                                  </button>
+                                  <button onClick={() => { setEditingProposal(false); setDraftSubject(proposal.subject || ''); setDraftBody(proposal.body_text || '') }} disabled={savingProposal} className="btn btn-secondary">
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button onClick={() => { setDraftSubject(proposal.subject || ''); setDraftBody(proposal.body_text || ''); setEditingProposal(true) }} disabled={approving || sendingSimulation} className="btn btn-secondary">
+                                  Edit Draft
+                                </button>
+                              )}
                               {!proposal.approved && (
                                 <button
                                   onClick={handleApproveProposal}
-                                  disabled={approving}
+                                  disabled={approving || editingProposal}
                                   className="btn btn-primary"
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 >
@@ -2367,7 +2454,7 @@ function AuditRow({ lead }) {
                               )}
                               <button
                                 onClick={handleSendSimulation}
-                                disabled={!proposal.approved || sendingSimulation}
+                                disabled={!proposal.approved || sendingSimulation || editingProposal}
                                 className="btn btn-secondary"
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: proposal.approved ? 1 : 0.5 }}
                                 title={!proposal.approved ? 'Approval required before delivery' : 'Simulate delivery safely (dry run)'}
@@ -2380,9 +2467,20 @@ function AuditRow({ lead }) {
                       )}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
+            {selectedEvidenceOpportunity && (
+              <ProposalEvidenceDrawer
+                key={selectedEvidenceOpportunity.service_id || selectedEvidenceOpportunity.service_name}
+                opportunity={selectedEvidenceOpportunity}
+                allOpportunities={proposal?.observations || []}
+                onSelectOpportunity={setSelectedEvidenceOpportunity}
+                audit={audit}
+                lead={lead}
+                onClose={() => setSelectedEvidenceOpportunity(null)}
+              />
+            )}
           </td>
         </tr>
       )}
@@ -2391,6 +2489,7 @@ function AuditRow({ lead }) {
 }
 
 export default function Audits() {
+  const [activeTab, setActiveTab] = useState('seo') // 'seo' | 'email_deliverability'
   const [leads, setLeads] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -2426,8 +2525,8 @@ export default function Audits() {
         ...(statusParam && { status: statusParam }),
         ...(debouncedSearch.trim() && { q: debouncedSearch.trim() }),
       })
-      setLeads(res.data.items)
-      setTotal(res.data.total)
+      setLeads(Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []))
+      setTotal(res.data?.total ?? 0)
     } catch {
       toast.error('Failed to load')
     } finally {
@@ -2438,28 +2537,59 @@ export default function Audits() {
   useEffect(() => { fetchLeads() }, [page, debouncedSearch, viewFilter])
 
   // Server-side filtering: leads array is already filtered by API
-  const filtered = leads
+  const leadsArray = Array.isArray(leads) ? leads : []
+  const filtered = leadsArray
 
   const totalPages = Math.ceil(total / pageSize)
 
   // Stats show counts for current result set
   const stats = {
-    audited: leads.filter(l => l.status === 'audited' || l.status === 'emailed' || l.status === 'replied' || l.status === 'converted').length,
-    notAudited: leads.filter(l => l.status === 'new').length,
-    emailed: leads.filter(l => l.status === 'emailed' || l.status === 'replied' || l.status === 'converted').length,
+    audited: leadsArray.filter(l => l.status === 'audited' || l.status === 'emailed' || l.status === 'replied' || l.status === 'converted').length,
+    notAudited: leadsArray.filter(l => l.status === 'new').length,
+    emailed: leadsArray.filter(l => l.status === 'emailed' || l.status === 'replied' || l.status === 'converted').length,
   }
 
   return (
     <div className="p-8 page-enter">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">SEO Audits</h1>
-          <p className="text-slate-500 text-sm mt-1">Click a row to expand audit findings. Download PDF per lead.</p>
-        </div>
-        <button onClick={fetchLeads} className="btn-secondary">
-          <RefreshCw size={16} />
+      {/* Sub-navigation tabs: SEO Audits vs Email Deliverability Hub */}
+      <div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4">
+        <button
+          onClick={() => setActiveTab('seo')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'seo'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Globe size={16} />
+          Website SEO Audits
+        </button>
+        <button
+          onClick={() => setActiveTab('email_deliverability')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'email_deliverability'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Mail size={16} />
+          Email Deliverability & Verification Hub
         </button>
       </div>
+
+      {activeTab === 'email_deliverability' ? (
+        <EmailVerificationAudit />
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-white">SEO Audits</h1>
+              <p className="text-slate-500 text-sm mt-1">Click a row to expand audit findings. Download PDF per lead.</p>
+            </div>
+            <button onClick={fetchLeads} className="btn-secondary">
+              <RefreshCw size={16} />
+            </button>
+          </div>
 
       {/* Search bar */}
       <div style={{
@@ -2582,6 +2712,8 @@ export default function Audits() {
             Next
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   )

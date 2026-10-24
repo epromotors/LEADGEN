@@ -21,14 +21,14 @@ from unittest.mock import patch
 import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/leadgen")
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://leadgen_test_user:dummy_test_pass@127.0.0.1:5432/leadgen_isolated_test")
 os.environ.setdefault("JWT_SECRET", "test-secret-min-32-chars-long-for-jwt-signing-123")
-AUDITOR_PKG = os.path.join(REPO_ROOT, "auditor", "auditor")
-if AUDITOR_PKG not in sys.path:
-    sys.path.insert(0, AUDITOR_PKG)
 BACKEND_PKG = os.path.join(REPO_ROOT, "backend")
 if BACKEND_PKG not in sys.path:
     sys.path.insert(0, BACKEND_PKG)
+AUDITOR_PKG = os.path.join(REPO_ROOT, "auditor", "auditor")
+if AUDITOR_PKG not in sys.path:
+    sys.path.insert(0, AUDITOR_PKG)
 
 from browser.provider import BrowserProvider, BrowserConfig, BrowserEvidence, BrowserStatus, is_browser_enabled
 from browser.security import validate_url, is_allowed_url, _is_blocked_ip, _parse_ip_literal

@@ -41,17 +41,24 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     INIT_SCHEMA: bool = False
 
+    # Campaign Scheduler & Distributed Worker Coordination
+    CAMPAIGN_SCHEDULER_ENABLED: bool = True
+    CAMPAIGN_SCHEDULER_POLL_INTERVAL_SECONDS: float = 30.0
+    CAMPAIGN_SCHEDULER_BATCH_SIZE: int = 5
+    CAMPAIGN_SCHEDULER_MAX_CONCURRENT_WORKERS: int = 3
+
     # Security
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440
 
-    # Admin credentials (single-user v1)
+    # Admin credentials (single-user v1) — must be explicitly configured; fallbacks prohibited
     ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "changeme123"
+    ADMIN_PASSWORD: str = ""
 
-    # Audit / Crawler
+    # Audit / Crawler & Freshness Policy
     CRAWL_MAX_PAGES: int = DEFAULT_CRAWL_MAX_PAGES
+    AUDIT_FRESHNESS_MAX_DAYS: int = 14
 
     @field_validator("CRAWL_MAX_PAGES", mode="before")
     @classmethod
@@ -127,16 +134,47 @@ class Settings(BaseSettings):
 
     def get_smtp_accounts(self) -> List[dict]:
         """
-        Parse SMTP_SENDERS JSON string into list of account dicts.
-        Each account has: email, smtp_host, smtp_port, password, daily_limit
+        Parse SMTP_SENDERS JSON string into list of validated account dicts.
+        Each valid account requires: email, smtp_host, password.
+        Optional fields: smtp_port (default 465), daily_limit (default 1000),
+        sender_name (default Ashish), login_email (default email), reply_to.
         """
         try:
-            accounts = json.loads(self.SMTP_SENDERS)
-            if isinstance(accounts, list):
-                return accounts
+            raw = json.loads(self.SMTP_SENDERS)
+            if not isinstance(raw, list):
+                return []
+            validated = []
+            for item in raw:
+                if not isinstance(item, dict):
+                    continue
+                email = str(item.get("email", "")).strip()
+                smtp_host = str(item.get("smtp_host", "")).strip()
+                password = str(item.get("password", ""))
+                if not email or not smtp_host or not password:
+                    continue
+                try:
+                    port = int(item.get("smtp_port", 465))
+                except (ValueError, TypeError):
+                    port = 465
+                try:
+                    daily_limit = int(item.get("daily_limit", 1000))
+                except (ValueError, TypeError):
+                    daily_limit = 1000
+                account = {
+                    "email": email,
+                    "smtp_host": smtp_host,
+                    "smtp_port": port,
+                    "password": password,
+                    "daily_limit": daily_limit,
+                    "sender_name": str(item.get("sender_name", "Ashish")).strip() or "Ashish",
+                    "login_email": str(item.get("login_email", email)).strip() or email,
+                }
+                if "reply_to" in item and item["reply_to"]:
+                    account["reply_to"] = str(item["reply_to"]).strip()
+                validated.append(account)
+            return validated
         except (json.JSONDecodeError, TypeError):
-            pass
-        return []
+            return []
 
 
 settings = Settings()

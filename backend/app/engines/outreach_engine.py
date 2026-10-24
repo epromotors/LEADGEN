@@ -22,12 +22,21 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, or_ as sa_or, func
 
 from app.database import AsyncSessionLocal
 from app.models import Lead, Audit, AuditStatus, Campaign, CampaignEmailLog, CampaignStatus, ActivityLog, LeadStatus
 from app.config import settings
 from app.utils.spintax import process_template
+from app.utils.email_constants import is_public_email_provider
+from app.services.campaign_eligibility_service import (
+    evaluate_lead_campaign_eligibility,
+    extract_email_domain,
+    is_legacy_provider_quarantine_reason,
+    CampaignType,
+)
+
+from app.services.campaign_schema_service import get_campaign_safe
 
 logger = logging.getLogger(__name__)
 
@@ -369,62 +378,109 @@ def _build_audit_bullets(audit: Optional[object]) -> str:
         return ""
 
     items = []
-    if not getattr(audit, 'ssl_valid', True):
-        items.append(("🔒", "Missing SSL", 'Your site is marked as "Not Secure" by Google.'))
-    if not getattr(audit, 'has_sitemap', True):
-        items.append(("🗺️", "No XML Sitemap", "Search engines cannot properly index your pages."))
-    if getattr(audit, 'has_robots', True) is False:
-        items.append(("🤖", "No robots.txt", "Crawlers don't know which pages to index."))
-    
-    broken_links = getattr(audit, 'broken_links_count', 0)
-    if broken_links and broken_links > 0:
-        items.append(("🔗", f"{broken_links} Broken Links", "Dead links creating a poor user experience."))
-    
-    if getattr(audit, 'missing_h1', False):
-        items.append(("📝", "Missing H1 Tag", "Reduces SEO visibility and crawl effectiveness."))
-    
-    missing_alt = getattr(audit, 'missing_alt_count', 0)
-    if missing_alt and missing_alt > 0:
-        items.append(("🖼️", f"{missing_alt} Images Missing Alt", "Missed ranking opportunities in Google Image Search."))
-    
-    if getattr(audit, 'uses_webp', True) is False:
-        items.append(("⚡", "Images not WebP", "Converting images improves page speed score."))
-    
-    if getattr(audit, 'has_json_ld', True) is False:
-        items.append(("🧩", "No Schema Markup", "Miss out on rich results in search."))
-    
-    if getattr(audit, 'mobile_friendly', True) is False:
-        items.append(("📱", "Not Mobile Responsive", "Broken mobile layout means lost enquiries."))
 
-    missing_social = getattr(audit, 'missing_social', [])
-    if missing_social:
-        platforms = ", ".join(p.capitalize() for p in missing_social)
-        items.append(("🌐", f"Missing Social ({platforms})", "Weaker credibility signal for visitors and Google."))
-    
+    # 1. First check canonical audit_results via OpportunityEngine if available
+    audit_results = getattr(audit, "audit_results", None)
+    if isinstance(audit_results, dict) and audit_results:
+        try:
+            from app.engines.opportunity_engine import OpportunityEngine
+            opps = OpportunityEngine.evaluate_opportunities(
+                audit_results=audit_results,
+                url_info={"requested_url": getattr(audit, "audited_url", "")},
+                site_summary=getattr(audit, "site_summary", None),
+            )
+            critical_opps = [o for o in opps if o.get("severity") == "critical"]
+            warning_opps = [o for o in opps if o.get("severity") == "warning"]
+
+            # Display critical findings first, warnings second
+            ordered_opps = critical_opps[:3] + warning_opps[:3]
+            for opp in ordered_opps:
+                cat = opp.get("service_category", "Technical")
+                svc = opp.get("service_name", "")
+                next_step = opp.get("proposed_next_step", "")
+                sev = opp.get("severity", "critical")
+                desc = next_step or opp.get("rationale", "")
+                if sev == "warning":
+                    icon = "⚠️"
+                    badge_title = f"[Warning] {svc}" if critical_opps else svc
+                else:
+                    icon = "⚡" if "Speed" in svc or "Performance" in cat else ("📱" if "Mobile" in cat or "Design" in cat else "🔍")
+                    badge_title = f"[Critical] {svc}" if warning_opps else svc
+                items.append((icon, badge_title, desc, sev))
+        except Exception:
+            pass
+
+    # 2. Check legacy audit columns with strict type guards
     if not items:
-        items.append(("✅", "Site is Technically Solid", "Ready for content and conversion improvements."))
+        if getattr(audit, 'ssl_valid', True) is False:
+            items.append(("🔒", "Missing SSL", 'Your site is marked as "Not Secure" by Google.', "critical"))
+        if getattr(audit, 'has_sitemap', True) is False:
+            items.append(("🗺️", "No XML Sitemap", "Search engines cannot properly index your pages.", "critical"))
+        if getattr(audit, 'has_robots', True) is False:
+            items.append(("🤖", "No robots.txt", "Crawlers don't know which pages to index.", "critical"))
+        
+        broken_links = getattr(audit, 'broken_links_count', 0)
+        if isinstance(broken_links, (int, float)) and broken_links > 0:
+            items.append(("🔗", f"{broken_links} Broken Links", "Dead links creating a poor user experience.", "critical"))
+        
+        if getattr(audit, 'missing_h1', False) is True:
+            items.append(("📝", "Missing H1 Tag", "Reduces SEO visibility and crawl effectiveness.", "critical"))
+        
+        missing_alt = getattr(audit, 'missing_alt_count', 0)
+        if isinstance(missing_alt, (int, float)) and missing_alt > 0:
+            items.append(("🖼️", f"{missing_alt} Images Missing Alt", "Missed ranking opportunities in Google Image Search.", "warning"))
+        
+        if getattr(audit, 'uses_webp', True) is False:
+            items.append(("⚡", "Images not WebP", "Converting images improves page speed score.", "warning"))
+        
+        if getattr(audit, 'has_json_ld', True) is False:
+            items.append(("🧩", "No Schema Markup", "Miss out on rich results in search.", "warning"))
+        
+        if getattr(audit, 'mobile_friendly', True) is False:
+            items.append(("📱", "Not Mobile Responsive", "Broken mobile layout means lost enquiries.", "critical"))
 
-    if getattr(audit, 'has_cta', True) is False:
-        items.append(("🎯", "Missing Call-to-Action", "Visitors don't know what step to take next."))
-    if getattr(audit, 'has_hero_headline', True) is False:
-        items.append(("📢", "No Clear Value Prop", "Visitors don't instantly know what you do."))
-    if getattr(audit, 'contrast_ok', True) is False:
-        items.append(("👁️", "Low Contrast Text", "Text is hard to read, lowering engagement."))
+        missing_social = getattr(audit, 'missing_social', [])
+        if isinstance(missing_social, (list, tuple)) and missing_social:
+            platforms = ", ".join(str(p).capitalize() for p in missing_social if isinstance(p, str))
+            if platforms:
+                items.append(("🌐", f"Missing Social ({platforms})", "Weaker credibility signal for visitors and Google.", "warning"))
+
+    if not items:
+        items.append(("✅", "Site is Technically Solid", "Ready for content and conversion improvements.", "solid"))
 
     # Limit to 6 bullets max for scannability
     items = items[:6]
     
     html = ""
-    for i, (icon, title, desc) in enumerate(items):
+    for i, (icon, title, desc, sev) in enumerate(items):
         padding_bottom = "20px" if i == len(items) - 1 else "8px"
+        if sev == "warning":
+            bg_color = "rgba(245,158,11,0.05)"
+            border_color = "#fef3c7"
+            title_color = "#92400e"
+            desc_color = "#b45309"
+        elif sev == "solid":
+            bg_color = "rgba(16,185,129,0.05)"
+            border_color = "#d1fae5"
+            title_color = "#065f46"
+            desc_color = "#047857"
+        else:
+            bg_color = "rgba(239,68,68,0.05)"
+            border_color = "#fee2e2"
+            title_color = "#991b1b"
+            desc_color = "#b91c1c"
+
+        safe_title = escape(str(title))
+        safe_desc = escape(str(desc))
+
         html += f"""                      <!-- Issue -->
                       <tr><td style="padding:0 24px {padding_bottom};">
-                        <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(239,68,68,0.05);border:1px solid #fee2e2;border-radius:8px;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background:{bg_color};border:1px solid {border_color};border-radius:8px;">
                           <tr>
                             <td width="44" align="center" style="padding:14px 6px 14px 14px;font-size:20px;">{icon}</td>
                             <td style="padding:14px 16px 14px 6px;">
-                              <p style="margin:0;font-size:13.5px;font-weight:700;color:#991b1b;">{title}</p>
-                              <p style="margin:3px 0 0;font-size:12.5px;color:#b91c1c;opacity:0.85;">{desc}</p>
+                              <p style="margin:0;font-size:13.5px;font-weight:700;color:{title_color};">{safe_title}</p>
+                              <p style="margin:3px 0 0;font-size:12.5px;color:{desc_color};opacity:0.85;">{safe_desc}</p>
                             </td>
                           </tr>
                         </table>
@@ -827,48 +883,48 @@ def build_html_email(lead, audit=None) -> str:
     </td>
   </tr>
 
-  <!-- PORTFOLIO STRIP -->
+  <!-- CORE SOLUTIONS STRIP -->
   <tr>
     <td class="px36" style="padding:0 36px 18px; background-color:#eff4ff;">
       <p style="margin:0 0 8px; font-size:12px; font-weight:700;
                 color:#374151; text-transform:uppercase; letter-spacing:0.7px;">
-        Recent websites we've built &amp; managed:
+        Core solutions we build &amp; manage:
       </p>
       <table role="presentation" class="two-col" width="100%">
         <tr>
-          <!-- Hexaprime -->
+          <!-- Web Design -->
           <td width="33%" style="padding:3px 4px;">
             <div style="background:#ffffff; border:1px solid #dbe4ff;
                         border-radius:8px; padding:10px 10px;
                         text-align:center;">
               <p style="margin:0; font-size:13px; font-weight:700;
-                         color:#1d4ed8;">Hexaprime.me</p>
+                         color:#1d4ed8;">Web Design</p>
               <p style="margin:3px 0 0; font-size:11px; color:#6b7280;">
-                Branding &amp; Web
+                Modern &amp; Responsive
               </p>
             </div>
           </td>
-          <!-- Channelnexus -->
+          <!-- Technical SEO -->
           <td width="33%" style="padding:3px 4px;">
             <div style="background:#ffffff; border:1px solid #dbe4ff;
                         border-radius:8px; padding:10px 10px;
                         text-align:center;">
               <p style="margin:0; font-size:13px; font-weight:700;
-                         color:#1d4ed8;">Channelnexus.me</p>
+                         color:#1d4ed8;">Technical SEO</p>
               <p style="margin:3px 0 0; font-size:11px; color:#6b7280;">
-                SaaS Landing
+                Index &amp; Sitemaps
               </p>
             </div>
           </td>
-          <!-- Sketchlife -->
+          <!-- Lead Capture -->
           <td width="33%" style="padding:3px 4px;">
             <div style="background:#ffffff; border:1px solid #dbe4ff;
                         border-radius:8px; padding:10px 10px;
                         text-align:center;">
               <p style="margin:0; font-size:13px; font-weight:700;
-                         color:#1d4ed8;">Sketchlife.ae</p>
+                         color:#1d4ed8;">Lead Capture</p>
               <p style="margin:3px 0 0; font-size:11px; color:#6b7280;">
-                UAE Lifestyle
+                Forms &amp; Enquiries
               </p>
             </div>
           </td>
@@ -1261,26 +1317,26 @@ def build_html_email_full(lead, audit) -> str:
                   <p style="margin:0 0 12px;font-size:13px;font-weight:700;
                              letter-spacing:1px;text-transform:uppercase;
                              color:#6b7280;">
-                    Recent projects
+                    Recent focus areas
                   </p>
                   <table width="100%" cellpadding="0" cellspacing="0" border="0"
                          style="border:1px solid #dbe4ff;border-radius:8px;
                                 background:#eff4ff;overflow:hidden;">
                     <tr><td style="padding:14px 18px;">
                       <p style="margin:0 0 6px;font-size:14px;color:#1a1a1a;line-height:22px;">
-                        &#127760; <strong style="color:#1d4ed8;">Hexaprime.me</strong>
-                        &mdash; Full branding &amp; web design
+                        &#127760; <strong style="color:#1d4ed8;">Full Web Design</strong>
+                        &mdash; Mobile-responsive &amp; conversion architecture
                       </p>
                       <p style="margin:0 0 6px;font-size:14px;color:#1a1a1a;line-height:22px;">
-                        &#128279; <strong style="color:#1d4ed8;">Channelnexus.me</strong>
-                        &mdash; SaaS product landing page
+                        &#128279; <strong style="color:#1d4ed8;">Technical SEO</strong>
+                        &mdash; Structured schema, crawlability &amp; sitemaps
                       </p>
                       <p style="margin:0 0 8px;font-size:14px;color:#1a1a1a;line-height:22px;">
-                        &#9992; <strong style="color:#1d4ed8;">Sketchlife.ae</strong>
-                        &mdash; UAE lifestyle brand website
+                        &#9992; <strong style="color:#1d4ed8;">Speed &amp; Performance</strong>
+                        &mdash; Modern WebP media &amp; asset optimization
                       </p>
                       <p style="margin:0;font-size:12px;color:#6b7280;font-style:italic;">
-                        + many more white-label solutions across UAE, India &amp; the UK.
+                        Web solutions delivered across UAE, India &amp; the UK.
                       </p>
                     </td></tr>
                   </table>
@@ -1395,10 +1451,10 @@ def build_plain_outreach_email(lead, audit=None, site_type=None) -> str:
             f"I was looking for {business_name} online and noticed that your website{website_reference} "
             f"does not currently appear to be active.\n\n"
             "At TEB Solutions, we design and launch clean, modern websites for growing businesses.\n\n"
-            "Recent websites we have built & managed:\n"
-            "- Hexaprime.me (Branding & Web)\n"
-            "- Channelnexus.me (SaaS Landing)\n"
-            "- Sketchlife.ae (UAE Lifestyle)\n\n"
+            "Core solutions we deliver for growing businesses:\n"
+            "- Custom Website Design & Mobile-First Architecture\n"
+            "- Enquiry Capture & Direct Customer Pathways\n"
+            "- Clean Search Console & Technical Indexing Setup\n\n"
             "Sharing this in case your team is currently reviewing your online presence.\n\n"
             "Best regards,\n"
             f"{your_name}\n"
@@ -1417,10 +1473,10 @@ def build_plain_outreach_email(lead, audit=None, site_type=None) -> str:
         "- Mobile Responsiveness: Seamless layout, readable typography, and easy navigation on small screens.\n"
         "- Direct Contact Pathways: Simple, intuitive access to phone and enquiry options across all pages.\n"
         "- Technical Foundations: Clean page indexing, XML sitemap configuration, and reliable load performance.\n\n"
-        "Recent websites we've built & managed:\n"
-        "- Hexaprime.me (Branding & Web)\n"
-        "- Channelnexus.me (SaaS Landing)\n"
-        "- Sketchlife.ae (UAE Lifestyle)\n"
+        "Core solutions we deliver:\n"
+        "- Modern Web Design & Conversion Architecture\n"
+        "- Technical SEO, Schema & Sitemap Configuration\n"
+        "- Performance & Mobile Speed Optimization\n"
         "+ ongoing web solutions across India, the UAE, and the UK.\n\n"
         "Helpful evaluation points for your current site:\n"
         "- First impression: Does the homepage clearly state your offerings and trust credentials within seconds?\n"
@@ -1464,6 +1520,131 @@ def build_minimal_html_email(plain_body: str) -> str:
   </table>
 </body>
 </html>"""
+
+
+def classify_smtp_error(exc: Any) -> dict:
+    """
+    Classifies an SMTP exception or error string into standard categories:
+    - sender_configuration: 553, 5.7.1, sender rejected, not owned by user, relay denied for sender, expired mailbox plan
+    - authentication: 535, auth failed, bad credentials
+    - daily_limit: 550 sending limit exceeded
+    - recipient_rejected: 550 recipient unknown, 551, 552, 554 recipient rejected
+    - transient: 421, 450, 451, 452, server busy, try again later
+    - connection: timeout, connection refused
+    - unknown: unclassified
+
+    Never exposes raw secrets or passwords in sanitized output.
+    """
+    err_str = str(exc) if exc is not None else ""
+    # Strip any potential password patterns if ever embedded in tracebacks
+    sanitized_raw = re.sub(r"(password['\"]?\s*[:=]\s*['\"])[^'\"]+(['\"])", r"\1***\2", err_str, flags=re.IGNORECASE)
+
+    code = None
+    if isinstance(exc, (smtplib.SMTPResponseException, smtplib.SMTPSenderRefused)):
+        code = getattr(exc, "smtp_code", None)
+    if code is None:
+        m = re.search(r"\b(4\d\d|5\d\d)\b", sanitized_raw)
+        if m:
+            try:
+                code = int(m.group(1))
+            except ValueError:
+                pass
+
+    lower = sanitized_raw.lower()
+
+    # 1. Sender Configuration / Ownership / Expired plan rejections (553, 5.7.1 sender address rejected)
+    if (
+        isinstance(exc, smtplib.SMTPSenderRefused)
+        or code == 553
+        or "sender address rejected" in lower
+        or "not owned by user" in lower
+        or ("sender" in lower and ("rejected" in lower or "denied" in lower))
+        or ("5.7.1" in lower and "sender" in lower)
+    ):
+        return {
+            "category": "sender_configuration",
+            "is_permanent_sender_failure": True,
+            "code": code or 553,
+            "sanitized_message": (
+                "SMTP sender address rejected by provider (553 5.7.1): "
+                "Sender identity is not owned by or authorized for the authenticated mailbox, "
+                "or the Hostinger email account/plan is inactive or expired. "
+                "Check Hostinger hPanel -> Emails account status and sender ownership."
+            ),
+            "raw_sanitized": sanitized_raw[:200],
+        }
+
+    # 2. Authentication failures (535)
+    if (
+        isinstance(exc, smtplib.SMTPAuthenticationError)
+        or code == 535
+        or "authentication failed" in lower
+        or "bad username / password" in lower
+        or "invalid credentials" in lower
+    ):
+        return {
+            "category": "authentication",
+            "is_permanent_sender_failure": True,
+            "code": code or 535,
+            "sanitized_message": (
+                "SMTP authentication failed (535): Invalid username or password for sender mailbox. "
+                "Check SMTP_SENDERS credentials in configuration."
+            ),
+            "raw_sanitized": sanitized_raw[:200],
+        }
+
+    # 3. Provider daily quota / limits
+    if code == 550 and ("limit" in lower or "quota" in lower or "max" in lower or "exceeded" in lower):
+        return {
+            "category": "daily_limit",
+            "is_permanent_sender_failure": True,
+            "code": 550,
+            "sanitized_message": "Daily sending limit exceeded on SMTP sender account. Pausing outreach until tomorrow.",
+            "raw_sanitized": sanitized_raw[:200],
+        }
+
+    # 4. Recipient rejection (550 / 551 / 554 recipient rejected or mailbox unavailable)
+    if (
+        isinstance(exc, smtplib.SMTPRecipientsRefused)
+        or ("recipient" in lower and ("rejected" in lower or "unknown" in lower or "unavailable" in lower))
+        or ("user unknown" in lower or "mailbox unavailable" in lower or "does not exist" in lower)
+    ):
+        return {
+            "category": "recipient_rejected",
+            "is_permanent_sender_failure": False,
+            "code": code or 550,
+            "sanitized_message": f"Recipient mailbox rejected by destination mail server: {sanitized_raw[:120]}",
+            "raw_sanitized": sanitized_raw[:200],
+        }
+
+    # 5. Connection / Timeout
+    if "timeout" in lower:
+        return {
+            "category": "connection",
+            "is_permanent_sender_failure": False,
+            "code": None,
+            "sanitized_message": "Connection to SMTP server timed out.",
+            "raw_sanitized": sanitized_raw[:200],
+        }
+
+    # 6. Transient / Server busy
+    if code in (421, 450, 451, 452) or "try again later" in lower or "server busy" in lower:
+        return {
+            "category": "transient",
+            "is_permanent_sender_failure": False,
+            "code": code,
+            "sanitized_message": f"SMTP server temporarily busy or deferred ({code}) – retry later.",
+            "raw_sanitized": sanitized_raw[:200],
+        }
+
+    # Fallback unknown
+    return {
+        "category": "unknown",
+        "is_permanent_sender_failure": False,
+        "code": code,
+        "sanitized_message": f"SMTP send failed: {sanitized_raw[:120]}",
+        "raw_sanitized": sanitized_raw[:200],
+    }
 
 
 def _send_email_sync(
@@ -1593,9 +1774,12 @@ def _send_email_sync(
 
         return True, ''
     except Exception as e:
-        err_str = str(e)
-        logger.error(f"SMTP send failed to {to_email} via {sender_email}@{smtp_host}:{smtp_port} — {err_str}")
-        return False, err_str
+        err_info = classify_smtp_error(e)
+        logger.error(
+            f"SMTP send failed to {to_email} via {sender_email}@{smtp_host}:{smtp_port} — "
+            f"[{err_info['category']}] {err_info['sanitized_message']}"
+        )
+        return False, err_info["sanitized_message"]
 
 
 
@@ -1613,8 +1797,15 @@ async def run_campaign(campaign_id: str):
     - Logs every email attempt to CampaignEmailLog
     - Updates pending_lead_ids so the campaign can be resumed
     """
-    if campaign_id in _RUNNING_CAMPAIGNS:
+    from app.services.campaign_lock_service import campaign_lock_coordinator
+
+    if campaign_id in _RUNNING_CAMPAIGNS or campaign_lock_coordinator.is_campaign_locked_in_process(campaign_id):
         logger.warning(f"Campaign {campaign_id} is already actively running. Ignoring duplicate start request.")
+        return
+
+    acquired = await campaign_lock_coordinator.acquire_campaign_lock(campaign_id)
+    if not acquired:
+        logger.warning(f"Campaign {campaign_id} is already actively running in another worker/process. Ignoring duplicate start request.")
         return
 
     _RUNNING_CAMPAIGNS.add(campaign_id)
@@ -1622,6 +1813,7 @@ async def run_campaign(campaign_id: str):
         await _run_campaign_worker(campaign_id)
     finally:
         _RUNNING_CAMPAIGNS.discard(campaign_id)
+        await campaign_lock_coordinator.release_campaign_lock(campaign_id)
 
 
 async def _run_campaign_worker(campaign_id: str):
@@ -1636,7 +1828,7 @@ async def _run_campaign_worker(campaign_id: str):
     account_index = 0
 
     async with AsyncSessionLocal() as db:
-        campaign = await db.get(Campaign, uuid.UUID(campaign_id))
+        campaign = await get_campaign_safe(db, uuid.UUID(campaign_id))
         if not campaign:
             logger.error(f"Campaign {campaign_id} not found.")
             return
@@ -1659,7 +1851,8 @@ async def _run_campaign_worker(campaign_id: str):
                 )
             )
             result = await db.execute(stmt)
-            return result.scalar() or 0
+            val = result.scalar() if hasattr(result, "scalar") else None
+            return int(val) if isinstance(val, (int, float)) else 0
 
         subject_template = campaign.subject_template or DEFAULT_SUBJECT_TEMPLATE
 
@@ -1667,6 +1860,7 @@ async def _run_campaign_worker(campaign_id: str):
         # If pending_lead_ids is populated (resume), use that; else use full list.
         all_ids = campaign.lead_ids or []
         pending = list(campaign.pending_lead_ids or []) or list(all_ids)
+        approved_audit_references = dict(getattr(campaign, 'audit_references', None) or {})
 
         sent    = campaign.sent_count or 0
         skipped = campaign.skipped_count or 0
@@ -1676,17 +1870,20 @@ async def _run_campaign_worker(campaign_id: str):
 
         for idx, lead_id_str in enumerate(list(pending)):
             # ── Check for pause/stop before every send ─────────────────────
-            await db.refresh(campaign)
-            if campaign.status == CampaignStatus.paused:
-                # Save remaining work so we can resume later
-                campaign.pending_lead_ids = pending[idx:]
-                campaign.sent_count  = sent
-                campaign.skipped_count = skipped
-                campaign.failed_count  = failed
-                campaign.next_email_at = None
-                await db.commit()
-                logger.info(f"Campaign {campaign_id} paused at lead {lead_id_str}.")
-                return  # stop processing; campaign stays 'paused'
+            await db.refresh(campaign, ['status'])
+            if campaign.status != CampaignStatus.sending:
+                if campaign.status == CampaignStatus.paused:
+                    # Save remaining work so we can resume later
+                    campaign.pending_lead_ids = pending[idx:]
+                    campaign.sent_count  = sent
+                    campaign.skipped_count = skipped
+                    campaign.failed_count  = failed
+                    campaign.next_email_at = None
+                    await db.commit()
+                    logger.info(f"Campaign {campaign_id} paused at lead {lead_id_str}.")
+                else:
+                    logger.info(f"Campaign {campaign_id} status changed to {campaign.status}. Stopping worker cleanly.")
+                return  # stop processing
 
             try:
                 lead_id = uuid.UUID(str(lead_id_str))
@@ -1724,8 +1921,35 @@ async def _run_campaign_worker(campaign_id: str):
                     SiteType.PARKED, SiteType.DEMO, SiteType.NOT_FOUND, SiteType.UNREACHABLE,
                 )
 
-                # ── Email Validation Before Sending ───────────────────────
-                if not is_valid_email(lead.email):
+                # ── Email Validation & Association Safety Before Sending ──
+                c_type = getattr(campaign, "campaign_type", None) or "generic_first_contact"
+                is_demo_campaign = (c_type == "public_provider_demo")
+
+                # Check 1: One-time demo contact limit check
+                has_delivered_demo = False
+                norm_email = (lead.email or "").strip().lower()
+                if is_demo_campaign and norm_email:
+                    try:
+                        demo_log_check = await db.execute(
+                            select(CampaignEmailLog.id)
+                            .join(Campaign, Campaign.id == CampaignEmailLog.campaign_id)
+                            .where(
+                                Campaign.campaign_type == "public_provider_demo",
+                                CampaignEmailLog.status == "sent",
+                                sa_or(
+                                    func.lower(CampaignEmailLog.email) == norm_email,
+                                    CampaignEmailLog.lead_id == lead.id,
+                                ),
+                            )
+                            .limit(1)
+                        )
+                        if demo_log_check.scalar_one_or_none():
+                            has_delivered_demo = True
+                    except Exception as ex:
+                        logger.warning(f"Error checking demo delivery history for {norm_email}: {ex}")
+                        has_delivered_demo = True  # fail-safe: assume delivered if ambiguous
+
+                if is_demo_campaign and has_delivered_demo:
                     skipped += 1
                     campaign.skipped_count = skipped
                     log_entry = CampaignEmailLog(
@@ -1734,31 +1958,188 @@ async def _run_campaign_worker(campaign_id: str):
                         business_name=lead.business_name,
                         email=lead.email,
                         status="skipped",
-                        message="Invalid email address format",
+                        message="Skipped — One-time demo email has already been delivered to this address",
                     )
                     db.add(log_entry)
-                    # Save progress as skipped leads also advance the list
+                    campaign.pending_lead_ids = pending[idx + 1:]
+                    await db.commit()
+                    logger.info(f"Skipped {lead.email} — already received demo email")
+                    continue
+
+                # Check 2: Suppression, hard-bounce, or opt-out state
+                is_suppressed = getattr(lead, "is_suppressed", False)
+                reply_type = getattr(lead, "reply_type", None)
+                if is_suppressed or reply_type in ("stop", "bounce"):
+                    skipped += 1
+                    campaign.skipped_count = skipped
+                    lead.is_quarantined = True
+                    lead.quarantine_reason = "Recipient suppressed, bounced, or opted-out"
+                    log_entry = CampaignEmailLog(
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        business_name=lead.business_name,
+                        email=lead.email,
+                        status="skipped",
+                        message="Skipped — Recipient suppressed, bounced, or opted-out (non-sendable quarantine)",
+                    )
+                    db.add(log_entry)
+                    campaign.pending_lead_ids = pending[idx + 1:]
+                    await db.commit()
+                    logger.info(f"Skipped {lead.email} — suppressed/bounced/opt-out")
+                    continue
+
+                # Check 3: Fail-closed association & quarantine gatekeeper
+                assoc_status = getattr(lead, "email_business_association_status", None)
+                is_quarantined = getattr(lead, "is_quarantined", False)
+
+                if is_demo_campaign:
+                    domain = extract_email_domain(lead.email)
+                    is_public = is_public_email_provider(domain)
+                    q_reason = getattr(lead, "quarantine_reason", None)
+                    is_legacy_q = is_legacy_provider_quarantine_reason(q_reason)
+
+                    if assoc_status in ("matched", "approved"):
+                        if is_quarantined and not is_legacy_q:
+                            is_blocked = True
+                            block_reason = q_reason or "lead_quarantined"
+                        else:
+                            is_blocked = False
+                            block_reason = None
+                    elif assoc_status in ("unverified_association", "external_domain_review"):
+                        if not is_public:
+                            is_blocked = True
+                            block_reason = f"email_business_association_{assoc_status} (non-public provider requires approval)"
+                        elif is_quarantined and not is_legacy_q:
+                            is_blocked = True
+                            block_reason = f"quarantined for independent safety violation: {q_reason}"
+                        else:
+                            is_blocked = False
+                            block_reason = None
+                    else:
+                        is_blocked = True
+                        block_reason = f"email_business_association_{assoc_status or 'missing'}"
+
+                    if is_blocked:
+                        skipped += 1
+                        campaign.skipped_count = skipped
+                        if is_quarantined and not is_legacy_q:
+                            lead.is_quarantined = True
+                        log_entry = CampaignEmailLog(
+                            campaign_id=campaign.id,
+                            lead_id=lead.id,
+                            business_name=lead.business_name,
+                            email=lead.email,
+                            status="skipped",
+                            message=f"Skipped — {block_reason} (demo-only association gate)",
+                        )
+                        db.add(log_entry)
+                        campaign.pending_lead_ids = pending[idx + 1:]
+                        await db.commit()
+                        logger.info(f"Skipped {lead.email} — {block_reason}")
+                        continue
+                else:
+                    # Standard fail-closed gate for all non-demo marketing/audit campaigns
+                    is_assoc_sendable = assoc_status in ("matched", "approved")
+                    if is_quarantined or not is_assoc_sendable:
+                        skipped += 1
+                        campaign.skipped_count = skipped
+                        if is_quarantined:
+                            reason = (
+                                getattr(lead, "quarantine_reason", None)
+                                or getattr(lead, "email_association_reason", None)
+                                or "lead_quarantined"
+                            )
+                        elif not assoc_status:
+                            reason = "missing_email_business_association_status"
+                        else:
+                            reason = (
+                                getattr(lead, "email_association_reason", None)
+                                or f"email_business_association_{assoc_status}"
+                            )
+                        lead.is_quarantined = True
+                        lead.quarantine_reason = reason
+                        log_entry = CampaignEmailLog(
+                            campaign_id=campaign.id,
+                            lead_id=lead.id,
+                            business_name=lead.business_name,
+                            email=lead.email,
+                            status="skipped",
+                            message=f"Skipped — {reason} (non-sendable quarantine)",
+                        )
+                        db.add(log_entry)
+                        campaign.pending_lead_ids = pending[idx + 1:]
+                        await db.commit()
+                        logger.info(f"Skipped {lead.email} — {reason}")
+                        continue
+
+                # Check 4: Email Verification status gatekeeper (must be confirmed 'valid')
+                verification_status = getattr(lead, "email_verification_status", "unverified")
+                if verification_status != "valid":
+                    skipped += 1
+                    campaign.skipped_count = skipped
+                    lead.is_quarantined = True
+                    lead.quarantine_reason = f"Email verification failed or unverified: {verification_status}"
+                    log_entry = CampaignEmailLog(
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        business_name=lead.business_name,
+                        email=lead.email,
+                        status="skipped",
+                        message=f"Skipped — {lead.quarantine_reason} (non-sendable quarantine)",
+                    )
+                    db.add(log_entry)
+                    campaign.pending_lead_ids = pending[idx + 1:]
+                    await db.commit()
+                    logger.info(f"Skipped {lead.email} — {lead.quarantine_reason}")
+                    continue
+
+                # Check 5: Strict email format syntax
+                if not is_valid_email(lead.email):
+                    skipped += 1
+                    campaign.skipped_count = skipped
+                    lead.is_quarantined = True
+                    lead.quarantine_reason = "Invalid email address format"
+                    log_entry = CampaignEmailLog(
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        business_name=lead.business_name,
+                        email=lead.email,
+                        status="skipped",
+                        message="Skipped — Invalid email address format (non-sendable quarantine)",
+                    )
+                    db.add(log_entry)
                     campaign.pending_lead_ids = pending[idx + 1:]
                     await db.commit()
                     logger.info(f"Skipped {lead.email} — Invalid email address format")
                     continue
 
-                domain_str = (lead.website or "").replace("https://","").replace("http://","").replace("www.","").rstrip("/").split("/")[0]
-                variables = {
-                    "business_name": lead.business_name,
-                    "website":       lead.website,
-                    "domain":        domain_str,
-                }
-                if is_no_site:
-                    subject = process_template(NO_SITE_SUBJECT_TEMPLATE, variables)
-                else:
-                    subject = process_template(subject_template, variables)
+                # Check 6: Campaign segment & website eligibility check
+                from app.services.template_renderer import TemplateRenderer, TemplateRenderingError
 
-                plain_body = build_plain_outreach_email(lead, audit, site_type)
-                if is_no_site:
-                    html_body = build_no_site_email(lead, site_type.value if site_type else "unreachable")
-                else:
-                    html_body = build_html_email(lead, audit)
+                req_approval = (c_type == "technical_seo_proposal") or bool(getattr(campaign, "require_proposal_approval", False))
+                persisted_proposal = None
+                if req_approval:
+                    from app.services.proposal_service import ProposalService
+                    persisted_proposal = await ProposalService.aload_proposal(str(lead.id), db=db)
+                is_el, el_reason, site_cls, email_cls = evaluate_lead_campaign_eligibility(
+                    lead, audit, c_type, has_received_demo=has_delivered_demo, require_proposal_approval=req_approval, proposal=persisted_proposal
+                )
+                if not is_el:
+                    skipped += 1
+                    campaign.skipped_count = skipped
+                    log_entry = CampaignEmailLog(
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        business_name=lead.business_name,
+                        email=lead.email,
+                        status="skipped",
+                        message=f"Skipped — {el_reason} (campaign eligibility gate)",
+                    )
+                    db.add(log_entry)
+                    campaign.pending_lead_ids = pending[idx + 1:]
+                    await db.commit()
+                    logger.info(f"Skipped {lead.email} — {el_reason}")
+                    continue
 
                 # Rotate sender account and enforce Hostinger Daily Limit (1000/day)
                 account = None
@@ -1788,6 +2169,74 @@ async def _run_campaign_worker(campaign_id: str):
                     campaign.failed_count = failed
                     await db.commit()
                     return
+
+                # Authoritative template rendering: campaign.template is the source of truth!
+                template_to_use = campaign.template
+                subject_to_use = campaign.subject_template or subject_template
+                try:
+                    rendered = TemplateRenderer.render_campaign_email(
+                        template=template_to_use,
+                        subject_template=subject_to_use,
+                        lead=lead,
+                        audit=audit,
+                        campaign_type=c_type,
+                        sender_account=account,
+                    )
+                    subject = rendered["subject"]
+                    plain_body = rendered["plain_body"]
+                    html_body = rendered["html_body"]
+                except TemplateRenderingError as render_err:
+                    skipped += 1
+                    campaign.skipped_count = skipped
+                    log_entry = CampaignEmailLog(
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        business_name=lead.business_name,
+                        email=lead.email,
+                        status="skipped",
+                        message=f"Skipped — Template rendering failed: {str(render_err)}",
+                    )
+                    db.add(log_entry)
+                    campaign.pending_lead_ids = pending[idx + 1:]
+                    await db.commit()
+                    logger.warning(f"Skipped {lead.email} — Template rendering failed: {render_err}")
+                    continue
+
+                # A canonical audit draft is approved against a specific audit
+                # fingerprint at campaign creation. Never silently regenerate
+                # and send different evidence after the operator reviewed it.
+                if rendered.get("content_strategy") == "audit_generated":
+                    references = getattr(campaign, "audit_references", None)
+                    if not isinstance(references, dict) or not references:
+                        references = approved_audit_references
+                    references = references if isinstance(references, dict) else {}
+                    approved_reference = references.get(str(lead.id))
+                    current_reference = rendered.get("audit_reference") or {}
+                    reference_matches = (
+                        isinstance(approved_reference, dict)
+                        and approved_reference.get("audit_id") == current_reference.get("audit_id")
+                        and approved_reference.get("fingerprint") == current_reference.get("fingerprint")
+                        and approved_reference.get("renderer_version") == current_reference.get("renderer_version")
+                    )
+                    if not reference_matches:
+                        skipped += 1
+                        campaign.skipped_count = skipped
+                        log_entry = CampaignEmailLog(
+                            campaign_id=campaign.id,
+                            lead_id=lead.id,
+                            business_name=lead.business_name,
+                            email=lead.email,
+                            status="skipped",
+                            message=(
+                                "Skipped — Audit evidence changed or this legacy audit campaign has no approved "
+                                "audit reference. Regenerate and review the campaign before sending."
+                            ),
+                        )
+                        db.add(log_entry)
+                        campaign.pending_lead_ids = pending[idx + 1:]
+                        await db.commit()
+                        logger.warning("Skipped %s — audit evidence freshness check failed", lead.email)
+                        continue
 
                 loop    = asyncio.get_running_loop()
                 result  = await loop.run_in_executor(
@@ -1868,17 +2317,13 @@ async def _run_campaign_worker(campaign_id: str):
                     audit = audit_check.scalar_one_or_none()
                     lead.status = LeadStatus.audited if audit and audit.status == AuditStatus.done else LeadStatus.new
 
-                    # Determine human-friendly SMTP error reason
-                    if "550" in smtp_err and "limit" in smtp_err.lower():
-                        err_reason = "Daily sending limit exceeded"
-                    elif "454" in smtp_err or "Try again later" in smtp_err:
-                        err_reason = "Server busy – try again later"
-                    elif "535" in smtp_err or "authentication" in smtp_err.lower():
-                        err_reason = "Authentication failed"
-                    elif "timeout" in smtp_err.lower():
-                        err_reason = "Connection timeout"
-                    else:
-                        err_reason = smtp_err[:120] if smtp_err else "Unknown SMTP error"
+                    # Classify SMTP error to protect recipient and prevent repetitive sender rejections
+                    err_info = classify_smtp_error(smtp_err)
+                    err_reason = err_info["sanitized_message"]
+
+                    # Safety invariant: Recipient verification status and quarantine status must NOT
+                    # be altered because the failure is an outbound SMTP sender/provider policy issue.
+                    # lead.email_verification_status and lead.is_quarantined remain unchanged.
 
                     log_entry = CampaignEmailLog(
                         campaign_id=campaign.id,
@@ -1896,6 +2341,19 @@ async def _run_campaign_worker(campaign_id: str):
                         message=f"Failed to send to {lead.email} ({lead.business_name}) {via_label}: {err_reason}",
                     )
                     db.add(act_log)
+
+                    # If sender is rejected by provider (e.g. 553 sender ownership, 535 auth, daily limit),
+                    # do NOT retry remaining leads repeatedly. Pause campaign immediately.
+                    if err_info["is_permanent_sender_failure"]:
+                        logger.error(
+                            f"Campaign {campaign_id} paused due to permanent sender error ({err_info['category']}): {err_reason}"
+                        )
+                        campaign.status = CampaignStatus.paused
+                        campaign.next_email_at = None
+                        campaign.pending_lead_ids = pending[idx + 1:]
+                        await db.commit()
+                        return
+
                     await db.commit()
 
             except Exception as e:

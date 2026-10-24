@@ -35,6 +35,7 @@ See security.py for the blocked IP ranges and remaining limitations.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import posixpath
 import tempfile
@@ -139,6 +140,7 @@ class BrowserEvidence:
     has_horizontal_overflow: bool = False
     overflow_px: int = 0
     design_diagnostics: dict[str, Any] = field(default_factory=dict)
+    performance_diagnostics: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict compatible with the factor evidence list."""
@@ -177,6 +179,7 @@ class BrowserEvidence:
             "has_horizontal_overflow": self.has_horizontal_overflow,
             "overflow_px": self.overflow_px,
             "design_diagnostics": self.design_diagnostics,
+            "performance_diagnostics": self.performance_diagnostics,
         }
 
     @staticmethod
@@ -843,6 +846,16 @@ class BrowserProvider:
             for idx, _ in remaining_urls:
                 evidences.append(results_dict.get(idx, BrowserEvidence.failed(urls[idx], "No evidence recorded")))
 
+        total_captured = len(evidences)
+        for idx, ev in enumerate(evidences):
+            if isinstance(ev.performance_diagnostics, dict) and ev.performance_diagnostics.get("available"):
+                ev.performance_diagnostics["page_index"] = idx
+                ev.performance_diagnostics["total_pages_captured"] = total_captured
+                ev.performance_diagnostics["coverage_note"] = (
+                    f"Observation from captured page {idx + 1} of {total_captured}. "
+                    "Bounded lab capture under controlled conditions; not full-site user telemetry."
+                )
+
         return evidences
 
     def _capture_with_playwright(self, url: str, deadline: float | None = None) -> BrowserEvidence:
@@ -895,7 +908,7 @@ class BrowserProvider:
             #   to 127.0.0.1, localhost, or any other address.
             launch_kwargs: dict[str, Any] = {
                 "headless": cfg.headless,
-                "timeout": cfg.nav_timeout_ms,
+                "timeout": max(30_000, cfg.op_timeout_ms),
                 "proxy": {"server": proxy_url},
                 "args": ["--proxy-bypass-list=<-loopback>"],
             }
@@ -992,6 +1005,26 @@ class BrowserProvider:
                 if len(_failed_reqs) < 20:
                     _failed_reqs.append(req.url[:300])
             page.on("requestfailed", _on_req_failed)
+
+            # Capture HTTP error responses (status >= 400, bounded)
+            _http_errors: list[dict[str, Any]] = []
+            def _on_response(resp):  # type: ignore[no-untyped-def]
+                try:
+                    if resp.status >= 400 and len(_http_errors) < 20:
+                        res_type = "other"
+                        try:
+                            if resp.request:
+                                res_type = resp.request.resource_type or "other"
+                        except Exception:
+                            pass
+                        _http_errors.append({
+                            "url": resp.url[:300],
+                            "status": resp.status,
+                            "resource_type": res_type,
+                        })
+                except Exception:
+                    pass
+            page.on("response", _on_response)
 
             # Track request-boundary security blocks
             _security_blocked_reasons: list[str] = []
@@ -1315,7 +1348,7 @@ class BrowserProvider:
                         result.cls = null;
                     }
 
-                    result.available = true;
+                    result.available = (result.lcp_ms !== null || result.cls !== null || result.ttfb_ms !== null);
                 } catch (e) {
                     result.available = false;
                 }
@@ -1325,13 +1358,133 @@ class BrowserProvider:
             try:
                 metrics_res = page.evaluate(_EXTRACT_METRICS_JS)
                 if isinstance(metrics_res, dict):
-                    evidence.lab_lcp_ms = metrics_res.get("lcp_ms")
-                    evidence.lab_cls = metrics_res.get("cls")
-                    evidence.lab_ttfb_ms = metrics_res.get("ttfb_ms")
-                    evidence.lab_metrics_available = bool(metrics_res.get("available"))
+                    lcp = metrics_res.get("lcp_ms")
+                    if isinstance(lcp, (int, float)) and math.isfinite(lcp) and lcp > 0:
+                        evidence.lab_lcp_ms = int(round(lcp))
+                    else:
+                        evidence.lab_lcp_ms = None
+
+                    cls_val = metrics_res.get("cls")
+                    if isinstance(cls_val, (int, float)) and math.isfinite(cls_val) and cls_val >= 0:
+                        evidence.lab_cls = round(float(cls_val), 4)
+                    else:
+                        evidence.lab_cls = None
+
+                    ttfb = metrics_res.get("ttfb_ms")
+                    if isinstance(ttfb, (int, float)) and math.isfinite(ttfb) and ttfb > 0:
+                        evidence.lab_ttfb_ms = int(round(ttfb))
+                    else:
+                        evidence.lab_ttfb_ms = None
+
+                    evidence.lab_metrics_available = bool(metrics_res.get("available")) and any(
+                        x is not None for x in [evidence.lab_lcp_ms, evidence.lab_cls, evidence.lab_ttfb_ms]
+                    )
             except (PWError, Exception) as _eval_err:
                 logger.debug("Lab vitals extraction failed: %s", _eval_err)
+                evidence.lab_lcp_ms = None
+                evidence.lab_cls = None
+                evidence.lab_ttfb_ms = None
                 evidence.lab_metrics_available = False
+
+            # ── Web Design & Layout Diagnostics (Domain H) ───────────────────
+            try:
+                from browser.design_diagnostics import WebDesignDiagnostics
+                _LAYOUT_EVAL_JS = """
+                (() => {
+                    try {
+                        const winWidth = window.innerWidth || (document.documentElement ? document.documentElement.clientWidth : 0) || 375;
+                        const scrollW = Math.max(
+                            document.documentElement ? document.documentElement.scrollWidth || 0 : 0,
+                            document.body ? document.body.scrollWidth || 0 : 0
+                        );
+                        return { window_width: winWidth, scroll_width: scrollW };
+                    } catch (e) {
+                        return { window_width: 375, scroll_width: 375 };
+                    }
+                })()
+                """
+                dim_res = page.evaluate(_LAYOUT_EVAL_JS)
+                if isinstance(dim_res, dict):
+                    w = dim_res.get("window_width") or 375
+                    sw = dim_res.get("scroll_width") or w
+                    runtime_diag = WebDesignDiagnostics.evaluate_browser_runtime_diagnostics(
+                        console_errors=_console_errors,
+                        failed_requests=_failed_reqs,
+                        window_width=w,
+                        scroll_width=sw,
+                        viewport_name=f"viewport_{w}",
+                    )
+                    evidence.has_horizontal_overflow = bool(runtime_diag.get("has_horizontal_overflow", False))
+                    evidence.overflow_px = int(runtime_diag.get("overflow_px", 0))
+                    evidence.design_diagnostics = runtime_diag
+            except (PWError, Exception) as _diag_err:
+                logger.debug("Design diagnostics evaluation error: %s", _diag_err)
+
+            # ── Advanced Website Performance Diagnostics ─────────────────────
+            try:
+                from browser.performance_diagnostics import PerformanceDiagnostics
+                _PERF_EVAL_JS = """
+                (() => {
+                    try {
+                        const entries = [];
+                        if (typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function') {
+                            const res = performance.getEntriesByType('resource');
+                            for (let i = 0; i < Math.min(res.length, 100); i++) {
+                                const r = res[i];
+                                entries.push({
+                                    name: r.name ? r.name.slice(0, 300) : '',
+                                    initiatorType: r.initiatorType || '',
+                                    transferSize: typeof r.transferSize === 'number' ? r.transferSize : 0,
+                                    encodedBodySize: typeof r.encodedBodySize === 'number' ? r.encodedBodySize : 0,
+                                    duration: typeof r.duration === 'number' ? Math.round(r.duration) : 0,
+                                });
+                            }
+                        }
+                        const rbScripts = [];
+                        const rbStyles = [];
+                        const head = document.head;
+                        if (head) {
+                            const scripts = head.querySelectorAll('script[src]');
+                            for (let i = 0; i < Math.min(scripts.length, 10); i++) {
+                                const s = scripts[i];
+                                if (!s.hasAttribute('async') && !s.hasAttribute('defer') && s.getAttribute('type') !== 'module') {
+                                    rbScripts.push({
+                                        url: (s.getAttribute('src') || '').slice(0, 300),
+                                        reason: 'Synchronous <script> in <head> without async/defer'
+                                    });
+                                }
+                            }
+                            const styles = head.querySelectorAll('link[rel="stylesheet"][href]');
+                            for (let i = 0; i < Math.min(styles.length, 10); i++) {
+                                const link = styles[i];
+                                const media = (link.getAttribute('media') || '').toLowerCase();
+                                if (!media || media === 'all' || media === 'screen') {
+                                    rbStyles.push({
+                                        url: (link.getAttribute('href') || '').slice(0, 300),
+                                        reason: 'Standard stylesheet link in <head>'
+                                    });
+                                }
+                            }
+                        }
+                        return { resources: entries, render_blocking: { scripts: rbScripts, stylesheets: rbStyles } };
+                    } catch (e) {
+                        return { resources: [], render_blocking: { scripts: [], stylesheets: [] } };
+                    }
+                })()
+                """
+                perf_raw = page.evaluate(_PERF_EVAL_JS)
+                if isinstance(perf_raw, dict):
+                    evidence.performance_diagnostics = PerformanceDiagnostics.evaluate(
+                        resource_entries=perf_raw.get("resources"),
+                        failed_requests=_failed_reqs,
+                        http_errors=_http_errors,
+                        console_messages=_console_errors,
+                        render_blocking_info=perf_raw.get("render_blocking"),
+                        page_index=0,
+                        total_pages=1,
+                    )
+            except (PWError, Exception) as _perf_err:
+                logger.debug("Performance diagnostics extraction error: %s", _perf_err)
 
             if _over_budget():
                 evidence.provider_status = BrowserStatus.PARTIAL

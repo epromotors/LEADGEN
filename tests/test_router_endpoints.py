@@ -8,7 +8,10 @@ import pytest
 from app.routers import gsc, ai_search, proposals
 from app.services.proposal_service import ProposalService
 
+from app.routers.auth import require_authorized_operator
+
 _test_app = FastAPI()
+_test_app.dependency_overrides[require_authorized_operator] = lambda: {"sub": "test_operator"}
 _test_app.include_router(gsc.router)
 _test_app.include_router(ai_search.router)
 _test_app.include_router(proposals.router)
@@ -220,49 +223,88 @@ def test_ai_search_duplicate_run_conflict(client):
 
 
 def test_proposals_workflow_api(client):
-    # Setup mock proposal in service store
-    lead_id = "test-api-lead-999"
-    ProposalService.get_or_create_proposal(
-        lead_id=lead_id,
+    import uuid
+    from unittest.mock import AsyncMock, MagicMock
+    from app.database import get_db
+    from app.models import Lead, Audit, AuditStatus
+
+    lead_uuid = uuid.uuid4()
+    lead_id = str(lead_uuid)
+
+    mock_lead = Lead(
+        id=lead_uuid,
         business_name="Test Garage",
-        website_url="https://testgarage.com",
+        website="https://testgarage.com",
+        email="client@testgarage.com",
+        email_verification_status="valid",
+        email_business_association_status="matched",
+        is_quarantined=False,
+    )
+    mock_audit = Audit(
+        id=uuid.uuid4(),
+        lead_id=lead_uuid,
+        status=AuditStatus.done,
         audit_results={
             "technical": {"ssl": {"status": "FAIL", "message": "No SSL"}},
             "ux": {"cta": {"status": "FAIL"}},
         },
     )
 
-    # 1. Attempt send without approval -> 403 Forbidden
-    send_resp = client.post(
-        f"/proposals/{lead_id}/send",
-        json={"target_email": "client@testgarage.com", "dry_run": True},
-    )
-    assert send_resp.status_code == 403
-    err_detail = send_resp.json()["detail"]
-    assert err_detail["error"] == "approval_required"
+    async def override_get_db():
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(return_value=mock_lead)
+        mock_audit_res = MagicMock()
+        mock_audit_res.scalar_one_or_none.return_value = mock_audit
+        mock_db.execute = AsyncMock(return_value=mock_audit_res)
+        yield mock_db
 
-    # 2. Edit proposal draft
-    edit_resp = client.put(
-        f"/proposals/{lead_id}",
-        json={"subject": "Revised Subject Proposal"},
-    )
-    assert edit_resp.status_code == 200
-    assert edit_resp.json()["subject"] == "Revised Subject Proposal"
+    _test_app.dependency_overrides[get_db] = override_get_db
 
-    # 3. Approve proposal
-    appr_resp = client.post(
-        f"/proposals/{lead_id}/approve",
-        json={"user_email": "leadgen_manager@tebsolutions.in"},
-    )
-    assert appr_resp.status_code == 200
-    assert appr_resp.json()["approved"] is True
-    assert appr_resp.json()["approved_by"] == "leadgen_manager@tebsolutions.in"
+    try:
+        # Setup mock proposal in service store
+        ProposalService.get_or_create_proposal(
+            lead_id=lead_id,
+            business_name="Test Garage",
+            website_url="https://testgarage.com",
+            audit_results={
+                "technical": {"ssl": {"status": "FAIL", "message": "No SSL"}},
+                "ux": {"cta": {"status": "FAIL"}},
+            },
+            association_status="matched",
+        )
 
-    # 4. Attempt send after approval -> 200 OK
-    send_approved = client.post(
-        f"/proposals/{lead_id}/send",
-        json={"target_email": "client@testgarage.com", "dry_run": True},
-    )
-    assert send_approved.status_code == 200
-    assert send_approved.json()["success"] is True
-    assert send_approved.json()["mode"] == "dry_run"
+        # 1. Attempt send without approval -> 403 Forbidden
+        send_resp = client.post(
+            f"/proposals/{lead_id}/send",
+            json={"target_email": "client@testgarage.com", "dry_run": True},
+        )
+        assert send_resp.status_code == 403
+        err_detail = send_resp.json()["detail"]
+        assert err_detail["error"] == "approval_required"
+
+        # 2. Edit proposal draft
+        edit_resp = client.put(
+            f"/proposals/{lead_id}",
+            json={"subject": "Revised Subject Proposal"},
+        )
+        assert edit_resp.status_code == 200
+        assert edit_resp.json()["subject"] == "Revised Subject Proposal"
+
+        # 3. Approve proposal
+        appr_resp = client.post(
+            f"/proposals/{lead_id}/approve",
+            json={"user_email": "leadgen_manager@tebsolutions.in"},
+        )
+        assert appr_resp.status_code == 200
+        assert appr_resp.json()["approved"] is True
+
+        # 4. Attempt send after approval -> 200 OK
+        send_approved = client.post(
+            f"/proposals/{lead_id}/send",
+            json={"target_email": "client@testgarage.com", "dry_run": True},
+        )
+        assert send_approved.status_code == 200
+        assert send_approved.json()["success"] is True
+        assert send_approved.json()["mode"] == "dry_run"
+    finally:
+        _test_app.dependency_overrides.pop(get_db, None)

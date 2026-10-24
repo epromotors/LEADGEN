@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://example.test/corrupted-page
+        <lastmod>2026-10-15</lastmod>
+        <!-- unclosed loc tag and premature end of document -->

@@ -51,8 +51,48 @@ KNOWN_AI_CRAWLERS = [
     "CCBot",
 ]
 
+import urllib.parse
+
 DEFAULT_QUERY_BUDGET = 10
 MAX_QUERY_BUDGET = 10
+
+
+def sanitize_and_validate_citation_url(raw_url: str) -> str:
+    """
+    Validate that citation URL uses http or https, strip credentials and sensitive query tokens,
+    and reject unsafe schemes (javascript:, data:, file:, etc.).
+    """
+    if not raw_url or not isinstance(raw_url, str):
+        raise ValueError("Citation URL must be a non-empty string.")
+    cleaned = raw_url.strip()
+    if len(cleaned) > 1000:
+        raise ValueError("Citation URL exceeds maximum length of 1000 characters.")
+    parsed = urllib.parse.urlparse(cleaned)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ValueError(f"Invalid URL scheme '{parsed.scheme}'. Only http and https URLs are accepted as citations.")
+    if not parsed.netloc:
+        raise ValueError("Citation URL must contain a valid host / network location.")
+
+    # Strip user:pass credentials from netloc
+    netloc = parsed.netloc
+    if "@" in netloc:
+        netloc = netloc.split("@", 1)[1]
+
+    # Filter sensitive query parameters
+    sensitive_keys = {"token", "auth", "key", "api_key", "password", "secret", "session", "jwt", "bearer"}
+    query_parts = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    filtered_query = [(k, v) for k, v in query_parts if k.lower() not in sensitive_keys]
+    new_query = urllib.parse.urlencode(filtered_query)
+
+    sanitized = urllib.parse.urlunparse((
+        parsed.scheme.lower(),
+        netloc.lower(),
+        parsed.path,
+        parsed.params,
+        new_query,
+        ""  # strip fragments
+    ))
+    return sanitized
 
 
 class AiSearchMonitoringService:
@@ -138,6 +178,13 @@ class AiSearchMonitoringService:
 
         self._load_runs_from_disk()
 
+        self.observations_storage_file = (
+            os.environ.get("AI_SEARCH_OBSERVATIONS_FILE", "")
+            or os.path.join(os.path.dirname(self.storage_file) or "reports", ".ai_search_observations.json")
+        )
+        self._observations: List[Dict[str, Any]] = []
+        self._load_observations_from_disk()
+
     def get_active_provider_id(self, preferred: Optional[str] = None) -> str:
         """
         Resolve the active provider ID.
@@ -206,6 +253,31 @@ class AiSearchMonitoringService:
             os.replace(temp_path, self.storage_file)
         except Exception as ex:
             logger.error("Failed to persist AI search runs to (%s): %s", self.storage_file, ex)
+
+    def _load_observations_from_disk(self) -> None:
+        """Load stored dated visibility observations from persistent JSON storage."""
+        if not os.path.exists(self.observations_storage_file):
+            return
+        try:
+            with open(self.observations_storage_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    self._observations = data
+        except Exception as ex:
+            logger.warning("Could not read AI search observations file (%s): %s", self.observations_storage_file, ex)
+
+    def _save_observations_to_disk(self) -> None:
+        """Atomically persist dated visibility observations to disk."""
+        try:
+            dir_name = os.path.dirname(self.observations_storage_file)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+            temp_path = f"{self.observations_storage_file}.tmp.{os.getpid()}"
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(self._observations, f, indent=2, ensure_ascii=False)
+            os.replace(temp_path, self.observations_storage_file)
+        except Exception as ex:
+            logger.error("Failed to persist AI search observations to (%s): %s", self.observations_storage_file, ex)
 
     @staticmethod
     def evaluate_ai_readiness_heuristics(
@@ -734,4 +806,280 @@ class AiSearchMonitoringService:
             "citations_found": cited_count,
             "citation_rate": round(cited_count / len(queries), 2) if queries else 0.0,
             "citations": citations,
+        }
+
+    def record_observation(
+        self,
+        target_domain: str,
+        search_query: str,
+        mention_status: str,
+        source_type: str = "manual",
+        provider: Optional[str] = None,
+        engine: Optional[str] = None,
+        lead_id: Optional[str] = None,
+        brand_name: Optional[str] = None,
+        locale: Optional[str] = None,
+        observed_at: Optional[str] = None,
+        citation_urls: Optional[List[str]] = None,
+        evidence_snippet: Optional[str] = None,
+        notes: Optional[str] = None,
+        created_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Record a validated dated visibility observation.
+        Strictly differentiates manual observations from live provider results.
+        Never fabricates live status.
+        """
+        if not target_domain or not isinstance(target_domain, str) or not target_domain.strip():
+            raise ValueError("Target domain is required.")
+        norm_domain = normalize_domain(target_domain.strip())
+        if not norm_domain:
+            raise ValueError("Invalid target domain.")
+
+        if not search_query or not isinstance(search_query, str) or not search_query.strip():
+            raise ValueError("Search query is required.")
+        q_clean = search_query.strip()
+        if len(q_clean) > 500:
+            raise ValueError("Search query cannot exceed 500 characters.")
+
+        valid_statuses = {"mentioned", "not_mentioned", "unknown"}
+        m_status = (mention_status or "unknown").strip().lower()
+        if m_status not in valid_statuses:
+            raise ValueError(f"Invalid mention_status '{mention_status}'. Must be one of: {sorted(valid_statuses)}")
+
+        valid_sources = {"manual", "provider_api", "structured_import"}
+        s_type = (source_type or "manual").strip().lower()
+        if s_type not in valid_sources:
+            raise ValueError(f"Invalid source_type '{source_type}'. Must be one of: {sorted(valid_sources)}")
+
+        if s_type == "provider_api" and not provider:
+            raise ValueError("Provider name is required for provider_api observations.")
+
+        if s_type == "manual":
+            prov_label = provider or "Manual Observation"
+        elif s_type == "structured_import":
+            prov_label = provider or "Structured Import"
+        else:
+            prov_label = provider or "AI Provider API"
+
+        # Sanitize and validate citation URLs
+        sanitized_citations: List[str] = []
+        if citation_urls:
+            if len(citation_urls) > 50:
+                raise ValueError("Maximum 50 citation URLs allowed per observation.")
+            for u in citation_urls:
+                if u and isinstance(u, str) and u.strip():
+                    sanitized = sanitize_and_validate_citation_url(u)
+                    if sanitized not in sanitized_citations:
+                        sanitized_citations.append(sanitized)
+
+        # Validate timestamp
+        if observed_at:
+            try:
+                datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+                obs_ts = observed_at
+            except Exception:
+                raise ValueError("observed_at must be a valid ISO-8601 timestamp string.")
+        else:
+            obs_ts = datetime.now(timezone.utc).isoformat()
+
+        if evidence_snippet and len(evidence_snippet) > 2000:
+            raise ValueError("Evidence snippet exceeds maximum length of 2000 characters.")
+        if notes and len(notes) > 2000:
+            raise ValueError("Notes exceed maximum length of 2000 characters.")
+
+        record: Dict[str, Any] = {
+            "observation_id": str(uuid.uuid4()),
+            "lead_id": str(lead_id) if lead_id else None,
+            "target_domain": norm_domain,
+            "brand_name": brand_name.strip() if brand_name else None,
+            "source_type": s_type,
+            "provider": prov_label,
+            "engine": engine.strip() if engine else ("Google" if "gemini" in prov_label.lower() else "AI Assistant"),
+            "search_query": q_clean,
+            "locale": locale.strip() if locale else "default",
+            "observed_at": obs_ts,
+            "mention_status": m_status,
+            "citation_urls": sanitized_citations,
+            "evidence_snippet": evidence_snippet.strip() if evidence_snippet else None,
+            "notes": notes.strip() if notes else None,
+            "created_by": created_by or "operator",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        self._observations.append(record)
+        # Cap in-memory history to latest 5000 observations
+        if len(self._observations) > 5000:
+            self._observations = self._observations[-5000:]
+        self._save_observations_to_disk()
+        return record
+
+    def get_observations(
+        self,
+        lead_id: Optional[str] = None,
+        domain: Optional[str] = None,
+        source_type: Optional[str] = None,
+        mention_status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Query recorded visibility observations with optional filtering and pagination.
+        """
+        norm_domain = normalize_domain(domain) if domain else None
+        lid_str = str(lead_id) if lead_id else None
+
+        filtered = []
+        for obs in self._observations:
+            if lid_str and obs.get("lead_id") != lid_str:
+                continue
+            if norm_domain and obs.get("target_domain") != norm_domain:
+                continue
+            if source_type and obs.get("source_type", "").lower() != source_type.lower():
+                continue
+            if mention_status and obs.get("mention_status", "").lower() != mention_status.lower():
+                continue
+            filtered.append(obs)
+
+        filtered.sort(key=lambda x: x.get("observed_at", ""), reverse=True)
+        total = len(filtered)
+        paginated = filtered[offset : offset + limit]
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "observations": paginated,
+        }
+
+    def get_observation_by_id(self, observation_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a single observation by unique ID."""
+        for obs in self._observations:
+            if obs.get("observation_id") == observation_id:
+                return obs
+        return None
+
+    def compare_observations(self, base_id: str, target_id: str) -> Dict[str, Any]:
+        """
+        Compare two dated observations for visibility progression or regression.
+        Explicitly rejects false comparability if search queries or domains differ.
+        """
+        base = self.get_observation_by_id(base_id)
+        target = self.get_observation_by_id(target_id)
+        if not base:
+            raise ValueError(f"Base observation '{base_id}' not found.")
+        if not target:
+            raise ValueError(f"Target observation '{target_id}' not found.")
+
+        try:
+            t_base = datetime.fromisoformat(base["observed_at"].replace("Z", "+00:00"))
+            t_target = datetime.fromisoformat(target["observed_at"].replace("Z", "+00:00"))
+        except Exception:
+            t_base = datetime.min.replace(tzinfo=timezone.utc)
+            t_target = datetime.min.replace(tzinfo=timezone.utc)
+
+        if t_base <= t_target:
+            earlier, later = base, target
+            earlier_t, later_t = t_base, t_target
+        else:
+            earlier, later = target, base
+            earlier_t, later_t = t_target, t_base
+
+        days_between = round((later_t - earlier_t).total_seconds() / 86400.0, 1)
+
+        q_earlier = earlier["search_query"].strip().lower()
+        q_later = later["search_query"].strip().lower()
+        d_earlier = earlier["target_domain"].strip().lower()
+        d_later = later["target_domain"].strip().lower()
+
+        is_comparable = (q_earlier == q_later) and (d_earlier == d_later)
+        non_comparable_reasons = []
+        if q_earlier != q_later:
+            non_comparable_reasons.append(
+                f"Search queries differ ('{earlier['search_query']}' vs '{later['search_query']}'). "
+                "AI visibility cannot be directly compared across different search prompts."
+            )
+        if d_earlier != d_later:
+            non_comparable_reasons.append(
+                f"Target domains differ ('{earlier['target_domain']}' vs '{later['target_domain']}')."
+            )
+
+        limitations = []
+        if earlier.get("engine") != later.get("engine"):
+            limitations.append(
+                f"Search engines differ ({earlier.get('engine')} vs {later.get('engine')}). Engine behavior varies."
+            )
+        if earlier.get("source_type") != later.get("source_type"):
+            limitations.append(
+                f"Source types differ ({earlier.get('source_type')} vs {later.get('source_type')})."
+            )
+
+        m_earlier = earlier["mention_status"]
+        m_later = later["mention_status"]
+        if m_earlier == "not_mentioned" and m_later == "mentioned":
+            status_transition = "gained_mention"
+        elif m_earlier == "mentioned" and m_later == "not_mentioned":
+            status_transition = "lost_mention"
+        elif m_earlier == "mentioned" and m_later == "mentioned":
+            status_transition = "retained_mention"
+        elif m_earlier == "not_mentioned" and m_later == "not_mentioned":
+            status_transition = "still_not_mentioned"
+        else:
+            status_transition = "unknown_change"
+
+        earlier_cits = set(earlier.get("citation_urls", []))
+        later_cits = set(later.get("citation_urls", []))
+        added_citations = sorted(list(later_cits - earlier_cits))
+        removed_citations = sorted(list(earlier_cits - later_cits))
+        retained_citations = sorted(list(earlier_cits & later_cits))
+
+        return {
+            "comparable": is_comparable,
+            "non_comparable_reasons": non_comparable_reasons,
+            "limitations": limitations,
+            "days_between": days_between,
+            "earlier_observation": earlier,
+            "later_observation": later,
+            "status_transition": status_transition,
+            "citation_changes": {
+                "added_citations": added_citations,
+                "removed_citations": removed_citations,
+                "retained_citations": retained_citations,
+                "net_citation_delta": len(later_cits) - len(earlier_cits),
+            },
+        }
+
+    def get_coverage_summary(
+        self,
+        lead_id: Optional[str] = None,
+        domain: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Aggregate observations coverage, date bounds, and provider vs manual counts.
+        """
+        res = self.get_observations(lead_id=lead_id, domain=domain, limit=10000, offset=0)
+        items = res["observations"]
+
+        manual_count = sum(1 for o in items if o.get("source_type") == "manual")
+        provider_count = sum(1 for o in items if o.get("source_type") == "provider_api")
+        import_count = sum(1 for o in items if o.get("source_type") == "structured_import")
+
+        distinct_queries = {o.get("search_query", "").strip().lower() for o in items if o.get("search_query")}
+        distinct_engines = sorted(list({o.get("engine", "") for o in items if o.get("engine")}))
+
+        dates = [o.get("observed_at") for o in items if o.get("observed_at")]
+        earliest_date = min(dates) if dates else None
+        latest_date = max(dates) if dates else None
+
+        return {
+            "total_observations": len(items),
+            "manual_count": manual_count,
+            "provider_count": provider_count,
+            "structured_import_count": import_count,
+            "distinct_queries_count": len(distinct_queries),
+            "distinct_engines": distinct_engines,
+            "earliest_date": earliest_date,
+            "latest_date": latest_date,
+            "live_provider_configured": self.is_provider_configured(),
+            "active_provider_id": self.get_active_provider_id() if self.is_provider_configured() else None,
         }

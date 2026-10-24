@@ -36,19 +36,25 @@ sys.path.insert(0, str(WORKSPACE_ROOT))
 sys.path.insert(0, str(BACKEND_DIR))
 sys.path.insert(0, str(AUDITOR_DIR))
 
-# Load credentials from protected backend/.env without exposing/printing them
-PROTECTED_ENV_PATH = Path("C:/Users/LENOVO/LEADGEN/backend/.env")
-env_vals = dotenv_values(str(PROTECTED_ENV_PATH)) if PROTECTED_ENV_PATH.exists() else {}
+# Load credentials from local LEADGEN-RELEASE backend/.env without exposing/printing them
+local_env_path = BACKEND_DIR / ".env"
+env_vals = dotenv_values(str(local_env_path)) if local_env_path.exists() else {}
 
-db_url = env_vals.get("DATABASE_URL")
-if not db_url:
-    print("[ERROR] Could not resolve base DATABASE_URL for disposable validation DB")
+admin_url = (
+    os.environ.get("PHASE7_ADMIN_DATABASE_URL")
+    or os.environ.get("PHASE8_ADMIN_DATABASE_URL")
+    or os.environ.get("POSTGRES_ADMIN_URL")
+    or env_vals.get("PHASE8_ADMIN_DATABASE_URL")
+    or env_vals.get("POSTGRES_ADMIN_URL")
+)
+if not admin_url:
+    print("[ERROR] Administrative connection is not configured (PHASE8_ADMIN_DATABASE_URL is missing). Fails closed.")
     sys.exit(1)
 
 DISPOSABLE_DB_NAME = "leadgen_phase7_val_disposable"
 
 # Form Postgres admin URL and Disposable DB URL
-raw_sync_url = db_url.replace("+psycopg", "")
+raw_sync_url = admin_url.replace("+psycopg", "")
 parsed = urllib.parse.urlparse(raw_sync_url)
 
 admin_sync_url = urllib.parse.urlunparse((

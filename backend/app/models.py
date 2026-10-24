@@ -2,7 +2,7 @@ import uuid
 import enum
 from datetime import datetime
 from sqlalchemy import (
-    String, Boolean, Integer, Text, DateTime, ForeignKey, Enum as SAEnum, JSON
+    String, Boolean, Integer, Text, DateTime, ForeignKey, Enum as SAEnum, JSON, event
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -35,6 +35,24 @@ class CampaignStatus(str, enum.Enum):
     paused    = "paused"
 
 
+class EmailAssociationStatus(str, enum.Enum):
+    MATCHED = "matched"
+    APPROVED = "approved"
+    EXTERNAL_DOMAIN_REVIEW = "external_domain_review"
+    UNVERIFIED_ASSOCIATION = "unverified_association"
+    MISMATCHED_SOURCE = "mismatched_source"
+    INVALID_FORMAT = "invalid_format"
+
+
+class WebsiteAssociationStatus(str, enum.Enum):
+    VERIFIED_PRIMARY = "verified_primary"
+    CANDIDATE_MATCH = "candidate_match"
+    UNVERIFIED_SEARCH = "unverified_search"
+    NO_WEBSITE = "no_website"
+    CONFLICTING = "conflicting"
+    INCONCLUSIVE = "inconclusive"
+
+
 # ─── Models ───────────────────────────────────────────────────────────────────
 
 class Lead(Base):
@@ -58,6 +76,32 @@ class Lead(Base):
     replied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     reply_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)       # first 500 chars of reply
     reply_type: Mapped[str | None] = mapped_column(String(30), nullable=True)    # positive|stop|bounce|soft_bounce
+
+    # ── Provenance & Identity Association ───────────────────────────────────────
+    email_source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    email_source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email_extraction_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email_domain: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    website_domain: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    email_domain_match: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    email_business_association_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default="unverified_association"
+    )
+    email_association_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    website_association_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default="unverified"
+    )
+    website_candidates: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    email_candidates: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    is_quarantined: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    quarantine_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Email Verification Engine ───────────────────────────────────────────────
+    email_verification_status: Mapped[str] = mapped_column(
+        String(50), default="unverified", nullable=False, index=True
+    )
+    email_verification_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     audit: Mapped["Audit | None"] = relationship(
         "Audit", back_populates="lead", uselist=False, passive_deletes=True
@@ -202,6 +246,11 @@ class Campaign(Base):
     lead_ids: Mapped[list] = mapped_column(JSON, default=list)
     template: Mapped[str] = mapped_column(Text, nullable=False)
     subject_template: Mapped[str] = mapped_column(String(500), default="")
+    campaign_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="generic_first_contact")
+    # Per-lead evidence snapshots for canonical audit-generated content.  Kept
+    # separate from editable template text so a reviewed draft can fail closed
+    # if its underlying audit changes before the worker sends it.
+    audit_references: Mapped[dict] = mapped_column(JSON, nullable=True, default=dict, deferred=True)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     sent_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[CampaignStatus] = mapped_column(
@@ -219,6 +268,12 @@ class Campaign(Base):
         "CampaignEmailLog", back_populates="campaign",
         order_by="CampaignEmailLog.created_at.desc()", passive_deletes=True
     )
+
+
+@event.listens_for(Campaign, "load")
+def _receive_campaign_load(target, context):
+    if "audit_references" not in target.__dict__ or target.__dict__.get("audit_references") is None:
+        target.__dict__["audit_references"] = {}
 
 
 class CampaignEmailLog(Base):
@@ -280,3 +335,40 @@ class EmailCorrection(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     lead: Mapped["Lead"] = relationship("Lead")
+
+
+class ServiceProposal(Base):
+    """
+    Persistent relational storage for service proposal drafts and human approval decisions.
+    Created by migration v6_2_5_proposal_approval_persistence.sql.
+    Serves as the single authoritative source of truth across application restarts and workers.
+    """
+    __tablename__ = "service_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    lead_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    audit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("audits.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), default="draft_preview", nullable=False, index=True
+    )
+    approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    target_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    approval_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    proposal_content: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    lead: Mapped["Lead"] = relationship("Lead")
+    audit: Mapped["Audit | None"] = relationship("Audit")
+

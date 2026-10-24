@@ -39,7 +39,7 @@ def test_evaluate_opportunities_technical_and_sitemap():
     }
 
     opps = OpportunityEngine.evaluate_opportunities(audit_results, url_info=url_info)
-    assert len(opps) == 2
+    assert len(opps) == 3
 
     # Technical SEO Remediation
     tech_opp = next((o for o in opps if o["service_id"] == "technical_seo_remediation"), None)
@@ -151,3 +151,64 @@ def test_proposal_draft_provenance_and_approval_gate():
     for term in prohibited_terms:
         assert term not in proposal["body_text"].lower()
         assert term not in proposal["body_html"].lower()
+
+
+def test_domain_h_browser_design_diagnostics_integration():
+    """Verify that Domain H layout and runtime signals from browser evidence are integrated into OpportunityEngine."""
+    audit_results = {
+        "ux": {
+            "cta": {"status": "FAIL"},
+            "contrast": {"status": "PASS"},
+        },
+        "technical": {
+            "mobile": {"status": "PASS"},
+        },
+        "performance": {
+            "response_time": {"status": "PASS"},
+        },
+    }
+
+    site_summary_with_overflow = {
+        "browser_evidence": {
+            "has_horizontal_overflow": True,
+            "overflow_px": 48,
+            "failed_requests": [
+                "https://example.com/assets/theme.css (HTTP 404)",
+                "https://example.com/assets/slider.js (HTTP 500)",
+            ],
+            "design_diagnostics": {
+                "issues": [
+                    {
+                        "code": "HORIZONTAL_SCROLL_OVERFLOW",
+                        "severity": "critical",
+                        "message": "Horizontal scroll overflow of 48px detected at mobile viewport.",
+                    },
+                    {
+                        "code": "FIXED_WIDTH_OVERFLOW_RISK",
+                        "severity": "high",
+                        "message": "Found 2 element(s) with fixed width > 600px creating mobile overflow risks.",
+                    },
+                ]
+            },
+        }
+    }
+
+    url_info = {"requested_url": "https://example.com"}
+    opps = OpportunityEngine.evaluate_opportunities(
+        audit_results, url_info=url_info, site_summary=site_summary_with_overflow
+    )
+
+    # 1. UX opportunity should be elevated to "redesign" scope due to horizontal overflow
+    ux_opp = next((o for o in opps if o["service_id"] == "web_design_ux_improvement"), None)
+    assert ux_opp is not None
+    assert ux_opp["scope"] == "redesign"
+    assert "Modern Website Redesign" in ux_opp["service_name"]
+    assert "technical.mobile" in ux_opp["relevant_factor_ids"]
+    assert any("horizontal scroll overflow of 48px" in ev for ev in ux_opp["evidence"])
+    assert any("fixed width > 600px" in ev for ev in ux_opp["evidence"])
+
+    # 2. Performance opportunity should include failed subresource requests
+    perf_opp = next((o for o in opps if o["service_id"] == "performance_speed_optimization"), None)
+    assert perf_opp is not None
+    assert "performance.render_blocking" in perf_opp["relevant_factor_ids"]
+    assert any("2 failed subresource request(s)" in ev for ev in perf_opp["evidence"])

@@ -1,7 +1,11 @@
 import sys
 import asyncio
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 import logging
 import time
@@ -11,9 +15,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import create_tables
+from app.database import create_tables, verify_runtime_database_role
 from app.logger import setup_logging          # ← IST rotating file logger
-from app.routers import auth, leads, audits, campaigns, activity, replies, email_review, proposals, gsc, ai_search
+from app.routers import auth, leads, audits, campaigns, activity, replies, email_review, proposals, gsc, ai_search, email_verification
 
 # ── Logging must be configured FIRST, before anything writes a log line ───────
 setup_logging()
@@ -22,13 +26,21 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create DB tables on startup."""
+    """Create DB tables on startup and verify least-privilege connection."""
     logger.info("=" * 60)
     logger.info("TEB Solutions LeadGen OS starting up (v4.1.0)")
     logger.info("=" * 60)
     await create_tables()
-    logger.info("Database tables ready.")
+    await verify_runtime_database_role()
+    logger.info("Database tables and least-privilege role verified.")
+
+    from app.services.campaign_scheduler import get_campaign_scheduler
+    scheduler = get_campaign_scheduler()
+    await scheduler.start()
+
     yield
+
+    await scheduler.stop()
     logger.info("LeadGen OS shutting down.")
 
 
@@ -68,7 +80,7 @@ async def _log_requests(request: Request, call_next):
         level = logging.WARNING if response.status_code >= 400 else logging.INFO
         logger.log(
             level,
-            "HTTP %s %s → %d  (%.0fms)",
+            "HTTP %s %s -> %d  (%.0fms)",
             request.method,
             request.url.path,
             response.status_code,
@@ -89,6 +101,7 @@ app.include_router(email_review.router)
 app.include_router(proposals.router)
 app.include_router(gsc.router)
 app.include_router(ai_search.router)
+app.include_router(email_verification.router)
 
 
 # ── Frontend client-side error sink ─────────────────────────────────────────

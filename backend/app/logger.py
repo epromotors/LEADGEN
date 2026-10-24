@@ -30,8 +30,35 @@ from pathlib import Path
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
+import re
+
+# Redaction regular expressions
+_RE_DB_URL = re.compile(r'([a-zA-Z0-9_+.-]+://[^:\s@]+:)([^@\s]+)(@)')
+_RE_BEARER = re.compile(r'(Bearer\s+)[A-Za-z0-9._~+/-]+')
+_RE_JWT = re.compile(r'eyJ[A-Za-z0-9-_]{10,}\.eyJ[A-Za-z0-9-_]{10,}\.[A-Za-z0-9-_]+')
+_RE_KV_SECRETS = re.compile(r'(?i)(["\']?\b[a-zA-Z0-9_]*(?:password|passwd|pwd|secret|api[_-]?key|jwt[_-]?secret)\b["\']?)(\s*[:=]\s*)([\'"]?)([^\'",\s&]{1,})\3')
+
+
+def redact_sensitive_text(text: str) -> str:
+    """Redact passwords, database credentials, JWT secrets/tokens, and API keys from text."""
+    try:
+        if not isinstance(text, str):
+            text = str(text)
+        # Redact connection strings (postgresql+psycopg://user:password@host)
+        text = _RE_DB_URL.sub(r'\1***\3', text)
+        # Redact JWT tokens
+        text = _RE_JWT.sub(r'eyJ***.[REDACTED_JWT]', text)
+        # Redact Bearer tokens
+        text = _RE_BEARER.sub(r'\1***', text)
+        # Redact key-value secrets (e.g., password="secret123", api_key: "abc")
+        text = _RE_KV_SECRETS.sub(r'\1\2\3***\3', text)
+        return text
+    except Exception:
+        return "[LOG REDACTION FAILED — SANITIZED]"
+
+
 class _ISTFormatter(logging.Formatter):
-    """Formats log timestamps in Indian Standard Time (IST / UTC+5:30)."""
+    """Formats log timestamps in Indian Standard Time (IST / UTC+5:30) and redacts sensitive credentials."""
 
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:  # noqa: N802
         ist_dt = datetime.fromtimestamp(record.created, tz=IST)
@@ -42,7 +69,8 @@ class _ISTFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         # Prefix each line with IST timestamp
         record.asctime = self.formatTime(record)
-        return super().format(record)
+        formatted = super().format(record)
+        return redact_sensitive_text(formatted)
 
 
 class _ISTRotatingHandler(TimedRotatingFileHandler):
@@ -106,6 +134,11 @@ def setup_logging(log_dir: Path | None = None) -> None:
     file_handler.setLevel(logging.INFO)
 
     # ── Console handler (same format, goes to uvicorn stdout) ─────────────────
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(fmt)
     console_handler.setLevel(logging.INFO)

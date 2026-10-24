@@ -47,7 +47,7 @@ def normalize_domain(domain_or_url: str) -> str:
     Removes protocols, www. prefixes, port numbers, paths, queries, and trailing slashes.
     Example: 'https://www.CarMedicMotors.in/services/' -> 'carmedicmotors.in'
     """
-    if not domain_or_url:
+    if not domain_or_url or not isinstance(domain_or_url, str):
         return ""
     raw = domain_or_url.strip().lower()
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", raw):

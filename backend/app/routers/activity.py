@@ -8,7 +8,9 @@ from app.database import get_db
 from app.models import ActivityLog, Lead, Audit, Campaign
 from app.schemas import ActivityLogResponse, DashboardMetrics
 
-router = APIRouter(prefix="/activity", tags=["activity"])
+from app.routers.auth import require_authorized_operator
+
+router = APIRouter(prefix="/activity", tags=["activity"], dependencies=[Depends(require_authorized_operator)])
 
 
 @router.get("/", response_model=List[ActivityLogResponse], summary="Recent activity log")

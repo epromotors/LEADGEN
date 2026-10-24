@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.models import LeadStatus, AuditStatus, CampaignStatus
 
@@ -49,7 +49,7 @@ class LeadResponse(UTCBase):
     id: uuid.UUID
     business_name: str
     email: str
-    phone: Optional[str]
+    phone: Optional[str] = None
     website: str
     status: LeadStatus
     last_emailed_at: Optional[datetime] = None
@@ -62,6 +62,23 @@ class LeadResponse(UTCBase):
     # Populated at the router layer from the eagerly-loaded Lead.audit relationship.
     audit_error: Optional[str] = None
     audit_status: Optional[AuditStatus] = None
+    # Provenance & Identity Association
+    email_source_url: Optional[str] = None
+    email_source_type: Optional[str] = None
+    email_extraction_method: Optional[str] = None
+    email_domain: Optional[str] = None
+    website_domain: Optional[str] = None
+    email_domain_match: Optional[bool] = None
+    email_business_association_status: Optional[str] = "unverified_association"
+    email_association_reason: Optional[str] = None
+    website_association_status: Optional[str] = "unverified"
+    website_candidates: Optional[list] = None
+    email_candidates: Optional[list] = None
+    is_quarantined: Optional[bool] = False
+    quarantine_reason: Optional[str] = None
+    email_verification_status: Optional[str] = "unverified"
+    email_verification_details: Optional[dict] = None
+    email_verified_at: Optional[datetime] = None
 
 
 class LeadUpdate(BaseModel):
@@ -69,6 +86,20 @@ class LeadUpdate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     website: Optional[str] = None
+    email_source_url: Optional[str] = None
+    email_source_type: Optional[str] = None
+    email_business_association_status: Optional[str] = None
+    email_association_reason: Optional[str] = None
+    website_association_status: Optional[str] = None
+    is_quarantined: Optional[bool] = None
+    quarantine_reason: Optional[str] = None
+
+
+class ApproveAssociationRequest(BaseModel):
+    reviewer: Optional[str] = Field(None, description="Optional reviewer claim; if provided, must match authenticated principal")
+    reason: str = Field(..., min_length=5, description="Auditable justification / evidence for approval")
+    policy_reference: Optional[str] = Field("manual_external_domain_review", description="Documented policy reference")
+
 
 
 class LeadListResponse(BaseModel):
@@ -202,6 +233,8 @@ class CampaignCreate(BaseModel):
     lead_ids: List[str]
     template: str
     subject_template: str = "{business_name} - quick question"
+    campaign_type: Optional[str] = "generic_first_contact"
+    audit_references: dict = Field(default_factory=dict)
     scheduled_at: Optional[datetime] = None
 
 
@@ -211,6 +244,8 @@ class CampaignResponse(UTCBase):
     lead_ids: list
     template: str
     subject_template: str
+    campaign_type: Optional[str] = "generic_first_contact"
+    audit_references: dict = Field(default_factory=dict)
     scheduled_at: Optional[datetime]
     sent_count: int
     skipped_count: int
@@ -219,6 +254,12 @@ class CampaignResponse(UTCBase):
     next_email_at: Optional[datetime]
     paused_at: Optional[datetime]
     created_at: datetime
+
+    @field_validator("audit_references", mode="before")
+    @classmethod
+    def _coerce_audit_references(cls, v):
+        return v if isinstance(v, dict) else {}
+
 
 
 class CampaignEmailLogResponse(UTCBase):

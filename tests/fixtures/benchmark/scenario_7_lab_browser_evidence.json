@@ -1,0 +1,44 @@
+{
+    "tool": "Lighthouse 13.5.0 (Chrome Mobile Emulation)",
+    "target_url": "https://lab-test.example/",
+    "is_synthetic_lab": true,
+    "lab_conditions": {
+        "tool": "Lighthouse 13.5.0 (Lab Synthetic)",
+        "device": "Mobile Moto G4 Emulation",
+        "viewport": "360x640",
+        "throttling": "Simulated 4G, 4x CPU Slowdown",
+        "timestamp": "2026-10-21T12:00:00Z"
+    },
+    "metrics": {
+        "fcp": {
+            "display_value": "2.4 s",
+            "numeric_value_ms": 2400,
+            "score": 85,
+            "metric_type": "lab_synthetic"
+        },
+        "lcp": {
+            "display_value": "3.1 s",
+            "numeric_value_ms": 3100,
+            "score": 65,
+            "metric_type": "lab_synthetic"
+        },
+        "tbt": {
+            "display_value": "450 ms",
+            "numeric_value_ms": 450,
+            "score": 60,
+            "metric_type": "lab_synthetic"
+        },
+        "cls": {
+            "display_value": "0.02",
+            "numeric_value": 0.02,
+            "score": 95,
+            "metric_type": "lab_synthetic"
+        }
+    },
+    "field_data": {
+        "status": "unavailable",
+        "crux_connected": false,
+        "search_console_connected": false,
+        "message": "Field data (CrUX, INP) is not available. Synthetic lab measurement only."
+    }
+}

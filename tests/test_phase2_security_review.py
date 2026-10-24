@@ -771,7 +771,7 @@ class TestAPIAndPDFCompatibility:
         if BACKEND_PKG not in sys.path:
             sys.path.insert(0, BACKEND_PKG)
 
-        os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/leadgen")
+        os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://leadgen_test_user:dummy_test_pass@127.0.0.1:5432/leadgen_isolated_test")
         os.environ.setdefault("JWT_SECRET", "test-secret-min-32-chars-long-for-jwt-signing-123")
 
         from app.schemas import AuditResponse
