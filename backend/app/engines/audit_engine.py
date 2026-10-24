@@ -1,5 +1,5 @@
 # backend/app/engines/audit_engine.py
-# LeadGen OS v5.0 — 55-Factor Deep SEO Audit Engine
+# LeadGen OS v5.0 — 62-Factor Deep SEO Audit Engine (canonical factor_contract.py governs)
 # Replaces the v4.5.0 engine.
 # Entry point: async def run_audit(lead_id, db) — signature unchanged.
 #
@@ -236,7 +236,7 @@ def _run_audit_sync(
     target_keywords: list[str] | None = None,
 ) -> dict:
     """
-    Run all 55+ SEO checks + multi-page crawl synchronously.
+    Run all 62 canonical SEO checks + multi-page crawl synchronously.
     Must be called via asyncio.get_event_loop().run_in_executor().
 
     Returns:

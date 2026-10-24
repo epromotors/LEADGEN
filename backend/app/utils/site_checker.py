@@ -58,7 +58,8 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
-TIMEOUT = aiohttp.ClientTimeout(total=45, connect=15)
+TIMEOUT = aiohttp.ClientTimeout(total=10, connect=3)
+
 
 PARKED_THRESHOLD     =   800   # chars — below this = parked/empty regardless
 THIN_THRESHOLD       = 3_000   # chars — thin-tier signals only trigger below this
@@ -474,7 +475,7 @@ def _url_variants(url: str) -> list[str]:
 
 # ─── Sync Requests Fallback ───────────────────────────────────────────────────
 
-def _classify_with_requests_sync(urls: list[str]) -> tuple[SiteType, str]:
+def _classify_with_requests_sync(urls: list[str], timeout: int = 30) -> tuple[SiteType, str]:
     """
     Sync fallback classifier using the 'requests' library.
     Tries every URL variant before giving up.
@@ -494,7 +495,7 @@ def _classify_with_requests_sync(urls: list[str]) -> tuple[SiteType, str]:
             resp = _requests.get(
                 try_url,
                 headers=req_headers,
-                timeout=30,
+                timeout=timeout,
                 allow_redirects=True,
                 verify=False,   # ignore SSL errors — we classify the content
             )
@@ -522,11 +523,11 @@ def _classify_with_requests_sync(urls: list[str]) -> tuple[SiteType, str]:
     return SiteType.UNREACHABLE, f"All URL variants failed (requests): {last_err}"
 
 
-async def _fallback_classify_with_requests(urls: list[str]) -> tuple[SiteType, str]:
+async def _fallback_classify_with_requests(urls: list[str], sync_timeout: int = 5) -> tuple[SiteType, str]:
     """Async wrapper: run the sync requests fallback in a thread pool executor."""
     loop = asyncio.get_running_loop()
     try:
-        result = await loop.run_in_executor(None, _classify_with_requests_sync, urls)
+        result = await loop.run_in_executor(None, _classify_with_requests_sync, urls, sync_timeout)
         site_type, reason = result
         logger.info(
             f"[site_checker] requests fallback → {site_type.value}: "
@@ -539,7 +540,11 @@ async def _fallback_classify_with_requests(urls: list[str]) -> tuple[SiteType, s
 
 # ─── Main Classifier ──────────────────────────────────────────────────────────
 
-async def classify_site(url: str) -> tuple[SiteType, str]:
+async def classify_site(
+    url: str,
+    timeout: aiohttp.ClientTimeout | None = None,
+    sync_timeout: int = 5,
+) -> tuple[SiteType, str]:
     """
     Classify a website URL.
     Returns (SiteType, human_readable_reason).
@@ -556,12 +561,14 @@ async def classify_site(url: str) -> tuple[SiteType, str]:
     variants = _url_variants(url)
     logger.info(f"[site_checker] Checking variants: {variants}")
 
+    effective_timeout = timeout or TIMEOUT
+
     # ── aiohttp path: try each variant ────────────────────────────────────────
     connector = aiohttp.TCPConnector(ssl=False, limit_per_host=1)
     async with aiohttp.ClientSession(
         connector=connector,
         headers=HEADERS,
-        timeout=TIMEOUT,
+        timeout=effective_timeout,
     ) as session:
 
         aiohttp_errors: list[str] = []
@@ -640,7 +647,7 @@ async def classify_site(url: str) -> tuple[SiteType, str]:
                 f"[site_checker] All aiohttp variants failed for {url} "
                 f"({'; '.join(aiohttp_errors[:2])}), trying requests fallback"
             )
-            return await _fallback_classify_with_requests(variants)
+            return await _fallback_classify_with_requests(variants, sync_timeout=sync_timeout)
 
         # If we get here all variants returned 5xx or redirects to bad URLs
         return SiteType.UNREACHABLE, f"All variants returned errors: {'; '.join(aiohttp_errors)}"
