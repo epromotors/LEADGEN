@@ -139,6 +139,7 @@ export default function InboxPage() {
       await fetchStats()
       if (activeTab === 'converted') await fetchConverted(true)
       if (activeTab === 'all_replies') await fetchAllReplies(true)
+      if (activeTab === 'needs_review') await fetchNeedsReview(true)
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Sync failed. Verify Hostinger IMAP credentials.'
       setError(msg)

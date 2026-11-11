@@ -206,6 +206,7 @@ export const getNeedsReview       = ({ page = 1, page_size = 50 } = {}) =>
   api.get('/replies/needs-review', { params: { page, page_size } })
 export const clearNeedsReview     = (leadId, unSuppress = false) =>
   api.patch(`/replies/reclassify/${leadId}/review`, { un_suppress: unSuppress })
+export const getAiStatus          = ()                  => api.get('/replies/ai-status')
 
 // ─── Activity / Metrics ────────────────────────────────────────────────────
 export const getActivity = (limit = 50)  => api.get('/activity/', { params: { limit } })
