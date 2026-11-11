@@ -1,0 +1,264 @@
+{
+  "total_examined": 1105,
+  "emails_matching_website": 441,
+  "website_replacements_available": 75,
+  "mismatched_no_replacement": 248,
+  "external_domain_manual_review": 102,
+  "no_usable_email": 348,
+  "inaccessible_or_blocked": 139,
+  "inconclusive_retryable": 139,
+  "already_quarantined": 187,
+  "proposed_reversible_exclusion": 354,
+  "representative_examples": {
+    "corrected": [
+      {
+        "lead_id": "c5af8774-9988-4698-921a-647700053d0d",
+        "business_name": "SSDN Impex Pvt Ltd",
+        "website": "http://ssdn.in/",
+        "old_email": "satguru@ssdn.in",
+        "new_email": "info@ssdn.in",
+        "source_url": "http://ssdn.in/",
+        "reason": "Corrected mismatched email from official website evidence on http://ssdn.in/.",
+        "was_quarantined": false,
+        "proposed_action": "Correct primary email to domain-matched replacement & clear quarantine if sendable"
+      },
+      {
+        "lead_id": "03ab38cf-c228-4d50-be0e-644550d2fc7a",
+        "business_name": "Elephanta Exports",
+        "website": "http://elephantaexports.com/",
+        "old_email": "elephanta.exports@gmail.com",
+        "new_email": "support@elephantaexports.com",
+        "source_url": "https://elephantaexports.com/",
+        "reason": "Corrected mismatched email from official website evidence on https://elephantaexports.com/.",
+        "was_quarantined": false,
+        "proposed_action": "Correct primary email to domain-matched replacement & clear quarantine if sendable"
+      },
+      {
+        "lead_id": "8f80dde4-64c3-43bd-83d7-0e699685df4f",
+        "business_name": "Nodi Exports",
+        "website": "http://www.nodiexports.com/",
+        "old_email": "bdm1@nodiexportsinc.com",
+        "new_email": "hou@nodiexports.com",
+        "source_url": "https://nodiexports.com/",
+        "reason": "Corrected mismatched email from official website evidence on https://nodiexports.com/about-us/.",
+        "was_quarantined": false,
+        "proposed_action": "Correct primary email to domain-matched replacement & clear quarantine if sendable"
+      },
+      {
+        "lead_id": "087b193e-8574-4d9a-9a90-9316d6b14125",
+        "business_name": "Sharma Exports",
+        "website": "https://provin.com",
+        "old_email": "john@provin.com",
+        "new_email": "info@provin.com",
+        "source_url": "https://provin.com",
+        "reason": "Corrected mismatched email from official website evidence on https://provin.com.",
+        "was_quarantined": false,
+        "proposed_action": "Correct primary email to domain-matched replacement & clear quarantine if sendable"
+      },
+      {
+        "lead_id": "82b2221a-813b-4ab9-8c60-6daeb57bba90",
+        "business_name": "Export Import Bank of India (India Exim Bank)",
+        "website": "http://www.eximbankindia.in/",
+        "old_email": "beltraide@belizeinvest.org.bz",
+        "new_email": "info@eximbankindia.in",
+        "source_url": "https://www.eximbankindia.in/",
+        "reason": "Corrected mismatched email from official website evidence on https://www.eximbankindia.in/.",
+        "was_quarantined": false,
+        "proposed_action": "Correct primary email to domain-matched replacement & clear quarantine if sendable"
+      }
+    ],
+    "revalidated": [
+      {
+        "lead_id": "00d5fbc5-980c-4677-982b-917fb45f26ad",
+        "business_name": "Renuka Exports Pvt. Ltd.",
+        "website": "https://www.renukaexports.com/",
+        "email": "neha@renukaexports.com",
+        "reason": "Confirmed existing company email matches website domain 'renukaexports.com'.",
+        "was_quarantined": false,
+        "proposed_action": "Retain verified company email and confirm domain match"
+      },
+      {
+        "lead_id": "42fe36fa-3486-4fdc-af63-3ea98678e2d0",
+        "business_name": "Mudra Global",
+        "website": "https://www.mudraglobal.com/",
+        "email": "info@mudraglobal.com",
+        "reason": "Confirmed existing company email matches website domain 'mudraglobal.com'.",
+        "was_quarantined": false,
+        "proposed_action": "Retain verified company email and confirm domain match"
+      },
+      {
+        "lead_id": "53e8893a-1969-48ee-a927-eca38d2c56ca",
+        "business_name": "MAA ENTERPRISES INDIA",
+        "website": "http://maaenterprisesindia.co.in/",
+        "email": "info@maaenterprisesindia.co.in",
+        "reason": "Confirmed existing company email matches website domain 'maaenterprisesindia.co.in'.",
+        "was_quarantined": false,
+        "proposed_action": "Retain verified company email and confirm domain match"
+      },
+      {
+        "lead_id": "4d479fd5-3186-444b-b5af-1bedee1a2b3d",
+        "business_name": "Qashqai Exports Pvt. Ltd.",
+        "website": "https://www.qashqaiexports.com/",
+        "email": "info@qashqaiexports.com",
+        "reason": "Confirmed existing company email matches website domain 'qashqaiexports.com'.",
+        "was_quarantined": false,
+        "proposed_action": "Retain verified company email and confirm domain match"
+      },
+      {
+        "lead_id": "c3980b87-68ce-4864-a88c-ff1f19f41d36",
+        "business_name": "MAI EXPORT HOUSE",
+        "website": "https://saiehello.com",
+        "email": "hi@saiehello.com",
+        "reason": "Confirmed existing company email matches website domain 'saiehello.com'.",
+        "was_quarantined": false,
+        "proposed_action": "Retain verified company email and confirm domain match"
+      }
+    ],
+    "manual_review": [
+      {
+        "lead_id": "aeef1ac2-b18b-49ff-8091-f046849d6531",
+        "business_name": "Nazmi - Import & Export",
+        "website": "https://shadabnazmi.github.io/sayhello/",
+        "email": "shadabnazmi@gmail.com",
+        "source_url": "https://shadabnazmi.github.io/sayhello/",
+        "reason": "Website lists only external domain email (shadabnazmi@gmail.com); retained for operator review without falsely asserting company domain.",
+        "was_quarantined": false,
+        "proposed_action": "Place in operator review queue under external_domain_review; do not auto-approve"
+      },
+      {
+        "lead_id": "5525283c-9afe-46a6-9e58-a9634d67352f",
+        "business_name": "Munshi Export",
+        "website": "https://munshi-export.ueniweb.com/?utm_campaign=gmb",
+        "email": "suhelmunshi@munshiexport.co.in",
+        "source_url": "https://munshi-export.ueniweb.com/?utm_campaign=gmb",
+        "reason": "Website lists only external domain email (suhelmunshi@munshiexport.co.in); retained for operator review without falsely asserting company domain.",
+        "was_quarantined": false,
+        "proposed_action": "Place in operator review queue under external_domain_review; do not auto-approve"
+      },
+      {
+        "lead_id": "158caf71-6111-4636-a93b-23bd0133f879",
+        "business_name": "Ekanta International",
+        "website": "https://www.ekantainternational.com/",
+        "email": "ekantainternational@gmail.com",
+        "source_url": "https://www.ekantainternational.com/",
+        "reason": "Website lists only external domain email (ekantainternational@gmail.com); retained for operator review without falsely asserting company domain.",
+        "was_quarantined": false,
+        "proposed_action": "Place in operator review queue under external_domain_review; do not auto-approve"
+      },
+      {
+        "lead_id": "bc6c3e4c-0fa2-43dd-9cd0-237bb177bd2d",
+        "business_name": "SHAKIR EXPORT",
+        "website": "http://www.shakirexports.com/",
+        "email": "sarwat111@hotmail.com",
+        "source_url": "https://www.shakirexports.com/default.aspx",
+        "reason": "Website lists only external domain email (shakirexportshakir@gmail.com); retained for operator review without falsely asserting company domain.",
+        "was_quarantined": false,
+        "proposed_action": "Place in operator review queue under external_domain_review; do not auto-approve"
+      },
+      {
+        "lead_id": "e5120928-edd0-4f7d-9fcd-6c3f25e6c89c",
+        "business_name": "Jaytee exports",
+        "website": "https://doi.uk.gov.in/",
+        "email": "mpr@doiuk.org",
+        "source_url": "https://doi.uk.gov.in/",
+        "reason": "Website lists only external domain email (mpr@doiuk.org); retained for operator review without falsely asserting company domain.",
+        "was_quarantined": false,
+        "proposed_action": "Place in operator review queue under external_domain_review; do not auto-approve"
+      }
+    ],
+    "no_email_found": [
+      {
+        "lead_id": "3269cf64-64b4-43d1-9d37-689d8e06dfb4",
+        "business_name": "Star International",
+        "website": "",
+        "email": "info@starcertify.com",
+        "reason": "Lead does not have an official website; excluded from active outreach pool.",
+        "was_quarantined": false,
+        "proposed_action": "Reversibly exclude from active outreach pool to prevent bounce risk"
+      },
+      {
+        "lead_id": "afc1e1c9-e286-49d6-b74a-3b27ca0d1ab6",
+        "business_name": "Eternity India",
+        "website": "",
+        "email": "eternityindia17@gmail.com",
+        "reason": "Lead does not have an official website; excluded from active outreach pool.",
+        "was_quarantined": false,
+        "proposed_action": "Reversibly exclude from active outreach pool to prevent bounce risk"
+      },
+      {
+        "lead_id": "87e95cab-b5ce-4489-b281-a4ae396864ab",
+        "business_name": "Export Company",
+        "website": "",
+        "email": "amitmonarajput@gmail.com",
+        "reason": "Lead does not have an official website; excluded from active outreach pool.",
+        "was_quarantined": false,
+        "proposed_action": "Reversibly exclude from active outreach pool to prevent bounce risk"
+      },
+      {
+        "lead_id": "5fc236ca-3d27-43af-8333-153956e8ec4e",
+        "business_name": "JB General Exports LLP",
+        "website": "",
+        "email": "eralexportsllp@gmail.com",
+        "reason": "Lead does not have an official website; excluded from active outreach pool.",
+        "was_quarantined": false,
+        "proposed_action": "Reversibly exclude from active outreach pool to prevent bounce risk"
+      },
+      {
+        "lead_id": "eeb883c5-f948-46eb-bb43-9c20c25d40d2",
+        "business_name": "RJ INTERNATIONAL",
+        "website": "https://rjinternational.jotkart.com/",
+        "email": "info@rjworld.in",
+        "reason": "No usable business email found on official website; excluded from active outreach pool.",
+        "was_quarantined": false,
+        "proposed_action": "Reversibly exclude from active outreach pool to prevent bounce risk"
+      }
+    ],
+    "scrape_inconclusive": [
+      {
+        "lead_id": "75366f8d-0c46-4bfd-9adb-b2c737ebc619",
+        "business_name": "Europa Exports Pvt. Ltd.",
+        "website": "https://www.europaexports.com/process-flow",
+        "email": "info@europaexports.com",
+        "reason": "Website temporarily unreachable or blocked (Blocked Target URL (DNS resolution failed for www.europaexports.com)); retained for retry without deletion.",
+        "was_quarantined": false,
+        "proposed_action": "Retain lead without deletion; schedule for retry when site recovers"
+      },
+      {
+        "lead_id": "b26cfb57-e3d2-454f-b21a-3b4cc5bcf7b3",
+        "business_name": "Siesto Green",
+        "website": "https://www.siestogreen.com/",
+        "email": "siesto.green@gmail.com",
+        "reason": "Website temporarily unreachable or blocked (Dead/Unreachable (TimeoutError)); retained for retry without deletion.",
+        "was_quarantined": false,
+        "proposed_action": "Retain lead without deletion; schedule for retry when site recovers"
+      },
+      {
+        "lead_id": "6787df63-19ec-4aa6-be3c-b78abd62002b",
+        "business_name": "Magnas Logistics",
+        "website": "http://www.magnasconsulting.com/",
+        "email": "dinesh@magnasconsulting.com",
+        "reason": "Website temporarily unreachable or blocked (Dead/Unreachable (TimeoutError)); retained for retry without deletion.",
+        "was_quarantined": false,
+        "proposed_action": "Retain lead without deletion; schedule for retry when site recovers"
+      },
+      {
+        "lead_id": "775798fb-c44c-4c0c-984a-44d5594bdf9a",
+        "business_name": "Smart Link International",
+        "website": "https://www.smartlinkinternational.in/",
+        "email": "info@caixasbrasilia.com",
+        "reason": "Website temporarily unreachable or blocked (Blocked Target URL (DNS resolution failed for www.smartlinkinternational.in)); retained for retry without deletion.",
+        "was_quarantined": false,
+        "proposed_action": "Retain lead without deletion; schedule for retry when site recovers"
+      },
+      {
+        "lead_id": "107f2fff-3086-41a9-956c-745a932b3944",
+        "business_name": "Reev International",
+        "website": "https://www.reevinternational.in/",
+        "email": "info@reevinternational.in",
+        "reason": "Website temporarily unreachable or blocked (Blocked Target URL (DNS resolution failed for www.reevinternational.in)); retained for retry without deletion.",
+        "was_quarantined": false,
+        "proposed_action": "Retain lead without deletion; schedule for retry when site recovers"
+      }
+    ]
+  }
+}

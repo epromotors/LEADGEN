@@ -73,12 +73,12 @@ export default function EditLeadModal({ lead, onSaved, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-start justify-center p-4 pt-16 overflow-y-auto"
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="card-elevated w-full max-w-lg p-0 overflow-hidden shadow-2xl border border-slate-700/80 animate-in fade-in zoom-in-95 duration-200">
+      <div className="card-elevated w-full max-w-lg p-0 overflow-hidden shadow-2xl border border-slate-700/80 animate-in fade-in zoom-in-95 duration-200 max-h-[calc(100vh-6rem)] overflow-y-auto mb-8">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
           <div className="flex items-center gap-3">

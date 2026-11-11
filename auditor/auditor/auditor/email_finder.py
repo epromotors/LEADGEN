@@ -160,6 +160,14 @@ def find_domain_email(
     from auditor.core import fetch_page  # import inside to avoid circular
 
     t_start = time.perf_counter()
+    try:
+        from app.routers.audits import is_batch_cancelled
+        if is_batch_cancelled():
+            logger.info(f"[email_finder] Batch cancelled, skipping email discovery for {website_url}")
+            return None, "not_found"
+    except Exception:
+        pass
+
     logger.info(f"[email_finder] Starting email discovery for {website_url}")
 
     site_domain = _get_site_domain(website_url)
@@ -187,6 +195,13 @@ def find_domain_email(
     # ── Priority 3 & 4: Try the contact page ─────────────────────────────────
     contact_url = _find_contact_page_url(homepage_soup, website_url)
     if contact_url and contact_url != website_url:
+        try:
+            from app.routers.audits import is_batch_cancelled
+            if is_batch_cancelled():
+                logger.info(f"[email_finder] Batch cancelled, skipping contact page fetch for {contact_url}")
+                return None, "not_found"
+        except Exception:
+            pass
         try:
             contact_page = fetch_page(contact_url, session)
             if contact_page.get("ok"):

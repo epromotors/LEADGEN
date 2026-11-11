@@ -1842,16 +1842,21 @@ class OpportunityEngine:
         opportunities: List[Dict[str, Any]],
         sender_agency: str = "TEB Solutions",
         contact_email: str = "info@tebsolutions.in",
+        contact_name: str = "Ashish Sharma",
+        include_recommended_actions: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Generate a personalized, truthful proposal email draft derived exclusively
         from verified audit opportunities.
         Implements the required structure:
-        - Critical Issues (with description, actual evidence impact, recommended resolution)
-        - Warnings (with description, potential evidence impact, recommended step)
-        - Recommendations and Next Steps (prioritized summary)
+        - Critical Issues (with description, actual evidence impact)
+        - Warnings (with description, potential evidence impact)
+        - Recommendations and Next Steps (included only when include_recommended_actions is True)
         - HTML and plain-text parity with complete XSS protection.
         """
+        if include_recommended_actions is None:
+            include_recommended_actions = False
+
         # Select at most 2–3 top opportunities for focus
         selected_opps = sorted(opportunities, key=lambda item: item.get("confidence", 0), reverse=True)[:3]
         contributing_factors: List[str] = []
@@ -1943,21 +1948,22 @@ class OpportunityEngine:
         has_critical = len(all_critical_findings) > 0
         has_warnings = len(all_warning_findings) > 0
 
-        # Summary statement
+        # Summary statement with clean, readable font styling
+        p_lead_style = "margin: 0 0 16px 0; font-size: 15px; line-height: 1.65; color: #1e293b;"
         if not observations:
-            summary_statement_html = "<p>Our automated audit observed that your core technical foundations are operational. We recommend structured ongoing monitoring to protect your search discoverability:</p>"
+            summary_statement_html = f"<p style='{p_lead_style}'>Our automated audit observed that your core technical foundations are operational. We recommend structured ongoing monitoring to protect your search discoverability:</p>"
             summary_statement_text = "Our automated audit observed that your core technical foundations are operational. We recommend structured ongoing monitoring to protect your search discoverability:\n\n"
         elif has_critical and has_warnings:
-            summary_statement_html = f"<p>Based on our verified audit findings, we identified {len(all_critical_findings)} critical issue(s) requiring remediation and {len(all_warning_findings)} warning(s) for optimization:</p>"
+            summary_statement_html = f"<p style='{p_lead_style}'>Based on our verified audit findings, we identified {len(all_critical_findings)} critical issue(s) requiring remediation and {len(all_warning_findings)} warning(s) for optimization:</p>"
             summary_statement_text = f"Based on our verified audit findings, we identified {len(all_critical_findings)} critical issue(s) requiring remediation and {len(all_warning_findings)} warning(s) for optimization:\n\n"
         elif has_critical:
-            summary_statement_html = f"<p>Based on our verified audit findings, we identified {len(all_critical_findings)} critical issue(s) requiring remediation to protect your website's performance and search presence:</p>"
+            summary_statement_html = f"<p style='{p_lead_style}'>Based on our verified audit findings, we identified {len(all_critical_findings)} critical issue(s) requiring remediation to protect your website's performance and search presence:</p>"
             summary_statement_text = f"Based on our verified audit findings, we identified {len(all_critical_findings)} critical issue(s) requiring remediation to protect your website's performance and search presence:\n\n"
         elif has_warnings:
-            summary_statement_html = f"<p>Our audit verified that your baseline infrastructure is operational, and identified {len(all_warning_findings)} warning(s) where optimization can improve your visitor experience and search discoverability:</p>"
+            summary_statement_html = f"<p style='{p_lead_style}'>Our audit verified that your baseline infrastructure is operational, and identified {len(all_warning_findings)} warning(s) where optimization can improve your visitor experience and search discoverability:</p>"
             summary_statement_text = f"Our audit verified that your baseline infrastructure is operational, and identified {len(all_warning_findings)} warning(s) where optimization can improve your visitor experience and search discoverability:\n\n"
         else:
-            summary_statement_html = "<p>Based on our verified audit findings, we identified the following areas for structured website improvements:</p>"
+            summary_statement_html = f"<p style='{p_lead_style}'>Based on our verified audit findings, we identified the following areas for structured website improvements:</p>"
             summary_statement_text = "Based on our verified audit findings, we identified the following areas for structured website improvements:\n\n"
 
         # ── Critical Issues Section ──────────────────────────────────────────
@@ -1967,26 +1973,32 @@ class OpportunityEngine:
             for i, item in enumerate(all_critical_findings, 1):
                 badge = ""
                 if item.get("evidence_source") and item.get("evidence_source") != "Canonical Audit":
-                    badge = f"""<span style="display: inline-block; font-size: 11px; background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 500;">Source: {html.escape(item['evidence_source'])}</span>"""
+                    badge = f"""<span style="display: inline-block; font-size: 11.5px; background: #fee2e2; color: #991b1b; padding: 2px 7px; border-radius: 4px; margin-left: 6px; font-weight: 500;">Source: {html.escape(item['evidence_source'])}</span>"""
                 limit_html = ""
                 if item.get("limitations"):
-                    limit_html = f"""<p style="margin: 0 0 6px 0; color: #7f1d1d; font-size: 11px; font-style: italic;">Limitation: {html.escape(item['limitations'])}</p>"""
+                    limit_html = f"""<p style="margin: 6px 0 0 0; color: #7f1d1d; font-size: 12px; font-style: italic;">Limitation: {html.escape(item['limitations'])}</p>"""
+
+                rec_line_html = ""
+                if include_recommended_actions and item.get("recommendation"):
+                    rec_line_html = f"""
+                    <p style="margin: 8px 0 0 0; color: #b91c1c; font-size: 13.5px; font-weight: 600;">
+                      &rarr; Recommended Action: {html.escape(item.get('recommendation', ''))}
+                    </p>
+                    """
 
                 crit_html_cards += f"""
-                <div style="margin-bottom: 14px; padding: 14px; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px;">
-                  <p style="margin: 0 0 6px 0; font-weight: 700; color: #1e293b; font-size: 14px;">
+                <div style="margin-bottom: 16px; padding: 16px 18px; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px;">
+                  <div style="margin: 0 0 8px 0; font-weight: 700; color: #1e293b; font-size: 16px;">
                     {i}. {html.escape(item.get('service_name', item.get('title', 'Critical Issue')))} ({html.escape(item.get('scope', 'repair').title())}) {badge}
-                  </p>
-                  <p style="margin: 0 0 6px 0; color: #991b1b; font-size: 13px;">
+                  </div>
+                  <div style="margin: 0 0 8px 0; color: #991b1b; font-size: 14.5px; line-height: 1.55;">
                     <strong>Problem:</strong> {html.escape(item.get('problem', ''))}
-                  </p>
-                  <p style="margin: 0 0 6px 0; color: #475569; font-size: 12px; line-height: 1.5;">
+                  </div>
+                  <div style="margin: 0; color: #475569; font-size: 14px; line-height: 1.55;">
                     <strong>Impact:</strong> {html.escape(item.get('impact', ''))}
-                  </p>
+                  </div>
                   {limit_html}
-                  <p style="margin: 0; color: #b91c1c; font-size: 12px; font-weight: 600;">
-                    &rarr; Recommended Action: {html.escape(item.get('recommendation', ''))}
-                  </p>
+                  {rec_line_html}
                 </div>
                 """
                 crit_text_blocks += f"{i}. {item.get('service_name', item.get('title', 'Critical Issue'))} [{item.get('scope', 'repair').upper()}]\n"
@@ -1996,7 +2008,9 @@ class OpportunityEngine:
                     crit_text_blocks += f"   Source: {item['evidence_source']}\n"
                 if item.get("limitations"):
                     crit_text_blocks += f"   Limitation: {item.get('limitations')}\n"
-                crit_text_blocks += f"   Recommended Action: {item.get('recommendation', '')}\n\n"
+                if include_recommended_actions and item.get("recommendation"):
+                    crit_text_blocks += f"   Recommended Action: {item.get('recommendation', '')}\n"
+                crit_text_blocks += "\n"
 
         # ── Warnings Section ─────────────────────────────────────────────────
         warn_html_cards = ""
@@ -2005,26 +2019,32 @@ class OpportunityEngine:
             for i, item in enumerate(all_warning_findings, 1):
                 badge = ""
                 if item.get("evidence_source") and item.get("evidence_source") != "Canonical Audit":
-                    badge = f"""<span style="display: inline-block; font-size: 11px; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 500;">Source: {html.escape(item['evidence_source'])}</span>"""
+                    badge = f"""<span style="display: inline-block; font-size: 11.5px; background: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 4px; margin-left: 6px; font-weight: 500;">Source: {html.escape(item['evidence_source'])}</span>"""
                 limit_html = ""
                 if item.get("limitations"):
-                    limit_html = f"""<p style="margin: 0 0 6px 0; color: #78350f; font-size: 11px; font-style: italic;">Limitation: {html.escape(item['limitations'])}</p>"""
+                    limit_html = f"""<p style="margin: 6px 0 0 0; color: #78350f; font-size: 12px; font-style: italic;">Limitation: {html.escape(item['limitations'])}</p>"""
+
+                rec_line_html = ""
+                if include_recommended_actions and item.get("recommendation"):
+                    rec_line_html = f"""
+                    <p style="margin: 8px 0 0 0; color: #d97706; font-size: 13.5px; font-weight: 600;">
+                      &rarr; Recommended Action: {html.escape(item.get('recommendation', ''))}
+                    </p>
+                    """
 
                 warn_html_cards += f"""
-                <div style="margin-bottom: 14px; padding: 14px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px;">
-                  <p style="margin: 0 0 6px 0; font-weight: 700; color: #1e293b; font-size: 14px;">
+                <div style="margin-bottom: 16px; padding: 16px 18px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 8px;">
+                  <div style="margin: 0 0 8px 0; font-weight: 700; color: #1e293b; font-size: 16px;">
                     {i}. {html.escape(item.get('service_name', item.get('title', 'Advisory Warning')))} ({html.escape(item.get('scope', 'optimization').title())}) {badge}
-                  </p>
-                  <p style="margin: 0 0 6px 0; color: #92400e; font-size: 13px;">
+                  </div>
+                  <div style="margin: 0 0 8px 0; color: #92400e; font-size: 14.5px; line-height: 1.55;">
                     <strong>Warning:</strong> {html.escape(item.get('warning', ''))}
-                  </p>
-                  <p style="margin: 0 0 6px 0; color: #475569; font-size: 12px; line-height: 1.5;">
+                  </div>
+                  <div style="margin: 0; color: #475569; font-size: 14px; line-height: 1.55;">
                     <strong>Potential Impact:</strong> {html.escape(item.get('potential_impact', ''))}
-                  </p>
+                  </div>
                   {limit_html}
-                  <p style="margin: 0; color: #d97706; font-size: 12px; font-weight: 600;">
-                    &rarr; Recommended Action: {html.escape(item.get('recommendation', ''))}
-                  </p>
+                  {rec_line_html}
                 </div>
                 """
                 warn_text_blocks += f"{i}. {item.get('service_name', item.get('title', 'Advisory Warning'))} [{item.get('scope', 'optimization').upper()}]\n"
@@ -2034,13 +2054,15 @@ class OpportunityEngine:
                     warn_text_blocks += f"   Source: {item['evidence_source']}\n"
                 if item.get("limitations"):
                     warn_text_blocks += f"   Limitation: {item.get('limitations')}\n"
-                warn_text_blocks += f"   Recommended Action: {item.get('recommendation', '')}\n\n"
+                if include_recommended_actions and item.get("recommendation"):
+                    warn_text_blocks += f"   Recommended Action: {item.get('recommendation', '')}\n"
+                warn_text_blocks += "\n"
 
         elif observations or has_critical:
             # Audit completed successfully with critical issues but zero warnings
             warn_html_cards = """
-            <div style="margin-bottom: 14px; padding: 12px 14px; background: #f8fafc; border-left: 4px solid #94a3b8; border-radius: 6px;">
-              <p style="margin: 0; color: #64748b; font-size: 13px; font-style: italic;">
+            <div style="margin-bottom: 16px; padding: 14px 18px; background: #f8fafc; border-left: 4px solid #94a3b8; border-radius: 8px;">
+              <p style="margin: 0; color: #64748b; font-size: 14px; font-style: italic;">
                 No warnings were identified in this audit.
               </p>
             </div>
@@ -2048,35 +2070,37 @@ class OpportunityEngine:
             warn_text_blocks = "No warnings were identified in this audit.\n\n"
 
         # ── Recommendations and Next Steps ───────────────────────────────────
-        next_steps_list: List[str] = []
-        for cf in all_critical_findings:
-            rec = cf.get("recommendation", "")
-            if rec and rec not in next_steps_list:
-                next_steps_list.append(rec)
-        for wf in all_warning_findings:
-            rec = wf.get("recommendation", "")
-            if rec and rec not in next_steps_list:
-                next_steps_list.append(rec)
-        if not next_steps_list:
-            next_steps_list = ["Periodic health checks and search presence tracking to maintain baseline quality."]
+        rec_html_section = ""
+        rec_text_section = ""
+        prioritized_steps: List[str] = []
 
-        # Cap next steps to top 4 prioritized actions
-        prioritized_steps = next_steps_list[:4]
+        if include_recommended_actions:
+            next_steps_list: List[str] = []
+            for cf in all_critical_findings:
+                rec = cf.get("recommendation", "")
+                if rec and rec not in next_steps_list:
+                    next_steps_list.append(rec)
+            for wf in all_warning_findings:
+                rec = wf.get("recommendation", "")
+                if rec and rec not in next_steps_list:
+                    next_steps_list.append(rec)
+            if not next_steps_list:
+                next_steps_list = ["Periodic health checks and search presence tracking to maintain baseline quality."]
 
-        rec_html_items = "".join([f"<li style='margin-bottom: 6px;'>{html.escape(s)}</li>" for s in prioritized_steps])
-        rec_html_section = f"""
-        <div style="margin-top: 18px; margin-bottom: 20px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <p style="margin: 0 0 10px 0; font-weight: 700; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
-            Recommendations and Next Steps
-          </p>
-          <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 13px; line-height: 1.6;">
-            {rec_html_items}
-          </ul>
-        </div>
-        """
-
-        rec_text_items = "".join([f"- {s}\n" for s in prioritized_steps])
-        rec_text_section = f"Recommendations and Next Steps\n------------------------------\n{rec_text_items}\n"
+            prioritized_steps = next_steps_list[:4]
+            rec_html_items = "".join([f"<li style='margin-bottom: 8px;'>{html.escape(s)}</li>" for s in prioritized_steps])
+            rec_html_section = f"""
+            <div style="margin-top: 20px; margin-bottom: 20px; padding: 18px 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <p style="margin: 0 0 10px 0; font-weight: 700; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                Recommendations and Next Steps
+              </p>
+              <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.6;">
+                {rec_html_items}
+              </ul>
+            </div>
+            """
+            rec_text_items = "".join([f"- {s}\n" for s in prioritized_steps])
+            rec_text_section = f"Recommendations and Next Steps\n------------------------------\n{rec_text_items}\n"
 
         # ── Assemble Sections ────────────────────────────────────────────────
         sections_html = ""
@@ -2085,43 +2109,42 @@ class OpportunityEngine:
         if not observations and not has_critical and not has_warnings:
             # Baseline clean check
             sections_html += """
-            <div style="margin-bottom: 16px; padding: 14px; background: #f8fafc; border-left: 4px solid #10b981; border-radius: 6px;">
-              <p style="margin: 0 0 6px 0; font-weight: 700; color: #1e293b; font-size: 14px;">
+            <div style="margin-bottom: 16px; padding: 16px 18px; background: #f8fafc; border-left: 4px solid #10b981; border-radius: 8px;">
+              <div style="margin: 0 0 8px 0; font-weight: 700; color: #1e293b; font-size: 16px;">
                 Baseline Foundation Check (Maintenance)
-              </p>
-              <p style="margin: 0 0 6px 0; color: #475569; font-size: 13px;">
+              </div>
+              <p style="margin: 0 0 8px 0; color: #475569; font-size: 14.5px;">
                 <strong>Observed Finding:</strong> Our initial automated scan did not record critical infrastructure defects.
               </p>
-              <p style="margin: 0 0 6px 0; color: #64748b; font-size: 12px; line-height: 1.5;">
+              <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.55;">
                 Maintaining solid technical foundations and consistent mobile rendering ensures uninterrupted customer discoverability.
-              </p>
-              <p style="margin: 0; color: #059669; font-size: 12px; font-weight: 600;">
-                &rarr; Recommended Action: Periodic health checks and search presence tracking to maintain baseline quality.
               </p>
             </div>
             """
-            sections_text += "1. Baseline Foundation Check [MAINTENANCE]\n   Observed: Our initial automated scan did not record critical infrastructure defects.\n   Why it matters: Maintaining solid technical foundations ensures uninterrupted customer discoverability.\n   Recommended Action: Periodic health checks and search presence tracking to maintain baseline quality.\n\n"
+            sections_text += "1. Baseline Foundation Check [MAINTENANCE]\n   Observed: Our initial automated scan did not record critical infrastructure defects.\n   Why it matters: Maintaining solid technical foundations ensures uninterrupted customer discoverability.\n\n"
             sections_html += """
-            <div style="margin-top: 14px; margin-bottom: 14px;">
-              <p style="margin: 0 0 6px 0; font-weight: 700; color: #9a3412; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <div style="margin-top: 18px; margin-bottom: 14px;">
+              <p style="margin: 0 0 8px 0; font-weight: 700; color: #9a3412; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
                 Warnings
               </p>
-              <p style="margin: 0 0 14px 0; color: #64748b; font-size: 13px; font-style: italic;">
+              <p style="margin: 0 0 14px 0; color: #64748b; font-size: 14px; font-style: italic;">
                 No warnings were identified in this audit.
               </p>
             </div>
             """
             sections_text += "Warnings\n---------\nNo warnings were identified in this audit.\n\n"
-            sections_html += rec_html_section
-            sections_text += rec_text_section
+            if rec_html_section:
+                sections_html += rec_html_section
+            if rec_text_section:
+                sections_text += rec_text_section
         else:
             # Render Critical Issues section if critical issues exist
             if has_critical:
                 sections_html += f"""
-                <div style="margin-top: 18px; margin-bottom: 8px;">
-                  <p style="margin: 0 0 10px 0; font-weight: 700; color: #991b1b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                <div style="margin-top: 20px; margin-bottom: 10px;">
+                  <span style="font-weight: 700; color: #991b1b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
                     Critical Issues
-                  </p>
+                  </span>
                 </div>
                 {crit_html_cards}
                 """
@@ -2129,46 +2152,48 @@ class OpportunityEngine:
 
             # Render Warnings section
             sections_html += f"""
-            <div style="margin-top: 18px; margin-bottom: 8px;">
-              <p style="margin: 0 0 10px 0; font-weight: 700; color: #9a3412; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <div style="margin-top: 20px; margin-bottom: 10px;">
+              <span style="font-weight: 700; color: #9a3412; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
                 Warnings
-              </p>
+              </span>
             </div>
             {warn_html_cards}
             """
             sections_text += f"Warnings\n---------\n{warn_text_blocks}"
 
-            # Conclude with Recommendations and Next Steps
-            sections_html += rec_html_section
-            sections_text += rec_text_section
+            if rec_html_section:
+                sections_html += rec_html_section
+            if rec_text_section:
+                sections_text += rec_text_section
 
         body_html = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 600px; line-height: 1.6;">
-          <p>Hi {html.escape(business_name)} Team,</p>
-          <p>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 620px; line-height: 1.65; font-size: 15px;">
+          <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.65; color: #1e293b;">Hi {html.escape(business_name)} Team,</p>
+          <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.65; color: #1e293b;">
             We recently conducted an objective technical audit of <strong>{html.escape(domain)}</strong> to inspect crawlability, mobile experience, and search presence.
           </p>
           {summary_statement_html}
           {sections_html}
-          <p>
-            Our team at <strong>{html.escape(sender_agency)}</strong> specializes in implementing these technical repairs and web enhancements cleanly without disruption.
+          <p style="margin: 20px 0 16px 0; font-size: 15px; line-height: 1.65; color: #1e293b;">
+            Our team at <strong>{html.escape(sender_agency)}</strong> specializes in implementing these technical repairs cleanly without disruption.
           </p>
-          <p>
+          <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 1.65; color: #1e293b;">
             Would you be open to a brief 10-minute conversation this week to review the full technical report and discuss how we can implement these improvements for {html.escape(business_name)}?
           </p>
-          <p style="margin-top: 24px;">
-            Best regards,<br/>
-            <strong>The {html.escape(sender_agency)} Technical Team</strong><br/>
-            <span style="font-size: 12px; color: #64748b;">Contact: {html.escape(contact_email)}</span>
-          </p>
+          <div style="margin-top: 26px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 15px; line-height: 1.55;">
+            <div style="color: #475569; margin-bottom: 4px;">Best regards,</div>
+            <div style="font-weight: 700; color: #0f172a; font-size: 16px;">{html.escape(contact_name)}</div>
+            <div style="font-weight: 600; color: #334155; font-size: 14px;">{html.escape(sender_agency)}</div>
+            <div style="font-size: 13.5px; color: #64748b; margin-top: 4px;">Contact: {html.escape(contact_email)}</div>
+          </div>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 12px 0;"/>
-          <p style="font-size: 11px; color: #94a3b8; line-height: 1.4;">
+          <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0;">
             Note: This proposal is derived from verified automated audit checks. We do not make unsupported claims of guaranteed rankings or revenue increases. All recommendations reflect observable technical findings.
           </p>
         </div>
         """
 
-        body_text = f"""Hi {business_name} Team,\n\nWe recently conducted an objective technical audit of {domain} to inspect crawlability, mobile experience, and search presence.\n\n{summary_statement_text}{sections_text}Our team at {sender_agency} specializes in implementing these technical repairs and web enhancements cleanly without disruption.\n\nWould you be open to a brief 10-minute conversation this week to review the full technical report and discuss how we can implement these improvements for {business_name}?\n\nBest regards,\nThe {sender_agency} Technical Team\nContact: {contact_email}\n\nNote: This proposal is derived from verified automated audit checks. All recommendations reflect observable technical findings."""
+        body_text = f"""Hi {business_name} Team,\n\nWe recently conducted an objective technical audit of {domain} to inspect crawlability, mobile experience, and search presence.\n\n{summary_statement_text}{sections_text}Our team at {sender_agency} specializes in implementing these technical repairs cleanly without disruption.\n\nWould you be open to a brief 10-minute conversation this week to review the full technical report and discuss how we can implement these improvements for {business_name}?\n\nBest regards,\n{contact_name}\n{sender_agency}\nContact: {contact_email}\n\nNote: This proposal is derived from verified automated audit checks. All recommendations reflect observable technical findings."""
 
         return {
             "business_name": business_name,

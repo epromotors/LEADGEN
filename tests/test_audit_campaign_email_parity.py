@@ -30,6 +30,8 @@ def _fixture():
     lead.is_quarantined = False
     lead.quarantine_reason = None
     lead.last_emailed_at = None
+    lead.is_suppressed = False
+    lead.reply_type = None
 
     audit = MagicMock(spec=Audit)
     audit.id = uuid.uuid4()
@@ -84,9 +86,10 @@ def test_dashboard_campaign_preview_and_worker_share_the_dockship_fixture_messag
         "No sitemap found at any standard or declared location.",
         "A clear primary call-to-action button is missing.",
         "Primary H1 heading is missing.",
-        "Recommended Action:",
     ):
         assert expected in preview["plain_body"]
+    assert "Recommended Action:" not in preview["plain_body"]
+    assert "Recommendations and Next Steps" not in preview["plain_body"]
     assert "Modern First Impression" not in preview["plain_body"]
 
 
@@ -114,10 +117,16 @@ def test_worker_sends_the_reviewed_audit_payload_and_blocks_changed_evidence():
         campaign.pending_lead_ids = [str(lead.id)]
         campaign.sent_count = campaign.failed_count = campaign.skipped_count = 0
 
+        def mock_exec(stmt):
+            s = str(stmt).lower()
+            if "suppression" in s or "suppression_list" in s:
+                return MagicMock(scalar_one_or_none=MagicMock(return_value=None), scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))))
+            return MagicMock(scalar_one_or_none=MagicMock(return_value=audit), scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[audit]))))
+
         db = AsyncMock()
         db.add = MagicMock()
         db.get = AsyncMock(side_effect=lambda model, _id: campaign if model == Campaign else lead)
-        db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=audit)))
+        db.execute = AsyncMock(side_effect=mock_exec)
         db.commit = AsyncMock()
         session = MagicMock()
         session.__aenter__ = AsyncMock(return_value=db)

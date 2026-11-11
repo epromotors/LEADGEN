@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic import ConfigDict, field_validator
 from typing import Any, List
 import json
 import os
@@ -109,9 +109,17 @@ class Settings(BaseSettings):
     # Lead Discovery & Search Providers
     SERPER_API_KEY_1: str = ""
     SERPER_API_KEY_2: str = ""
+    SERPER_API_KEY_3: str = ""
+    SERPER_API_KEY_4: str = ""
     SERPER_API_KEY: str = ""
     SERPER_QUOTA_SCOPE_1: str = ""
     SERPER_QUOTA_SCOPE_2: str = ""
+    SERPER_QUOTA_SCOPE_3: str = ""
+    SERPER_QUOTA_SCOPE_4: str = ""
+    SERPAPI_API_KEY_1: str = ""
+    SERPAPI_API_KEY_2: str = ""
+    SERPAPI_QUOTA_SCOPE_1: str = ""
+    SERPAPI_QUOTA_SCOPE_2: str = ""
     SERPAPI_API_KEY: str = ""
     HASDATA_API_KEY: str = ""
     OUTSCRAPER_API_KEY: str = ""
@@ -128,9 +136,7 @@ class Settings(BaseSettings):
     DISCOVERY_MAX_COMBINATIONS_LIMIT: int = 500
     DISCOVERY_STORAGE_FILE: str = "reports/.lead_discovery_jobs.json"
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = ConfigDict(env_file=".env", extra="ignore")
 
     def get_smtp_accounts(self) -> List[dict]:
         """
@@ -166,7 +172,8 @@ class Settings(BaseSettings):
                     "smtp_port": port,
                     "password": password,
                     "daily_limit": daily_limit,
-                    "sender_name": str(item.get("sender_name", "Ashish")).strip() or "Ashish",
+                    "sender_name": str(item.get("sender_name", "Ashish Sharma")).strip() or "Ashish Sharma",
+                    "company_name": str(item.get("company_name", "TEB Solutions")).strip() or "TEB Solutions",
                     "login_email": str(item.get("login_email", email)).strip() or email,
                 }
                 if "reply_to" in item and item["reply_to"]:

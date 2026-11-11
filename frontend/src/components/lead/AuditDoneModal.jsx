@@ -4,9 +4,9 @@ import { CheckCircle2, ArrowRight } from 'lucide-react'
 export default function AuditDoneModal({ count, onOk }) {
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-start justify-center p-4 pt-20 overflow-y-auto"
     >
-      <div className="card-elevated w-full max-w-sm p-6 text-center shadow-2xl border border-slate-700/80 animate-in fade-in zoom-in-95 duration-200">
+      <div className="card-elevated w-full max-w-sm p-6 text-center shadow-2xl border border-slate-700/80 animate-in fade-in zoom-in-95 duration-200 mb-8">
         <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center mx-auto mb-4 text-emerald-400">
           <CheckCircle2 size={32} />
         </div>

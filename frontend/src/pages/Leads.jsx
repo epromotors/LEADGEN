@@ -4,7 +4,8 @@ import { useDropzone } from 'react-dropzone'
 import {
   Upload, Trash2, Search, RefreshCw, Globe, PlayCircle, Filter,
   CheckCircle2, Pencil, X, Sparkles, Check, ArrowUpDown, ChevronDown,
-  ChevronUp, ArrowRight, ShieldAlert, ShieldCheck, AlertTriangle
+  ChevronUp, ArrowRight, ShieldAlert, ShieldCheck, AlertTriangle,
+  Pause, Play, Square
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -15,6 +16,9 @@ import {
   triggerAudit,
   triggerAllAudits,
   triggerSkippedAudits,
+  pauseBatchAudit,
+  resumeBatchAudit,
+  stopBatchAudit,
   getAuditStats,
   getLeadQualityReviewQueue,
   retryLeadQualityDiscovery,
@@ -50,6 +54,11 @@ export default function Leads() {
   const [search, setSearch] = useState(searchParams.get('q') || '')
   const [searchInput, setSearchInput] = useState(searchParams.get('q') || '')
   const [page, setPage] = useState(1)
+  const pageSize = 50
+
+  // Column sorting state
+  const [sortField, setSortField] = useState('')
+  const [sortOrder, setSortOrder] = useState('asc')
 
   // Selection & modals
   const [selected, setSelected] = useState(new Set())
@@ -57,6 +66,14 @@ export default function Leads() {
   const [auditModeModal, setAuditModeModal] = useState(false)
   const [auditDoneModal, setAuditDoneModal] = useState({ visible: false, count: 0 })
   const [dbStats, setDbStats] = useState(null)
+  const [pendingAuditIds, setPendingAuditIds] = useState(new Set())
+  const [auditProgress, setAuditProgress] = useState(null)
+
+  // Refs for debouncing and polling
+  const searchDebounce = useRef(null)
+  const pollRef = useRef(null)
+  const singlePollRef = useRef(null)
+
   const [qualityReviewOpen, setQualityReviewOpen] = useState(false)
   const [qualityReviewLoading, setQualityReviewLoading] = useState(false)
   const [qualityRecords, setQualityRecords] = useState([])
@@ -180,10 +197,28 @@ export default function Leads() {
     fetchLeads()
   }, [fetchLeads])
 
-  // Fetch db stats on mount for quick counts
+  // Fetch db stats on mount for quick counts + restore active batch if running/paused
   useEffect(() => {
     getAuditStats()
-      .then(r => setDbStats(r.data))
+      .then(r => {
+        const stats = r.data
+        setDbStats(stats)
+        if (stats.batch_running || stats.resume_available) {
+          const bp = stats.resume_available
+            ? (stats.resume_session?.progress || {})
+            : (stats.batch_progress || {})
+          setAuditProgress({
+            triggered: bp.total || ((stats.auditing ?? 0) + (stats.audited ?? 0)) || 1,
+            done_baseline: 0,
+            done_now: (stats.audited ?? 0) + (stats.emailed ?? 0) + (stats.replied ?? 0),
+            auditing_now: stats.auditing ?? 0,
+            paused: Boolean(stats.batch_paused || stats.resume_available),
+            interrupted: stats.resume_available ?? false,
+          })
+        } else {
+          setAuditProgress(null)
+        }
+      })
       .catch(() => {})
   }, [])
 
@@ -221,7 +256,8 @@ export default function Leads() {
 
   // ── Stats-based Audit All polling (immune to batch gaps) ────────────────
   useEffect(() => {
-    if (!auditProgress) {
+    const isBatchActive = Boolean(auditProgress || dbStats?.batch_running || dbStats?.resume_available)
+    if (!isBatchActive) {
       if (pollRef.current) clearInterval(pollRef.current)
       return
     }
@@ -235,18 +271,42 @@ export default function Leads() {
 
         const auditingNow = stats.auditing ?? 0
         const doneNow = (stats.audited ?? 0) + (stats.emailed ?? 0) + (stats.replied ?? 0)
-        const batchRunning = stats.batch_running ?? true
+        const batchRunning = stats.batch_running ?? false
+        const resumeAvailable = stats.resume_available ?? false
+        const batchPaused = Boolean(stats.batch_paused || resumeAvailable)
+        const bp = resumeAvailable
+          ? (stats.resume_session?.progress || {})
+          : (stats.batch_progress || {})
 
         setAuditProgress(prev => {
-          if (!prev) return null
-          const updated = { ...prev, done_now: doneNow, auditing_now: auditingNow }
+          const triggered = prev?.triggered ?? bp.total ?? (auditingNow + doneNow)
+          const baseline = prev?.done_baseline ?? doneNow
 
-          if (!batchRunning && auditingNow === 0 && doneNow > (prev.done_baseline ?? 0)) {
+          const updated = {
+            ...(prev || {}),
+            triggered,
+            done_baseline: baseline,
+            done_now: doneNow,
+            auditing_now: auditingNow,
+            paused: batchPaused,
+            interrupted: resumeAvailable,
+            completed: bp.completed ?? Math.max(0, doneNow - baseline),
+            remaining: bp.remaining ?? Math.max(0, triggered - (bp.completed ?? (doneNow - baseline))),
+          }
+
+          // Batch completion condition:
+          // 1. The backend batch is no longer running and not paused, OR
+          // 2. All batch tasks reached completion (bp.total > 0 && bp.completed >= bp.total && !batchPaused)
+          const isFinished = (!batchRunning && !batchPaused && !resumeAvailable) || (bp.total > 0 && bp.completed >= bp.total && !batchPaused && !resumeAvailable)
+
+          if (isFinished) {
             clearInterval(pollRef.current)
-            const gained = doneNow - (prev.done_baseline ?? 0)
-            setTimeout(() => {
-              setAuditDoneModal({ visible: true, count: prev.triggered ?? gained })
-            }, 0)
+            const count = bp.total || prev?.triggered || Math.max(0, doneNow - (prev?.done_baseline ?? 0))
+            if (prev) {
+              setTimeout(() => {
+                setAuditDoneModal({ visible: true, count: count || 0 })
+              }, 0)
+            }
             return null
           }
           return updated
@@ -254,10 +314,10 @@ export default function Leads() {
       } catch {
         // Ignore transient poll network errors
       }
-    }, 6000)
+    }, 4000)
 
     return () => clearInterval(pollRef.current)
-  }, [auditProgress, fetchLeads])
+  }, [auditProgress, dbStats?.batch_running, dbStats?.resume_available, fetchLeads])
 
   // ── ID-based single/bulk audit polling ──────────────────────────────────
   useEffect(() => {
@@ -402,8 +462,16 @@ export default function Leads() {
     try {
       const s = await getAuditStats()
       setDbStats(s.data)
-      if (s.data.batch_running) {
-        toast.error('A batch audit is already running. Please wait for it to complete.')
+      if (s.data.batch_running || s.data.resume_available) {
+        if (s.data.resume_available) {
+          toast.error('An interrupted batch is available. Resume or discard it using the progress controls first.')
+          return
+        }
+        if (s.data.batch_paused) {
+          toast.error('A batch audit is currently paused. Resume or stop it using the controls in the progress bar.')
+        } else {
+          toast.error('A batch audit is already running. Please pause or wait for it to complete.')
+        }
         return
       }
     } catch {
@@ -412,15 +480,17 @@ export default function Leads() {
     setAuditModeModal(true)
   }
 
-  async function runAuditMode(mode) {
+  async function runAuditMode(mode, limit = null) {
     setAuditModeModal(false)
+    const limitSuffix = limit ? ` (limit: ${limit})` : ''
     const labels = {
-      new_only: 'Auditing new sites…',
-      not_emailed: 'Re-auditing all not-emailed leads…',
-      force_all: 'Re-auditing everything…',
-      skipped: 'Re-auditing skipped sites…',
+      new_only: `Auditing never-audited sites${limitSuffix}…`,
+      retry_failed: `Retrying failed audits${limitSuffix}…`,
+      not_emailed: `Re-auditing not-emailed leads${limitSuffix}…`,
+      force_all: `Re-auditing all leads${limitSuffix}…`,
+      skipped: `Re-auditing skipped sites${limitSuffix}…`,
     }
-    const t = toast.loading(labels[mode] ?? 'Triggering audits…')
+    const t = toast.loading(labels[mode] ?? 'Triggering batch audit…')
 
     try {
       const snapRes = await getAuditStats()
@@ -428,8 +498,8 @@ export default function Leads() {
       const baselineDone = (snap.audited ?? 0) + (snap.emailed ?? 0) + (snap.replied ?? 0)
 
       let res
-      if (mode === 'skipped') res = await triggerSkippedAudits()
-      else res = await triggerAllAudits(mode)
+      if (mode === 'skipped') res = await triggerSkippedAudits(limit)
+      else res = await triggerAllAudits(mode, limit)
 
       const triggered = res.data.triggered ?? 0
 
@@ -446,15 +516,63 @@ export default function Leads() {
       setAuditProgress({
         triggered,
         mode,
+        limit,
         done_baseline: baselineDone,
         done_now: baselineDone,
         auditing_now: triggered,
+        paused: false,
       })
 
+      const freshStats = await getAuditStats()
+      setDbStats(freshStats.data)
       fetchLeads()
     } catch (err) {
       const detail = err?.response?.data?.detail
       toast.error(detail || 'Failed to queue batch audits', { id: t })
+    }
+  }
+
+  async function handlePauseBatch() {
+    const t = toast.loading('Pausing batch audit…')
+    try {
+      const res = await pauseBatchAudit()
+      toast.success(res.data.message || 'Batch audit paused.', { id: t })
+      const s = await getAuditStats()
+      setDbStats(s.data)
+      setAuditProgress(prev => prev ? { ...prev, paused: true } : { paused: true, triggered: s.data.batch_progress?.total ?? 0 })
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to pause batch audit', { id: t })
+    }
+  }
+
+  async function handleResumeBatch() {
+    const t = toast.loading('Resuming batch audit…')
+    try {
+      const res = await resumeBatchAudit()
+      toast.success(res.data.message || 'Batch audit resumed.', { id: t })
+      const s = await getAuditStats()
+      setDbStats(s.data)
+      setAuditProgress(prev => prev
+        ? { ...prev, paused: false, interrupted: false }
+        : { paused: false, interrupted: false, triggered: s.data.batch_progress?.total ?? 0 }
+      )
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to resume batch audit', { id: t })
+    }
+  }
+
+  async function handleStopBatch() {
+    if (!confirm('Are you sure you want to stop the batch audit? Remaining queued leads will be cancelled.')) return
+    const t = toast.loading('Stopping batch audit…')
+    try {
+      const res = await stopBatchAudit()
+      toast.success(res.data.message || 'Batch audit stopped.', { id: t })
+      const s = await getAuditStats()
+      setDbStats(s.data)
+      setAuditProgress(null)
+      fetchLeads(true)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to stop batch audit', { id: t })
     }
   }
 
@@ -532,29 +650,90 @@ export default function Leads() {
 
         {/* Global Action Bar */}
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {/* Real-time batch progress indicator */}
-          {auditProgress && (() => {
-            const triggered = auditProgress.triggered ?? 1
-            const baselineDone = auditProgress.done_baseline ?? 0
-            const currentDone = auditProgress.done_now ?? baselineDone
+          {/* Real-time batch progress & control panel */}
+          {(auditProgress || dbStats?.batch_running || dbStats?.resume_available) && (() => {
+            const isPaused = Boolean(dbStats?.batch_paused || auditProgress?.paused)
+            const isInterrupted = Boolean(dbStats?.resume_available || auditProgress?.interrupted)
+            const bp = dbStats?.resume_available
+              ? (dbStats?.resume_session?.progress || {})
+              : (dbStats?.batch_progress || {})
+            const triggered = auditProgress?.triggered || bp.total || ((dbStats?.auditing ?? 0) + (dbStats?.audited ?? 0)) || 1
+            const baselineDone = auditProgress?.done_baseline ?? 0
+            const currentDone = auditProgress?.done_now ?? ((dbStats?.audited ?? 0) + (dbStats?.emailed ?? 0) + (dbStats?.replied ?? 0))
             const gained = Math.max(0, currentDone - baselineDone)
-            const pct = Math.min(100, Math.max(2, (gained / triggered) * 100))
-            const remaining = auditProgress.auditing_now ?? (triggered - gained)
+            const completedCount = bp.completed ?? gained
+            const remainingCount = bp.remaining ?? Math.max(0, triggered - completedCount)
+            const pct = Math.min(100, Math.max(2, (completedCount / triggered) * 100))
 
             return (
-              <div className="p-2 px-3 rounded-lg bg-amber-950/30 border border-amber-800/50 text-amber-300 text-xs min-w-[220px]">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-bold flex items-center gap-1.5">
-                    <span className="spinner w-3 h-3 border-amber-400 border-t-transparent" />
-                    Crawling…
-                  </span>
-                  <span className="text-[11px] font-mono">
-                    {gained} / {triggered}
-                  </span>
+              <div
+                className={`p-2 px-3.5 rounded-xl border text-xs min-w-[280px] sm:min-w-[340px] shadow-lg transition-all duration-300 ${
+                  isPaused
+                    ? 'bg-amber-950/40 border-amber-600/50 text-amber-200 shadow-amber-950/30'
+                    : 'bg-slate-900/90 border-blue-600/50 text-blue-200 shadow-blue-950/30'
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1.5 gap-2">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    {isPaused ? (
+                      <span className="flex items-center gap-1 text-amber-400">
+                        <Pause size={13} className="shrink-0 fill-current" />
+                        <span>{isInterrupted ? 'Audit Resume Available' : 'Audit Paused'}</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-blue-400">
+                        <span className="spinner w-3 h-3 border-blue-400 border-t-transparent" />
+                        <span>Auditing Batch…</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-slate-300">
+                      {completedCount} / {triggered} ({remainingCount} left)
+                    </span>
+
+                    {/* Controls: Pause / Resume & Stop */}
+                    <div className="flex items-center gap-1 ml-1">
+                      {isPaused ? (
+                        <button
+                          onClick={handleResumeBatch}
+                          className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] flex items-center gap-1 transition-all shadow-sm shadow-emerald-950/50 cursor-pointer"
+                          title={isInterrupted ? 'Resume interrupted batch crawling' : 'Resume batch crawling'}
+                        >
+                          <Play size={10} className="fill-current" />
+                          <span>Resume</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handlePauseBatch}
+                          className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] flex items-center gap-1 transition-all shadow-sm shadow-amber-950/50 cursor-pointer"
+                          title="Pause batch crawling"
+                        >
+                          <Pause size={10} className="fill-current" />
+                          <span>Pause</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={handleStopBatch}
+                        className="px-2 py-0.5 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-300 hover:text-white font-semibold text-[10px] flex items-center gap-1 transition-all cursor-pointer"
+                        title="Cancel remaining batch queue"
+                      >
+                        <Square size={9} className="fill-current" />
+                        <span>Stop</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+
+                {/* Progress bar */}
+                <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80">
                   <div
-                    className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-700"
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      isPaused
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-400'
+                        : 'bg-gradient-to-r from-blue-500 via-indigo-400 to-cyan-400 animate-pulse'
+                    }`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -562,7 +741,7 @@ export default function Leads() {
             )
           })()}
 
-          {!auditProgress && pendingAuditIds.size > 0 && (
+          {!auditProgress && !dbStats?.batch_running && pendingAuditIds.size > 0 && (
             <div className="p-2 px-3 rounded-lg bg-amber-950/30 border border-amber-800/50 text-amber-300 text-xs flex items-center gap-2">
               <span className="spinner w-3 h-3 border-amber-400 border-t-transparent" />
               <span>{pendingAuditIds.size} auditing…</span>
@@ -579,12 +758,34 @@ export default function Leads() {
 
           <button
             onClick={handleAuditAll}
-            disabled={!!dbStats?.batch_running}
-            className="btn-primary text-xs py-2 px-3.5 font-bold flex items-center gap-1.5 shadow-lg shadow-blue-900/30"
-            title={dbStats?.batch_running ? 'Batch crawler active…' : 'Start batch audit'}
+            disabled={!!dbStats?.batch_running || !!dbStats?.resume_available}
+            className={`text-xs py-2 px-3.5 font-bold flex items-center gap-1.5 shadow-lg transition-all rounded-lg ${
+              (dbStats?.batch_running || dbStats?.resume_available)
+                ? dbStats?.batch_paused
+                  ? 'bg-amber-950/40 text-amber-300 border border-amber-700/50 cursor-not-allowed opacity-90'
+                  : 'bg-slate-800/60 text-slate-400 border border-slate-700/50 cursor-not-allowed opacity-75'
+                : 'btn-primary shadow-blue-900/30'
+            }`}
+            title={
+              dbStats?.resume_available
+                ? 'Interrupted batch — click Resume in progress bar to continue or Stop to discard it'
+                : dbStats?.batch_running
+                ? dbStats?.batch_paused
+                  ? 'Batch is paused — click Resume in progress bar to continue'
+                  : 'Batch crawler is actively auditing leads…'
+                : 'Start batch audit with scope and fixed lead limits'
+            }
           >
             <PlayCircle size={14} />
-            <span>Audit All</span>
+            <span>
+              {dbStats?.resume_available
+                ? 'Batch Interrupted'
+                : dbStats?.batch_running
+                ? dbStats?.batch_paused
+                  ? 'Batch Paused'
+                  : 'Batch Active'
+                : 'Audit All'}
+            </span>
           </button>
 
           <button

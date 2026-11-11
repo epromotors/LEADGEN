@@ -8,6 +8,7 @@ import {
   getEmailReviewStats, scanEmails,
 } from '../api/client'
 import EmailVerificationAudit from '../components/EmailVerificationAudit'
+import NoWebsiteReviewQueue from '../components/NoWebsiteReviewQueue'
 
 const SOURCE_LABELS = {
   homepage_text: 'Homepage text',
@@ -303,12 +304,19 @@ export default function EmailReview() {
         <button id="verification-tab" role="tab" aria-selected={workspace === 'verification'} aria-controls="verification-panel" onClick={() => setWorkspace('verification')} className={'tab-pill ' + (workspace === 'verification' ? 'tab-pill-active' : '')}>
           <ShieldCheck size={15} /> Verification workspace
         </button>
+        <button id="no-website-tab" role="tab" aria-selected={workspace === 'no-website'} aria-controls="no-website-panel" onClick={() => setWorkspace('no-website')} className={'tab-pill ' + (workspace === 'no-website' ? 'tab-pill-active' : '')}>
+          <MailCheck size={15} /> No-Website Evidence Review
+        </button>
         <button id="review-tab" role="tab" aria-selected={workspace === 'review'} aria-controls="review-panel" onClick={() => setWorkspace('review')} className={'tab-pill ' + (workspace === 'review' ? 'tab-pill-active' : '')}>
           <ShieldAlert size={15} /> Mismatch review {stats.pending > 0 ? '(' + stats.pending + ')' : ''}
         </button>
       </div>
 
-      {workspace === 'verification' ? (
+      {workspace === 'no-website' ? (
+        <section id="no-website-panel" role="tabpanel" aria-labelledby="no-website-tab">
+          <NoWebsiteReviewQueue />
+        </section>
+      ) : workspace === 'verification' ? (
         <section id="verification-panel" role="tabpanel" aria-labelledby="verification-tab">
           <p className="mb-4 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3 text-xs leading-relaxed text-slate-400">
             A routeable address has passed stored syntax and DNS/MX checks. That does not confirm mailbox ownership or business association; standard outreach stays behind the existing fail-closed checks until the existing eligibility controls are satisfied.

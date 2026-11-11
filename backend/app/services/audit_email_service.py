@@ -49,6 +49,7 @@ class AuditEmailService:
         sender_account: Optional[Dict[str, Any]] = None,
         ai_observations: Optional[List[Dict[str, Any]]] = None,
         allow_clean_baseline: bool = False,
+        include_recommended_actions: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Generate the exact audited message for a persisted lead and audit."""
         if audit is None:
@@ -70,6 +71,7 @@ class AuditEmailService:
             ai_observations=ai_observations,
             allow_clean_baseline=allow_clean_baseline,
             lead_id=str(getattr(lead, "id", "")) if getattr(lead, "id", None) else None,
+            include_recommended_actions=include_recommended_actions,
         )
 
     @classmethod
@@ -87,6 +89,7 @@ class AuditEmailService:
         ai_observations: Optional[List[Dict[str, Any]]] = None,
         allow_clean_baseline: bool = False,
         lead_id: Optional[str] = None,
+        include_recommended_actions: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Value-based entry point used by ProposalService and deterministic tests."""
         if not isinstance(audit_results, dict) or not audit_results:
@@ -107,14 +110,20 @@ class AuditEmailService:
                 "The completed audit has no suitable verified findings; use generic first-contact outreach instead."
             )
 
-        sender_name = (sender_account or {}).get("sender_name") or "TEB Solutions"
+        sender_name = (sender_account or {}).get("sender_name") or "Ashish Sharma"
+        company_name = (sender_account or {}).get("company_name") or "TEB Solutions"
         contact_email = (sender_account or {}).get("email") or "info@tebsolutions.in"
+        if include_recommended_actions is None:
+            include_recommended_actions = False if campaign_type else True
+
         draft = OpportunityEngine.generate_proposal_draft(
             business_name=business_name,
             website_url=website_url,
             opportunities=opportunities,
-            sender_agency=sender_name,
+            sender_agency=company_name,
             contact_email=contact_email,
+            contact_name=sender_name,
+            include_recommended_actions=include_recommended_actions,
         )
         updated_at = audit_updated_at.isoformat() if isinstance(audit_updated_at, datetime) else (
             str(audit_updated_at) if audit_updated_at else None

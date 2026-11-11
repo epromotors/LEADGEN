@@ -1,0 +1,1052 @@
+[
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, patients searching for dental care may struggle to find you, which can mean missed appointment requests.\n\nAt {company_name}, we build modern websites for dental clinics that bring in appointment bookings via WhatsApp, phone, and enquiry form, with room for your qualifications, treatment photos, and patient reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby patients find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing dental clinics in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, patients looking for dental care cannot find your contact details or services, which can mean missed appointment requests.\n\nAt {company_name}, we diagnose and restore broken websites for dental clinics. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany patients search for dental care on their phones. A site that does not load well on mobile can mean missed appointment requests before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when patients search for dental care:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for patients to find {business_name}, which supports **appointment bookings**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **appointment bookings**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for patients to see your qualifications, treatment photos, and patient reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when patients search for dental care, directly supporting **appointment bookings**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what patients searching for dental care are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or book an appointment** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing dental clinics in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for dental clinics:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or book an appointment in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your qualifications, treatment photos, and patient reviews?\n\nThese factors directly influence appointment bookings.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed appointment requests*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 1,
+    "niche": "Dental Clinics & Dentists",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help dental clinics build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **appointment bookings**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for dental clinics\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your qualifications, treatment photos, and patient reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, patients searching for medical care may struggle to find you, which can mean missed appointment requests.\n\nAt {company_name}, we build modern websites for clinics and hospitals that bring in appointment requests via WhatsApp, phone, and enquiry form, with room for your doctor profiles, department details, and patient reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby patients find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing clinics and hospitals in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, patients looking for medical care cannot find your contact details or services, which can mean missed appointment requests.\n\nAt {company_name}, we diagnose and restore broken websites for clinics and hospitals. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany patients search for medical care on their phones. A site that does not load well on mobile can mean missed appointment requests before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when patients search for medical care:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for patients to find {business_name}, which supports **appointment requests**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **appointment requests**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for patients to see your doctor profiles, department details, and patient reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when patients search for medical care, directly supporting **appointment requests**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what patients searching for medical care are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or request an appointment** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing clinics and hospitals in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for clinics and hospitals:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or request an appointment in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your doctor profiles, department details, and patient reviews?\n\nThese factors directly influence appointment requests.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed appointment requests*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 2,
+    "niche": "Medical Clinics & Hospitals",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help clinics and hospitals build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **appointment requests**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for clinics and hospitals\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your doctor profiles, department details, and patient reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, patients searching for diagnostic tests may struggle to find you, which can mean missed test booking enquiries.\n\nAt {company_name}, we build modern websites for diagnostic labs and pathology centres that bring in test bookings and sample-collection enquiries via WhatsApp, phone, and enquiry form, with room for your accreditation details, test menus, and customer reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby patients find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing diagnostic labs and pathology centres in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, patients looking for diagnostic tests cannot find your contact details or services, which can mean missed test booking enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for diagnostic labs and pathology centres. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany patients search for diagnostic tests on their phones. A site that does not load well on mobile can mean missed test booking enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when patients search for diagnostic tests:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for patients to find {business_name}, which supports **test bookings and sample-collection enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **test bookings and sample-collection enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for patients to see your accreditation details, test menus, and customer reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when patients search for diagnostic tests, directly supporting **test bookings and sample-collection enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what patients searching for diagnostic tests are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or book a test** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing diagnostic labs and pathology centres in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for diagnostic labs and pathology centres:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or book a test in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your accreditation details, test menus, and customer reviews?\n\nThese factors directly influence test bookings and sample-collection enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed test booking enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 3,
+    "niche": "Diagnostic Labs & Pathology Centres",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help diagnostic labs and pathology centres build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **test bookings and sample-collection enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for diagnostic labs and pathology centres\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your accreditation details, test menus, and customer reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, customers searching for medicines and health products may struggle to find you, which can mean missed customer enquiries.\n\nAt {company_name}, we build modern websites for pharmacies and medical stores that bring in product and delivery enquiries via WhatsApp, phone, and enquiry form, with room for your store photos, licence details, and customer reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby customers find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing pharmacies and medical stores in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, customers looking for medicines and health products cannot find your contact details or services, which can mean missed customer enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for pharmacies and medical stores. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany customers search for medicines and health products on their phones. A site that does not load well on mobile can mean missed customer enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when customers search for medicines and health products:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for customers to find {business_name}, which supports **product and delivery enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **product and delivery enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for customers to see your store photos, licence details, and customer reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when customers search for medicines and health products, directly supporting **product and delivery enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what customers searching for medicines and health products are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or send an enquiry** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing pharmacies and medical stores in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for pharmacies and medical stores:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or send an enquiry in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your store photos, licence details, and customer reviews?\n\nThese factors directly influence product and delivery enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed customer enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 4,
+    "niche": "Pharmacies & Medical Stores",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help pharmacies and medical stores build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **product and delivery enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for pharmacies and medical stores\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your store photos, licence details, and customer reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, students and parents searching for coaching and tuition may struggle to find you, which can mean missed admission enquiries.\n\nAt {company_name}, we build modern websites for coaching institutes and tuition centres that bring in admission enquiries via WhatsApp, phone, and enquiry form, with room for your faculty profiles, batch details, and student reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby students and parents find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing coaching institutes and tuition centres in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, students and parents looking for coaching and tuition cannot find your contact details or services, which can mean missed admission enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for coaching institutes and tuition centres. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany students and parents search for coaching and tuition on their phones. A site that does not load well on mobile can mean missed admission enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when students and parents search for coaching and tuition:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for students and parents to find {business_name}, which supports **admission enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **admission enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for students and parents to see your faculty profiles, batch details, and student reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when students and parents search for coaching and tuition, directly supporting **admission enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what students and parents searching for coaching and tuition are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or enquire about admission** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing coaching institutes and tuition centres in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for coaching institutes and tuition centres:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or enquire about admission in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your faculty profiles, batch details, and student reviews?\n\nThese factors directly influence admission enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed admission enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 5,
+    "niche": "Coaching Institutes & Tuition Centres",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help coaching institutes and tuition centres build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **admission enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for coaching institutes and tuition centres\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your faculty profiles, batch details, and student reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, parents and students searching for admissions information may struggle to find you, which can mean missed admission enquiries.\n\nAt {company_name}, we build modern websites for schools and colleges that bring in admission enquiries via WhatsApp, phone, and enquiry form, with room for your affiliation details, faculty profiles, and campus photos.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby parents and students find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing schools and colleges in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, parents and students looking for admissions information cannot find your contact details or services, which can mean missed admission enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for schools and colleges. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany parents and students search for admissions information on their phones. A site that does not load well on mobile can mean missed admission enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when parents and students search for admissions information:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for parents and students to find {business_name}, which supports **admission enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **admission enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for parents and students to see your affiliation details, faculty profiles, and campus photos and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when parents and students search for admissions information, directly supporting **admission enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what parents and students searching for admissions information are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or enquire about admission** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing schools and colleges in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for schools and colleges:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or enquire about admission in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your affiliation details, faculty profiles, and campus photos?\n\nThese factors directly influence admission enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed admission enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 6,
+    "niche": "Schools & Colleges",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help schools and colleges build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **admission enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for schools and colleges\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your affiliation details, faculty profiles, and campus photos\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, local residents searching for fitness options nearby may struggle to find you, which can mean missed membership sign-ups.\n\nAt {company_name}, we build modern websites for gyms and fitness centres that bring in trial class bookings via WhatsApp, phone, and enquiry form, with room for your trainer profiles, facility photos, and member reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby local residents find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing gyms and fitness centres in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, local residents looking for fitness options nearby cannot find your contact details or services, which can mean missed membership sign-ups.\n\nAt {company_name}, we diagnose and restore broken websites for gyms and fitness centres. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany local residents search for fitness options nearby on their phones. A site that does not load well on mobile can mean missed membership sign-ups before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when local residents search for fitness options nearby:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for local residents to find {business_name}, which supports **trial class bookings**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **trial class bookings**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for local residents to see your trainer profiles, facility photos, and member reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when local residents search for fitness options nearby, directly supporting **trial class bookings**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what local residents searching for fitness options nearby are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or book a trial class** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing gyms and fitness centres in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for gyms and fitness centres:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or book a trial class in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your trainer profiles, facility photos, and member reviews?\n\nThese factors directly influence trial class bookings.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed membership sign-ups*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 7,
+    "niche": "Gyms & Fitness Centres",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help gyms and fitness centres build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **trial class bookings**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for gyms and fitness centres\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your trainer profiles, facility photos, and member reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  }
+]

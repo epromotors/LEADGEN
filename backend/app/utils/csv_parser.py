@@ -146,11 +146,13 @@ def parse_and_clean_csv(content: bytes) -> List[Dict[str, str]]:
         if raw_website:
             # Check if raw_website is a directory URL
             if is_third_party_directory_or_aggregator(raw_website):
-                parsed = urlparse(raw_website if raw_website.startswith(("http://", "https://")) else "https://" + raw_website)
-                evidence_source_url = urlunparse((parsed.scheme, parsed.netloc, "/", "", "", ""))
+                # keep full directory / maps / Google source URL
+                evidence_source_url = raw_website.strip()
                 cleaned_site = ""
             else:
                 cleaned_site = clean_website(raw_website)
+                if cleaned_site and raw_website.strip() != cleaned_site and not evidence_source_url:
+                    evidence_source_url = raw_website.strip()
         else:
             cleaned_site = ""
 

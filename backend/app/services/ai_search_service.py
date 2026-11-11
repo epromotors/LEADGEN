@@ -126,16 +126,33 @@ class AiSearchMonitoringService:
         )
         self.default_provider_name = provider_name or os.environ.get("AI_SEARCH_PROVIDER", "gemini")
 
+        # When provider_api_key is explicitly passed as empty string, do not fall back
+        # to ambient environment settings for other providers (treat service as unconfigured).
+        explicit_empty = (provider_api_key == "")
+
+        perp_key = provider_api_key if provider_api_key is not None else (
+            os.environ.get("AI_SEARCH_PROVIDER_KEY", "") or os.environ.get("PERPLEXITY_API_KEY", "")
+        )
+        gem_key = gemini_api_key if gemini_api_key is not None else (
+            "" if explicit_empty else os.environ.get("GEMINI_API_KEY", "")
+        )
+        open_key = openrouter_api_key if openrouter_api_key is not None else (
+            "" if explicit_empty else os.environ.get("OPENROUTER_API_KEY", "")
+        )
+        groq_key = groq_api_key if groq_api_key is not None else (
+            "" if explicit_empty else os.environ.get("GROQ_API_KEY", "")
+        )
+
         # 1. Perplexity Provider
         self.perplexity_provider = PerplexityAgentProvider(
-            api_key=provider_api_key or os.environ.get("AI_SEARCH_PROVIDER_KEY", "") or os.environ.get("PERPLEXITY_API_KEY", ""),
+            api_key=perp_key,
             model=model or os.environ.get("AI_SEARCH_MODEL", DEFAULT_PERPLEXITY_MODEL),
             timeout_seconds=self.timeout_seconds,
         )
 
         # 2. OpenRouter Provider
         self.openrouter_provider = OpenRouterAgentProvider(
-            api_key=openrouter_api_key or os.environ.get("OPENROUTER_API_KEY", ""),
+            api_key=open_key,
             model=openrouter_model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL),
             enable_web_search=os.environ.get("OPENROUTER_ENABLE_WEB_SEARCH", "true").lower() in ("true", "1", "yes"),
             timeout_seconds=self.timeout_seconds,
@@ -143,7 +160,7 @@ class AiSearchMonitoringService:
 
         # 3. Google Gemini Provider
         self.gemini_provider = GeminiSearchProvider(
-            api_key=gemini_api_key or os.environ.get("GEMINI_API_KEY", ""),
+            api_key=gem_key,
             model=gemini_model or os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
             enable_search_grounding=os.environ.get("GEMINI_ENABLE_SEARCH_GROUNDING", "true").lower() in ("true", "1", "yes"),
             timeout_seconds=self.timeout_seconds,
@@ -151,7 +168,7 @@ class AiSearchMonitoringService:
 
         # 4. Groq Provider (Two-Key Rotation)
         self.groq_provider = GroqSearchProvider(
-            api_key=groq_api_key or os.environ.get("GROQ_API_KEY", ""),
+            api_key=groq_key,
             model=groq_model or os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL),
             timeout_seconds=self.timeout_seconds,
         )

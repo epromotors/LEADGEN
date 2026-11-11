@@ -1586,6 +1586,170 @@ function AuditRow({ lead }) {
                         </div>
                       )}
 
+                      {/* ── 5. GEO & AI SEARCH READINESS SUPPLEMENT ── */}
+                      {audit.site_summary?.geo_supplement && (
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                            <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Bot size={16} color="#a78bfa" />
+                              <span>GEO &amp; AI Search Readiness</span>
+                            </h4>
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
+                              background: audit.site_summary.geo_supplement.geo_readiness_score >= 70 ? '#064e3b' : (audit.site_summary.geo_supplement.geo_readiness_score >= 40 ? '#78350f' : '#7f1d1d'),
+                              color: audit.site_summary.geo_supplement.geo_readiness_score >= 70 ? '#34d399' : (audit.site_summary.geo_supplement.geo_readiness_score >= 40 ? '#fbbf24' : '#f87171'),
+                              border: `1px solid ${audit.site_summary.geo_supplement.geo_readiness_score >= 70 ? '#059669' : (audit.site_summary.geo_supplement.geo_readiness_score >= 40 ? '#d97706' : '#dc2626')}`
+                            }}>
+                              READINESS: {audit.site_summary.geo_supplement.geo_readiness_score}/100
+                            </span>
+                          </div>
+
+                          {/* Disclaimer */}
+                          <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 10, color: '#94a3b8' }}>
+                            {audit.site_summary.geo_supplement.disclaimer}
+                          </div>
+
+                          {/* AI Bot Access Rules */}
+                          {audit.site_summary.geo_supplement.robots_ai_rules && (
+                            <div style={{ marginBottom: 12 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', marginBottom: 6 }}>🤖 AI Crawler Access (robots.txt)</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 6 }}>
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px' }}>
+                                  <div style={{ fontSize: 10, color: '#64748b' }}>Citation Bots Allowed</div>
+                                  <div style={{ fontSize: 13, fontWeight: 800, color: audit.site_summary.geo_supplement.robots_ai_rules.citation_bots_all_allowed ? '#34d399' : '#f87171' }}>
+                                    {audit.site_summary.geo_supplement.robots_ai_rules.citation_bots_all_allowed ? 'ALL ALLOWED' : `${(audit.site_summary.geo_supplement.robots_ai_rules.citation_bots_allowed || []).length} allowed`}
+                                  </div>
+                                </div>
+                                {(audit.site_summary.geo_supplement.robots_ai_rules.citation_bots_blocked || []).length > 0 && (
+                                  <div style={{ background: '#0f172a', border: '1px solid #7f1d1d', borderRadius: 6, padding: '6px 10px' }}>
+                                    <div style={{ fontSize: 10, color: '#64748b' }}>Blocked Citation Bots</div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171' }}>
+                                      {audit.site_summary.geo_supplement.robots_ai_rules.citation_bots_blocked.join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                                {(audit.site_summary.geo_supplement.robots_ai_rules.training_bots_blocked || []).length > 0 && (
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px' }}>
+                                    <div style={{ fontSize: 10, color: '#64748b' }}>Training Bots Blocked</div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24' }}>
+                                      {audit.site_summary.geo_supplement.robots_ai_rules.training_bots_blocked.join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* llms.txt */}
+                          {audit.site_summary.geo_supplement.llms_txt && (
+                            <div style={{ marginBottom: 12 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', marginBottom: 6 }}>📄 llms.txt Convention</div>
+                              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px' }}>
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, marginRight: 8,
+                                  background: audit.site_summary.geo_supplement.llms_txt.found ? '#064e3b' : '#78350f',
+                                  color: audit.site_summary.geo_supplement.llms_txt.found ? '#34d399' : '#fbbf24',
+                                }}>
+                                  {audit.site_summary.geo_supplement.llms_txt.found ? 'FOUND' : 'NOT FOUND'}
+                                </span>
+                                <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                                  {audit.site_summary.geo_supplement.llms_txt.disclaimer}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Content Attributability */}
+                          {audit.site_summary.geo_supplement.content_attributability && (
+                            <div style={{ marginBottom: 12 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', marginBottom: 6 }}>📊 Content Attributability</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6 }}>
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px' }}>
+                                  <div style={{ fontSize: 10, color: '#64748b' }}>Score</div>
+                                  <div style={{ fontSize: 14, fontWeight: 800, color: audit.site_summary.geo_supplement.content_attributability.attributability_score >= 70 ? '#34d399' : (audit.site_summary.geo_supplement.content_attributability.attributability_score >= 40 ? '#fbbf24' : '#f87171') }}>
+                                    {audit.site_summary.geo_supplement.content_attributability.attributability_score}/100
+                                  </div>
+                                </div>
+                                {audit.site_summary.geo_supplement.content_attributability.has_author_byline !== undefined && (
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px' }}>
+                                    <div style={{ fontSize: 10, color: '#64748b' }}>Author Byline</div>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: audit.site_summary.geo_supplement.content_attributability.has_author_byline ? '#34d399' : '#f87171' }}>
+                                      {audit.site_summary.geo_supplement.content_attributability.has_author_byline ? '✓ Found' : '✗ Missing'}
+                                    </div>
+                                  </div>
+                                )}
+                                {audit.site_summary.geo_supplement.content_attributability.has_published_date !== undefined && (
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px' }}>
+                                    <div style={{ fontSize: 10, color: '#64748b' }}>Published Date</div>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: audit.site_summary.geo_supplement.content_attributability.has_published_date ? '#34d399' : '#f87171' }}>
+                                      {audit.site_summary.geo_supplement.content_attributability.has_published_date ? '✓ Found' : '✗ Missing'}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Citation Monitoring */}
+                          {audit.site_summary.geo_supplement.citation_monitoring && (
+                            <div style={{ background: '#090e17', border: '1px solid #1e293b', borderRadius: 6, padding: '6px 10px', fontSize: 10, color: '#94a3b8' }}>
+                              <strong style={{ color: '#64748b' }}>AI Citation Monitoring: </strong>
+                              <span style={{
+                                fontWeight: 700, padding: '1px 4px', borderRadius: 3, marginRight: 4,
+                                background: audit.site_summary.geo_supplement.citation_monitoring.status === 'available' ? '#064e3b' : '#1e293b',
+                                color: audit.site_summary.geo_supplement.citation_monitoring.status === 'available' ? '#34d399' : '#94a3b8',
+                              }}>
+                                {(audit.site_summary.geo_supplement.citation_monitoring.status || 'unavailable').toUpperCase()}
+                              </span>
+                              {audit.site_summary.geo_supplement.citation_monitoring.reason}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── 6. REMEDIATION PLAN ── */}
+                      {audit.site_summary?.remediation_plan?.length > 0 && (
+                        <div style={{ background: '#0a101d', border: '1px solid #1e293b', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                          <h4 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <ShieldCheck size={16} color="#f97316" />
+                            <span>Prioritized Remediation Plan ({audit.site_summary.remediation_plan.length} actions)</span>
+                          </h4>
+
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 11 }}>
+                              <thead style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                                <tr>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8', width: 50 }}>Priority</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Issue</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Evidence</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Impact</th>
+                                  <th style={{ padding: '8px 10px', color: '#94a3b8' }}>Recommended Fix</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {audit.site_summary.remediation_plan.map((item, idx) => (
+                                  <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                      <span style={{
+                                        fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                                        background: item.priority === 'P0' ? '#7f1d1d' : (item.priority === 'P1' ? '#78350f' : '#1e293b'),
+                                        color: item.priority === 'P0' ? '#f87171' : (item.priority === 'P1' ? '#fbbf24' : '#94a3b8'),
+                                      }}>
+                                        {item.priority}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#f1f5f9' }}>{item.title}</td>
+                                    <td style={{ padding: '8px 10px', color: '#cbd5e1', fontSize: 10, maxWidth: 200, wordBreak: 'break-word' }}>{item.evidence}</td>
+                                    <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 10 }}>{item.impact}</td>
+                                    <td style={{ padding: '8px 10px', color: '#38bdf8', fontSize: 10 }}>{item.recommended_fix}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
                       {/* ── SITE-WIDE CRAWLED PAGES TABLE ── */}
                       <div style={{ background: '#090e18', border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>
                         <div style={{ padding: '12px 16px', background: '#0e1626', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

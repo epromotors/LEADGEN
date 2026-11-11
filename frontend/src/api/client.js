@@ -89,7 +89,7 @@ export const getLeads = ({ page = 1, page_size = 50, status = '', q = '' } = {})
 
 // getAllLeadsForPicker: load all leads for campaign creation panel (no page cap)
 export const getAllLeadsForPicker = () =>
-  api.get('/leads/', { params: { page: 1, page_size: 2000 } })
+  api.get('/leads/', { params: { page: 1, page_size: 5000 } })
 
 export const deleteLead      = (id)  => api.delete(`/leads/${id}`)
 export const bulkDeleteLeads = (ids) => api.post('/leads/bulk-delete', { ids, confirmed_count: ids.length })
@@ -153,11 +153,16 @@ export const triggerAudit     = (leadId, targetKeywords = null) => {
   }
   return api.post(`/audits/trigger/${leadId}`)
 }
-// mode: 'new_only' | 'not_emailed' | 'force_all'
-export const triggerAllAudits = (mode = 'new_only') =>
-  api.post('/audits/trigger-all', null, { params: { mode } })
-export const triggerSkippedAudits = () => api.post('/audits/trigger-skipped')
+// mode: 'new_only' (strictly never audited) | 'retry_failed' | 'not_emailed' | 'force_all'
+export const triggerAllAudits = (mode = 'new_only', limit = null) =>
+  api.post('/audits/trigger-all', null, { params: { mode, ...(limit ? { limit } : {}) } })
+export const triggerSkippedAudits = (limit = null) =>
+  api.post('/audits/trigger-skipped', null, { params: { ...(limit ? { limit } : {}) } })
 export const getAuditStats    = () => api.get('/audits/stats')
+export const getBatchStatus   = () => api.get('/audits/batch-status')
+export const pauseBatchAudit  = () => api.post('/audits/batch/pause')
+export const resumeBatchAudit = () => api.post('/audits/batch/resume')
+export const stopBatchAudit   = () => api.post('/audits/batch/stop')
 
 export const getAudit      = (leadId)  => api.get(`/audits/${leadId}`)
 export const getPdfUrl     = (leadId)  => `/api/audits/pdf/${leadId}`
@@ -172,9 +177,14 @@ export const resumeCampaign   = (id)                   => api.post(`/campaigns/$
 export const resetCampaign    = (id)                   => api.post(`/campaigns/${id}/reset`)
 export const deleteCampaign   = (id)                   => api.delete(`/campaigns/${id}`)
 export const retryCampaignFailed = (id)               => api.post(`/campaigns/${id}/retry-failed`)
-export const getCampaignLogs  = (id, limit = 50)       => api.get(`/campaigns/${id}/logs`, { params: { limit } })
+export const getCampaignLogs  = (id, limit = 50)       => api.get(`/campaigns/${id}/logs`, { params: { limit, _ts: Date.now() } })
 export const recalculateCampaign = (id)             => api.post(`/campaigns/${id}/recalculate`)
-export const sendTestEmail    = (leadId, toEmail)      => api.post('/campaigns/send-test', { lead_id: leadId, to_email: toEmail })
+export const sendTestEmail    = (leadId, toEmail, campaignType) =>
+  api.post('/campaigns/send-test', {
+    lead_id: leadId,
+    to_email: toEmail,
+    ...(campaignType ? { campaign_type: campaignType } : {})
+  })
 export const getCampaignSegments = ()                  => api.get('/campaigns/segments')
 export const getSenderStatus  = ()                     => api.get('/campaigns/sender-status')
 export const previewCampaignEmail = (data)             => api.post('/campaigns/preview', data)
@@ -204,6 +214,13 @@ export const getEmailCorrections = (status = 'pending') =>
 export const acceptCorrection    = (id)        => api.post(`/email-review/${id}/accept`)
 export const dismissCorrection   = (id)        => api.post(`/email-review/${id}/dismiss`)
 export const getEmailReviewStats = ()          => api.get('/email-review/stats')
+export const getNoWebsiteReviewQueue = ()       => api.get('/email-review/no-website/queue')
+export const approveNoWebsiteAssociation = (leadId, data) => api.post(`/email-review/no-website/${leadId}/approve`, data)
+export const rejectNoWebsiteAssociation = (leadId, data)  => api.post(`/email-review/no-website/${leadId}/reject`, data)
+export const deferNoWebsiteAssociation = (leadId, data)   => api.post(`/email-review/no-website/${leadId}/defer`, data)
+export const bulkApproveNoWebsiteAssociation = (data)     => api.post('/email-review/no-website/bulk-approve', data)
+export const bulkRejectNoWebsiteAssociation  = (data)     => api.post('/email-review/no-website/bulk-reject', data)
+export const getInconclusiveWebsiteInvestigation = ()     => api.get('/email-review/no-website/inconclusive-investigation')
 
 // ─── Proposals & Service Opportunities ─────────────────────────────────────
 export const getProposal     = (leadId) => api.get(`/proposals/${leadId}`)
@@ -239,5 +256,15 @@ export const getEmailVerificationProgress = () => api.get('/email-verify/progres
 export const cancelEmailVerificationJob   = () => api.post('/email-verify/cancel')
 export const getEmailVerificationStats    = () => api.get('/email-verify/stats')
 export const getEmailVerificationLeads    = (params = {}) => api.get('/email-verify/leads', { params })
+export const bulkApproveDomainMatches     = (data = {}) => api.post('/email-verify/bulk-approve-domain-matches', data)
+export const bulkReverifyLeads            = (data = {}) => api.post('/email-verify/bulk-reverify', data)
+export const bulkPromoteLeads             = (data = {}) => api.post('/email-verify/bulk-promote', data)
+export const bulkDeleteLeadsFromDB        = (ids) => api.post('/leads/bulk-delete', { ids, confirmed_count: ids.length })
+export const promoteLeadToSendable        = (leadId, data = {}) => api.post(`/email-verify/promote-to-sendable/${leadId}`, data)
+export const deleteLeadFromDB             = (leadId) => api.delete(`/leads/${leadId}`)
+
+// ─── API Usage, Credits & Quotas ───────────────────────────────────────────
+export const getApiUsage = (forceRefresh = false) =>
+  api.get('/system/api-usage', { params: { force_refresh: forceRefresh } })
 
 export default api

@@ -203,11 +203,17 @@ def test_pre_send_gatekeeper_allows_valid_verified_lead():
     mock_audit = MagicMock(spec=Audit)
     mock_audit.error_message = None
 
+    def _mock_exec(stmt, *args, **kwargs):
+        stmt_str = str(stmt).lower()
+        if "suppression_list" in stmt_str:
+            return MagicMock(scalar_one_or_none=MagicMock(return_value=None), scalar=MagicMock(return_value=0))
+        return MagicMock(scalar_one_or_none=MagicMock(return_value=mock_audit), scalar=MagicMock(return_value=0))
+
     mock_db = AsyncMock()
     mock_db.add = MagicMock()
     mock_db.get = AsyncMock(side_effect=lambda model, obj_id: campaign if model == Campaign else lead)
     mock_db.refresh = AsyncMock()
-    mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_audit), scalar=MagicMock(return_value=0)))
+    mock_db.execute = AsyncMock(side_effect=_mock_exec)
     mock_db.commit = AsyncMock()
 
     mock_session_ctx = MagicMock()
@@ -278,6 +284,6 @@ def test_create_campaign_blocks_unverified_leads():
         )
         assert resp.status_code == 400
         assert "not campaign-ready" in resp.json()["detail"]
-        assert "valid" in resp.json()["detail"]
+        assert "could not be found" in resp.json()["detail"]
     finally:
         app.dependency_overrides.pop(get_db, None)

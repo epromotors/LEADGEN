@@ -533,8 +533,8 @@ export default function LeadQualityReviewPanel({
 
       {/* ── Bulk Delete Confirmation Modal ── */}
       {confirmBulkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="card-elevated border-rose-800/80 bg-slate-900 max-w-lg w-full p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 pt-16 overflow-y-auto">
+          <div className="card-elevated border-rose-800/80 bg-slate-900 max-w-lg w-full p-5 space-y-4 shadow-2xl mb-8">
             <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
               <AlertTriangle size={18} />
               <span>Confirm Explicit Bulk Deletion</span>

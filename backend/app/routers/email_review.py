@@ -10,11 +10,11 @@ Endpoints:
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,6 +24,20 @@ from app.models import (
     Lead, LeadStatus, Audit, EmailCorrection, ActivityLog
 )
 
+from app.schemas import (
+    ApproveAssociationRequest,
+    BulkApproveAssociationRequest,
+    BulkRejectAssociationRequest,
+)
+from app.services.no_website_review_service import (
+    build_no_website_review_queue,
+    approve_no_website_lead,
+    reject_no_website_lead,
+    defer_no_website_lead,
+    bulk_approve_no_website_leads,
+    bulk_reject_no_website_leads,
+    get_inconclusive_investigation_summary,
+)
 from app.routers.auth import require_authorized_operator
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/email-review", tags=["email-review"], dependencies=[Depends(require_authorized_operator)])
@@ -44,6 +58,16 @@ class EmailCorrectionResponse(BaseModel):
     reviewed_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+
+class RejectAssociationBody(BaseModel):
+    reviewer: Optional[str] = None
+    reason: str = Field(..., min_length=3, description="Justification for rejecting association")
+
+
+class DeferAssociationBody(BaseModel):
+    reviewer: Optional[str] = None
+    reason: str = Field(..., min_length=3, description="Notes on why review is deferred")
 
 
 # ── Background scan job ───────────────────────────────────────────────────────
@@ -137,7 +161,7 @@ async def _scan_all_emails_bg(only_unscanned: bool = False):
                     db.add(correction)
                     
                 # Mark as scanned
-                lead.last_email_scan_at = datetime.utcnow()
+                lead.last_email_scan_at = datetime.now(timezone.utc)
                 await db.commit()
                 
                 if found_email:
@@ -258,7 +282,7 @@ async def accept_correction(
     lead.reply_type = None
 
     correction.status = "accepted"
-    correction.reviewed_at = datetime.utcnow()
+    correction.reviewed_at = datetime.now(timezone.utc)
 
     db.add(ActivityLog(
         event_type="email_accepted",
@@ -296,7 +320,7 @@ async def dismiss_correction(
     biz = lead.business_name if lead else "Unknown"
 
     correction.status = "dismissed"
-    correction.reviewed_at = datetime.utcnow()
+    correction.reviewed_at = datetime.now(timezone.utc)
 
     db.add(ActivityLog(
         event_type="email_dismissed",
@@ -327,3 +351,95 @@ async def correction_stats(db: AsyncSession = Depends(get_db)):
     accepted  = (await db.execute(accepted_q)).scalar_one()
     dismissed = (await db.execute(dismissed_q)).scalar_one()
     return {"total": total, "pending": pending, "accepted": accepted, "dismissed": dismissed}
+
+
+# ── No-Website Evidence Review Queue ──────────────────────────────────────────
+
+@router.get("/no-website/queue", summary="Get evidence-based review queue for no-website leads")
+async def get_no_website_queue(db: AsyncSession = Depends(get_db)):
+    """
+    Returns 84 confirmed no-website business review queue:
+    - 5 proposed evidence-backed candidates
+    - 46 operator-review candidates
+    - 16 unsupported candidates
+    - Live campaign eligibility statistics computed via evaluate_lead_campaign_eligibility
+    """
+    return await build_no_website_review_queue(db)
+
+
+@router.post("/no-website/{lead_id}/approve", summary="Approve email association for no-website lead")
+async def approve_no_website_association(
+    lead_id: uuid.UUID,
+    body: ApproveAssociationRequest,
+    current_operator: dict = Depends(require_authorized_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await approve_no_website_lead(lead_id, body, current_operator, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/no-website/{lead_id}/reject", summary="Reject email association for no-website lead")
+async def reject_no_website_association(
+    lead_id: uuid.UUID,
+    body: RejectAssociationBody,
+    current_operator: dict = Depends(require_authorized_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await reject_no_website_lead(lead_id, body.reason, current_operator, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/no-website/{lead_id}/defer", summary="Defer email association review for no-website lead")
+async def defer_no_website_association(
+    lead_id: uuid.UUID,
+    body: DeferAssociationBody,
+    current_operator: dict = Depends(require_authorized_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await defer_no_website_lead(lead_id, body.reason, current_operator, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/no-website/bulk-approve", summary="Bulk approve email associations for no-website leads")
+async def bulk_approve_no_website_association(
+    body: BulkApproveAssociationRequest,
+    current_operator: dict = Depends(require_authorized_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await bulk_approve_no_website_leads(body.lead_ids, body, current_operator, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/no-website/bulk-reject", summary="Bulk reject email associations for no-website leads")
+async def bulk_reject_no_website_association(
+    body: BulkRejectAssociationRequest,
+    current_operator: dict = Depends(require_authorized_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await bulk_reject_no_website_leads(body.lead_ids, body.reason, current_operator, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/no-website/inconclusive-investigation", summary="Read-only investigation of 121 inconclusive website-less records")
+async def inconclusive_investigation(db: AsyncSession = Depends(get_db)):
+    return await get_inconclusive_investigation_summary(db)

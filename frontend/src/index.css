@@ -250,10 +250,10 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-.page-enter { animation: fadeIn 0.3s ease forwards; }
+.page-enter { animation: fadeIn 0.2s ease; }
 
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-12px); max-height: 0; }

@@ -8,6 +8,7 @@ import Campaigns from './pages/Campaigns'
 import ActivityLog from './pages/ActivityLog'
 import InboxPage from './pages/Inbox'
 import EmailReview from './pages/EmailReview'
+import ApiUsage from './pages/ApiUsage'
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('teb_token')
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="campaigns"   element={<Campaigns />} />
           <Route path="inbox"       element={<InboxPage />} />
           <Route path="email-review" element={<EmailReview />} />
+          <Route path="api-usage"   element={<ApiUsage />} />
           <Route path="activity"    element={<ActivityLog />} />
         </Route>
       </Routes>

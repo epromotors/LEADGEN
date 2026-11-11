@@ -1505,6 +1505,108 @@ def build_pdf(
         story.append(PageBreak())
         story += client_diag_story
 
+    # ─── GEO & AI Search Readiness Supplement (optional) ──────────────────
+    geo_data = site_summary.get("geo_supplement") if site_summary else None
+    if geo_data and isinstance(geo_data, dict):
+        story.append(PageBreak())
+        story += _section("GEO & AI Search Readiness", styles)
+        story.append(Paragraph(
+            "This supplement evaluates the site\u2019s observable readiness for AI-powered search engines "
+            "(ChatGPT, Gemini, Perplexity, Claude) based on robots.txt access rules, llms.txt convention, "
+            "content attributability signals, and structured data grounding. "
+            "Passing these checks does NOT guarantee AI citation.",
+            styles["intro"]
+        ))
+        story.append(Spacer(1, 3*mm))
+
+        readiness = geo_data.get("geo_readiness_score", 0)
+        r_color = C_PASS if readiness >= 70 else (C_WARN if readiness >= 40 else C_DANGER)
+        story.append(Paragraph(
+            f"<b>GEO Readiness Score: {readiness}/100</b>",
+            ParagraphStyle("geo_score", parent=styles["body"], textColor=r_color, fontSize=13)
+        ))
+        story.append(Spacer(1, 3*mm))
+
+        robots = geo_data.get("robots_ai_rules", {})
+        allowed = robots.get("citation_bots_allowed", [])
+        blocked = robots.get("citation_bots_blocked", [])
+        bot_data = [
+            [Paragraph("<b>Signal</b>", styles["caption"]), Paragraph("<b>Status</b>", styles["caption"])],
+            [Paragraph("Citation Bots Fully Allowed", styles["body"]),
+             Paragraph("YES" if robots.get("citation_bots_all_allowed") else "NO", styles["body"])],
+        ]
+        if allowed:
+            bot_data.append([Paragraph("Allowed Bots", styles["body"]),
+                             Paragraph(_safe(", ".join(allowed)), styles["body"])])
+        if blocked:
+            bot_data.append([Paragraph("Blocked Bots", styles["body"]),
+                             Paragraph(_safe(", ".join(blocked)), styles["body"])])
+        llms = geo_data.get("llms_txt", {})
+        bot_data.append([Paragraph("llms.txt Convention", styles["body"]),
+                         Paragraph("Found" if llms.get("found") else "Not Found", styles["body"])])
+        attr = geo_data.get("content_attributability", {})
+        attr_score = attr.get("attributability_score", 0)
+        bot_data.append([Paragraph("Content Attributability Score", styles["body"]),
+                         Paragraph(f"{attr_score}/100", styles["body"])])
+        cite_mon = geo_data.get("citation_monitoring", {})
+        bot_data.append([Paragraph("AI Citation Monitoring", styles["body"]),
+                         Paragraph(_safe(cite_mon.get("status", "unavailable").upper()), styles["body"])])
+
+        t = Table(bot_data, colWidths=[CONTENT_W * 0.45, CONTENT_W * 0.55])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), C_DARK),
+            ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+            ("GRID", (0, 0), (-1, -1), 0.5, C_LIGHT),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(t)
+        if geo_data.get("disclaimer"):
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph(_safe(geo_data["disclaimer"]), styles["caption"]))
+
+    # ─── Remediation Plan (optional) ──────────────────────────────────────
+    remed_plan = site_summary.get("remediation_plan") if site_summary else None
+    if remed_plan and isinstance(remed_plan, list) and len(remed_plan) > 0:
+        story.append(PageBreak())
+        story += _section("Prioritized Remediation Plan", styles, color=C_ACCENT)
+        story.append(Paragraph(
+            f"{len(remed_plan)} actions identified, ordered by priority (P0 = critical blockers, "
+            "P1 = high-impact, P2 = quality improvements).",
+            styles["intro"]
+        ))
+        story.append(Spacer(1, 3*mm))
+        remed_rows = [
+            [Paragraph("<b>Priority</b>", styles["caption"]),
+             Paragraph("<b>Issue</b>", styles["caption"]),
+             Paragraph("<b>Evidence</b>", styles["caption"]),
+             Paragraph("<b>Recommended Fix</b>", styles["caption"])],
+        ]
+        for item in remed_plan[:30]:
+            p_label = item.get("priority", "P2")
+            p_color = C_DANGER if p_label == "P0" else (C_WARN if p_label == "P1" else C_MUTED)
+            remed_rows.append([
+                Paragraph(f"<b>{_safe(p_label)}</b>",
+                          ParagraphStyle("p_lbl", parent=styles["body"], textColor=p_color, fontSize=9)),
+                Paragraph(_safe(_trunc(item.get("title", ""), 60)), styles["body"]),
+                Paragraph(_safe(_trunc(item.get("evidence", ""), 80)),
+                          ParagraphStyle("ev", parent=styles["body"], fontSize=8, textColor=C_MUTED)),
+                Paragraph(_safe(_trunc(item.get("recommended_fix", ""), 100)),
+                          ParagraphStyle("fx", parent=styles["body"], fontSize=8)),
+            ])
+        t = Table(remed_rows, colWidths=[CONTENT_W * 0.12, CONTENT_W * 0.25, CONTENT_W * 0.28, CONTENT_W * 0.35])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), C_DARK),
+            ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+            ("GRID", (0, 0), (-1, -1), 0.5, C_LIGHT),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(t)
 
     # ─── Site-Wide Crawl Section (optional) ───────────────────────────────────
     if site_summary and site_summary.get("total_pages", 0) > 0:

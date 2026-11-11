@@ -20,8 +20,9 @@ export default function CampaignKpiCards({ campaigns = [], senderStatus = null, 
   // Sender infrastructure
   const accounts = senderStatus?.accounts || senderStatus?.senders || []
   const isHealthy = (senderStatus?.status === 'configured' || senderStatus?.configured === true) && accounts.length > 0
-  const dailyCapacity = senderStatus?.total_daily_capacity ?? accounts.reduce((acc, a) => acc + (a.daily_limit || 1000), 0)
-  const sentToday = accounts.reduce((acc, a) => acc + (a.sent_today || 0), 0)
+  // Sender infrastructure - hard global maximum 1,000/day across all accounts
+  const dailyCapacity = senderStatus?.total_daily_capacity ?? 1000
+  const sentToday = senderStatus?.sent_today ?? accounts.reduce((acc, a) => acc + (a.sent_today || 0), 0)
   const remainingToday = senderStatus?.remaining_today ?? Math.max(0, dailyCapacity - sentToday)
 
   const cards = [

@@ -1,22 +1,22 @@
 import uuid
+import zoneinfo
 from datetime import datetime, timezone
 from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, field_serializer
 
 from app.models import LeadStatus, AuditStatus, CampaignStatus
 
+IST_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
 
 # ─── Shared UTC Base ──────────────────────────────────────────────────────────
 # All response models inherit this so datetimes always serialize with 'Z' suffix.
-# Without this, the backend returns naive datetimes like "2026-04-04T13:30:27"
-# which JavaScript treats as LOCAL time — causing ~5.5 hr shift for IST users.
+# Naive datetimes from PostgreSQL (running in Asia/Calcutta session timezone)
+# represent IST timestamps and must be localized to IST before converting to UTC.
 
 def _as_utc(v: datetime) -> str:
-    """Emit a datetime as a UTC ISO-8601 string with 'Z' suffix.
-    Naive datetimes (from SQLAlchemy) are assumed to be UTC already.
-    """
+    """Emit a datetime as a UTC ISO-8601 string with 'Z' suffix."""
     if v.tzinfo is None:
-        v = v.replace(tzinfo=timezone.utc)
+        v = v.replace(tzinfo=IST_TZ)
     return v.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
@@ -24,8 +24,14 @@ class UTCBase(BaseModel):
     """Base model: serialises all datetime fields as UTC ISO-8601 with 'Z' suffix."""
     model_config = {
         "from_attributes": True,
-        "json_encoders": {datetime: _as_utc},
     }
+
+    @field_serializer("*", when_used="json")
+    def _serialize_datetimes(self, v, _info):
+        """Emit datetime fields as UTC ISO-8601 with 'Z' suffix when JSON-serializing."""
+        if isinstance(v, datetime):
+            return _as_utc(v)
+        return v
 
 
 
@@ -79,6 +85,19 @@ class LeadResponse(UTCBase):
     email_verification_status: Optional[str] = "unverified"
     email_verification_details: Optional[dict] = None
     email_verified_at: Optional[datetime] = None
+    # Niche classification & sequence tracking
+    niche_id: Optional[int] = None
+    niche_keyword: Optional[str] = None
+    niche_confidence: Optional[float] = None
+    niche_locked: Optional[bool] = False
+    sequence_touch_count: Optional[int] = 0
+    last_sequence_touch_at: Optional[datetime] = None
+    sequence_paused_until: Optional[datetime] = None
+    has_received_demo: Optional[bool] = False
+    is_suppressed: Optional[bool] = False
+    suppressed_at: Optional[datetime] = None
+    suppression_reason: Optional[str] = None
+    niche_label: Optional[str] = None
 
 
 class LeadUpdate(BaseModel):
@@ -93,12 +112,26 @@ class LeadUpdate(BaseModel):
     website_association_status: Optional[str] = None
     is_quarantined: Optional[bool] = None
     quarantine_reason: Optional[str] = None
+    niche_id: Optional[int] = None
+    niche_locked: Optional[bool] = None
 
 
 class ApproveAssociationRequest(BaseModel):
     reviewer: Optional[str] = Field(None, description="Optional reviewer claim; if provided, must match authenticated principal")
     reason: str = Field(..., min_length=5, description="Auditable justification / evidence for approval")
     policy_reference: Optional[str] = Field("manual_external_domain_review", description="Documented policy reference")
+
+
+class BulkApproveAssociationRequest(BaseModel):
+    lead_ids: List[uuid.UUID] = Field(..., min_length=1, description="List of lead UUIDs to approve")
+    reviewer: Optional[str] = Field(None, description="Optional reviewer claim; if provided, must match authenticated principal")
+    reason: str = Field(..., min_length=5, description="Auditable justification / evidence for approval")
+    policy_reference: Optional[str] = Field("bulk_evidence_review", description="Documented policy reference")
+
+
+class BulkRejectAssociationRequest(BaseModel):
+    lead_ids: List[uuid.UUID] = Field(..., min_length=1, description="List of lead UUIDs to reject and quarantine")
+    reason: str = Field(..., min_length=3, description="Auditable rejection reason")
 
 
 
@@ -251,6 +284,7 @@ class CampaignResponse(UTCBase):
     skipped_count: int
     failed_count: int
     status: CampaignStatus
+    pending_lead_ids: list = Field(default_factory=list)
     next_email_at: Optional[datetime]
     paused_at: Optional[datetime]
     created_at: datetime

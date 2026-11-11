@@ -11,6 +11,9 @@ export default function TestEmailModal({ isOpen, onClose, leads = [], segments =
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
+  const selectedLead = leads.find(l => String(l.id) === String(leadId))
+  const isAudited = selectedLead?.audit_status === 'done'
+
   if (!isOpen) return null
 
   async function handleSend(e) {
@@ -28,7 +31,7 @@ export default function TestEmailModal({ isOpen, onClose, leads = [], segments =
     setResult(null)
     setError(null)
     try {
-      const res = await sendTestEmail(leadId, toEmail)
+      const res = await sendTestEmail(leadId, toEmail, campaignType)
       setResult(res.data)
       toast.success(`Preview email dispatched via ${res.data.sender}`)
     } catch (err) {
@@ -74,16 +77,41 @@ export default function TestEmailModal({ isOpen, onClose, leads = [], segments =
               required
             >
               <option value="">Select a lead for variable substitution…</option>
-              {leads.map(l => (
-                <option key={l.id} value={l.id}>
-                  {l.business_name} ({l.email || 'No email'}) {l.website ? `· ${l.website}` : ''}
-                </option>
-              ))}
+              {leads.map(l => {
+                const audited = l.audit_status === 'done'
+                return (
+                  <option key={l.id} value={l.id}>
+                    {audited ? '✓ [Audited] ' : '⏳ [Unaudited] '}
+                    {l.business_name} {l.website ? `· ${l.website}` : ''}
+                  </option>
+                )
+              })}
             </select>
             <p className="text-[11px] text-slate-500 mt-1">
               Provides business name, audit findings, and score to the template renderer
             </p>
           </div>
+
+          {selectedLead && (
+            <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+              isAudited
+                ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
+                : 'bg-amber-950/20 border-amber-800/40 text-amber-300'
+            }`}>
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <div>
+                {isAudited ? (
+                  <span>
+                    <strong>Audited Lead Selected:</strong> Real technical findings (SEO, Speed, Mobile, Schema) from this lead's completed audit will be personalized into the email.
+                  </span>
+                ) : (
+                  <span>
+                    <strong>Unaudited Lead Selected:</strong> This lead has no completed audit on file. By design, unaudited leads receive the introductory <em>"Segment 8: Website Checklist"</em> pitch (only business name and URL substituted). To preview deep technical audit findings, pick a lead marked <code>✓ [Audited]</code> or run an audit first.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -126,6 +154,7 @@ export default function TestEmailModal({ isOpen, onClose, leads = [], segments =
                 <span>Test Email Delivered</span>
               </div>
               <div>Route: <span className="font-mono text-white">{result.sender}</span></div>
+              {result.campaign_type && <div>Strategy: <span className="font-mono text-white">{result.campaign_type}</span></div>}
               <div className="truncate">Subject: <span className="text-slate-200">{result.subject}</span></div>
             </div>
           )}

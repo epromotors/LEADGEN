@@ -192,7 +192,7 @@ export function WebsiteStatusBadge({ status, candidates = [] }) {
         className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 text-blue-300 rounded border border-blue-500/20 font-semibold inline-flex items-center"
         title="Inferred candidate website — unverified"
       >
-        Inferred — unverified
+        Candidate
       </span>
     )
   }

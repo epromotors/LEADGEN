@@ -66,6 +66,9 @@ def _make_test_lead(
     lead.quarantine_reason = "Manual safety hold" if is_quarantined else None
     lead.last_emailed_at = last_emailed_at
     lead.domain = "acmecorp.com" if website else ""
+    lead.has_received_demo = False
+    lead.is_suppressed = False
+    lead.reply_type = None
     return lead
 
 
@@ -429,7 +432,13 @@ def test_worker_uses_campaign_template_as_source_of_truth():
         mock_db = AsyncMock()
         mock_db.add = MagicMock()
         mock_db.get = AsyncMock(side_effect=lambda model, obj_id: campaign if model == Campaign else lead)
-        mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=audit)))
+        def mock_exec(stmt):
+            s = str(stmt).lower()
+            if "suppression" in s or "suppression_list" in s:
+                return MagicMock(scalar_one_or_none=MagicMock(return_value=None), scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))))
+            return MagicMock(scalar_one_or_none=MagicMock(return_value=audit), scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[audit]))))
+
+        mock_db.execute = AsyncMock(side_effect=mock_exec)
         mock_db.commit = AsyncMock()
 
         mock_session_ctx = MagicMock()

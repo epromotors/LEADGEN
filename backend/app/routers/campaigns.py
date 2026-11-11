@@ -1,6 +1,6 @@
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,12 @@ from app.services.campaign_schema_service import (
     insert_compatible_campaign,
     is_missing_audit_references_error,
     SCHEMA_READINESS_DETAIL,
+)
+from app.services.email_limit_service import (
+    get_sender_daily_usage,
+    claim_global_email_capacity_atomic,
+    check_global_email_capacity,
+    GLOBAL_DAILY_EMAIL_CAP,
 )
 
 router = APIRouter(
@@ -153,58 +159,9 @@ async def get_campaign_segments():
 
 @router.get("/sender-status", summary="Get SMTP sender configuration status and health")
 async def get_sender_status(db: AsyncSession = Depends(get_db)):
-    """Returns safe, redacted sender configuration details and daily volume counters."""
+    """Returns safe, redacted sender configuration details and authoritative daily volume counters."""
     accounts = settings.get_smtp_accounts()
-    if not accounts:
-        return {
-            "status": "not_configured",
-            "configured": False,
-            "senders": [],
-            "accounts": [],
-            "total_daily_capacity": 0,
-            "remaining_today": 0,
-            "message": "No SMTP sender accounts configured in environment.",
-        }
-
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    sender_info = []
-    total_capacity = 0
-    total_remaining = 0
-    for acc in accounts:
-        email = acc.get("email", "")
-        stmt = (
-            select(func.count(CampaignEmailLog.id))
-            .where(
-                CampaignEmailLog.status == "sent",
-                CampaignEmailLog.created_at >= today_start,
-                CampaignEmailLog.message.ilike(f"%({email})%")
-            )
-        )
-        res = await db.execute(stmt)
-        sent_today = res.scalar() or 0
-        limit = acc.get("daily_limit", 1000)
-        rem = max(0, limit - sent_today)
-        total_capacity += limit
-        total_remaining += rem
-        sender_info.append({
-            "email": email,
-            "sender_name": acc.get("sender_name", ""),
-            "host": acc.get("smtp_host") or acc.get("host", ""),
-            "port": acc.get("smtp_port") or acc.get("port", 465),
-            "sent_today": sent_today,
-            "daily_limit": limit,
-            "remaining_today": rem,
-        })
-
-    return {
-        "status": "configured",
-        "configured": True,
-        "accounts": sender_info,
-        "senders": sender_info,
-        "active_sender": sender_info[0]["email"] if sender_info else None,
-        "total_daily_capacity": total_capacity,
-        "remaining_today": total_remaining,
-    }
+    return await get_sender_daily_usage(db, accounts)
 
 
 @router.post("/preview", summary="Generate exact email preview using authoritative template renderer")
@@ -350,7 +307,27 @@ async def send_test_email(
     audit_result = await db.execute(select(Audit).where(Audit.lead_id == lead_id))
     audit = audit_result.scalar_one_or_none()
 
+    if not lead.niche_id and lead.business_name:
+        from app.services.niche_router import classify_lead_niche
+        nid, kw, conf = classify_lead_niche(lead.business_name, getattr(lead, "category", None))
+        if nid and conf >= 2:
+            lead.niche_id = nid
+            lead.niche_keyword = kw
+            lead.niche_confidence = conf
+            await db.commit()
+
     c_type = body.campaign_type or "generic_first_contact"
+    if c_type != "generic_first_contact":
+        from app.services.audit_email_service import AuditEmailService
+        if AuditEmailService.is_audit_dependent(c_type) and (not audit or not audit.audit_results):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Selected lead '{lead.business_name}' has no completed audit. "
+                    f"The '{c_type}' strategy requires actual audit findings. "
+                    "Please audit this lead in the Audits tab first, or select 'generic_first_contact' / an audited lead."
+                ),
+            )
     defaults = TemplateRenderer.get_default_template(c_type)
 
     accounts = settings.get_smtp_accounts()
@@ -374,6 +351,17 @@ async def send_test_email(
     html_body = rendered["html_body"]
     plain_body = rendered["plain_body"]
 
+    # Enforce global daily email limit (1,000/day in Asia/Kolkata) across all accounts
+    can_send, current_sent, remaining = await claim_global_email_capacity_atomic(db, 1)
+    if not can_send:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Global daily email limit ({GLOBAL_DAILY_EMAIL_CAP}/day in Asia/Kolkata) "
+                f"reached across all sender accounts. Sent today: {current_sent}, remaining: 0."
+            ),
+        )
+
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
         None,
@@ -388,6 +376,15 @@ async def send_test_email(
             status_code=status_code,
             detail=f"SMTP test send failed: {err_info['sanitized_message']} (Sender: {account.get('email')})",
         )
+
+    # Durable audit logging of test email send (counted towards global daily cap)
+    test_log = ActivityLog(
+        event_type="test_email_sent",
+        lead_id=lead.id,
+        message=f"Test email sent to {body.to_email} via {account['email']} | Subject: {subject}",
+    )
+    db.add(test_log)
+    await db.commit()
 
     return {
         "message": f"Test email sent to {body.to_email}",
@@ -419,45 +416,6 @@ async def create_campaign(
     c_type = body.campaign_type or "generic_first_contact"
     audit_required = c_type not in ("no_website_design", "generic_first_contact", "public_provider_demo")
 
-    if c_type == "public_provider_demo":
-        # Authoritative gate for public provider demo
-        query = (
-            select(Lead.id)
-            .where(
-                Lead.id.in_(lead_ids),
-                Lead.is_quarantined.is_(False),
-                Lead.email_verification_status == "valid",
-                Lead.email_business_association_status.notin_(["mismatched_source", "invalid_format"]),
-            )
-        )
-    else:
-        # Authoritative recipient safety gate for all standard campaigns
-        query = (
-            select(Lead.id)
-            .where(
-                Lead.id.in_(lead_ids),
-                Lead.is_quarantined.is_(False),
-                Lead.email_verification_status == "valid",
-                Lead.email_business_association_status.in_(["matched", "approved"]),
-            )
-        )
-        if audit_required:
-            query = query.join(Audit, Audit.lead_id == Lead.id).where(Audit.status == AuditStatus.done)
-
-    ready_result = await db.execute(query)
-    raw_rows = ready_result.fetchall() if hasattr(ready_result, "fetchall") else ready_result.scalars().all()
-    ready_ids = {r[0] if isinstance(r, (list, tuple)) else getattr(r, "id", r) for r in raw_rows}
-
-    blocked_count = len(set(lead_ids) - ready_ids)
-    if blocked_count:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{blocked_count} selected lead(s) are not campaign-ready. "
-                "Fresh campaign leads must have a confirmed 'valid' email verification, an approved/matched association status, and a non-quarantined status."
-            ),
-        )
-
     has_audit_col = await has_campaign_audit_references_column(db)
     if audit_required and not has_audit_col:
         raise HTTPException(
@@ -471,12 +429,41 @@ async def create_campaign(
     )
     leads = leads_result.scalars().all() if hasattr(leads_result, "scalars") else []
 
+    # Use the same complete eligibility decision used by audience preview and the
+    # send-time worker.  A SQL-only prefilter previously omitted website segment
+    # classification and one-time demo history, producing UI/creation disagreement.
+    selected_ids = {str(lead_id) for lead_id in lead_ids}
+    found_ids = {str(lead.id) for lead in leads}
+    missing_count = len(selected_ids - found_ids)
+    if missing_count:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{missing_count} selected lead(s) are not campaign-ready because the lead record could not be found."
+            ),
+        )
+
+    sent_demo_emails = set()
+    if c_type == CampaignType.PUBLIC_PROVIDER_DEMO.value:
+        demo_stmt = (
+            select(func.lower(CampaignEmailLog.email))
+            .join(Campaign, Campaign.id == CampaignEmailLog.campaign_id)
+            .where(
+                Campaign.campaign_type == CampaignType.PUBLIC_PROVIDER_DEMO.value,
+                CampaignEmailLog.status == "sent",
+            )
+        )
+        demo_result = await db.execute(demo_stmt)
+        sent_demo_emails = {row[0] for row in demo_result.fetchall() if row[0]}
+
     # Check authoritative campaign eligibility & audit freshness for each lead
     for sample_lead in leads:
+        normalized_email = (sample_lead.email or "").strip().lower()
         is_el, el_reason, _, _ = evaluate_lead_campaign_eligibility(
             sample_lead,
             audit=getattr(sample_lead, "audit", None),
             campaign_type=c_type,
+            has_received_demo=normalized_email in sent_demo_emails,
         )
         if not is_el:
             raise HTTPException(
@@ -599,6 +586,18 @@ async def send_campaign(
             detail="Campaign is already sending. Use force=true to reset and re-launch.",
         )
 
+    # Enforce global daily email limit (1,000/day in Asia/Kolkata) across all accounts
+    can_send_global, current_global_sent, remaining_global = await check_global_email_capacity(db, 1)
+    if not can_send_global or remaining_global <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Global daily email limit ({GLOBAL_DAILY_EMAIL_CAP}/day in Asia/Kolkata) "
+                f"reached across all sender accounts. Sent today: {current_global_sent}, remaining: 0. "
+                "Resets at IST midnight (00:00 IST)."
+            ),
+        )
+
     # Reset counters on fresh launch (not resume)
     if campaign.status not in (CampaignStatus.paused,):
         campaign.sent_count    = 0
@@ -632,7 +631,7 @@ async def pause_campaign(campaign_id: uuid.UUID, db: AsyncSession = Depends(get_
 
     # The runner checks this flag before each send and will stop itself
     campaign.status    = CampaignStatus.paused
-    campaign.paused_at = datetime.utcnow()
+    campaign.paused_at = datetime.now(timezone.utc)
     await db.commit()
 
     db.add(ActivityLog(
@@ -693,7 +692,7 @@ async def cancel_campaign(
         msg = f"Scheduled campaign '{campaign.name}' cancelled and reverted to draft."
     elif campaign.status == CampaignStatus.sending:
         campaign.status = CampaignStatus.paused
-        campaign.paused_at = datetime.utcnow()
+        campaign.paused_at = datetime.now(timezone.utc)
         await db.commit()
         msg = f"Running campaign '{campaign.name}' paused on cancellation. Worker will halt on next check."
     else:
@@ -735,6 +734,18 @@ async def resume_campaign(
 
     if is_locked:
         raise HTTPException(status_code=409, detail="Campaign is currently running with an active worker lock.")
+
+    # Enforce global daily email limit (1,000/day in Asia/Kolkata) across all accounts
+    can_send_global, current_global_sent, remaining_global = await check_global_email_capacity(db, 1)
+    if not can_send_global or remaining_global <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Global daily email limit ({GLOBAL_DAILY_EMAIL_CAP}/day in Asia/Kolkata) "
+                f"reached across all sender accounts. Sent today: {current_global_sent}, remaining: 0. "
+                "Resets at IST midnight (00:00 IST)."
+            ),
+        )
 
     # pending_lead_ids was saved when paused — runner will pick up from there
     campaign.status    = CampaignStatus.draft  # engine sets to 'sending'

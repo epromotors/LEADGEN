@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import create_tables, verify_runtime_database_role
 from app.logger import setup_logging          # ← IST rotating file logger
-from app.routers import auth, leads, audits, campaigns, activity, replies, email_review, proposals, gsc, ai_search, email_verification
+from app.routers import auth, leads, audits, campaigns, activity, replies, email_review, proposals, gsc, ai_search, email_verification, api_usage
 
 # ── Logging must be configured FIRST, before anything writes a log line ───────
 setup_logging()
@@ -37,6 +37,40 @@ async def lifespan(app: FastAPI):
     from app.services.campaign_scheduler import get_campaign_scheduler
     scheduler = get_campaign_scheduler()
     await scheduler.start()
+
+    # Reconcile orphaned in-flight records from any previous abrupt server termination
+    try:
+        interrupted_batches = 0
+        try:
+            interrupted_batches = await audits.recover_interrupted_batch_sessions()
+        except Exception as exc:
+            logger.warning("Batch-session recovery unavailable; apply v7_1_0_audit_batch_sessions.sql before using durable resume: %s", exc)
+        from app.database import AsyncSessionLocal
+        from app.models import Lead, Audit, LeadStatus, AuditStatus
+        from sqlalchemy import update
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                update(Lead).where(Lead.status == LeadStatus.auditing).values(status=LeadStatus.new)
+            )
+            # Reset both running (mid-crawl) and pending (queued but not started)
+            # audits to failed on startup.  This prevents new_only mode from
+            # skipping them (they have an audit row so they wouldn't be re-queued)
+            # or re-queuing them as duplicates.  Users can re-trigger them manually
+            # or via a new batch after the restart.
+            await session.execute(
+                update(Audit)
+                .where(Audit.status.in_([AuditStatus.running, AuditStatus.pending]))
+                .values(
+                    status=AuditStatus.failed,
+                    audit_lifecycle="FAILED",
+                    error_message="Server restarted while audit was in-flight or queued."
+                )
+            )
+            await session.commit()
+        if interrupted_batches:
+            logger.info("Marked %s interrupted audit batch session(s) resumable after restart.", interrupted_batches)
+    except Exception as exc:
+        logger.warning(f"Failed to reconcile orphaned auditing records on startup: {exc}")
 
     yield
 
@@ -102,6 +136,7 @@ app.include_router(proposals.router)
 app.include_router(gsc.router)
 app.include_router(ai_search.router)
 app.include_router(email_verification.router)
+app.include_router(api_usage.router)
 
 
 # ── Frontend client-side error sink ─────────────────────────────────────────
@@ -120,6 +155,7 @@ class FrontendLogEntry(BaseModel):
 
 
 @app.post("/api/logs/frontend", tags=["logs"], summary="Frontend error sink")
+@app.post("/logs/frontend", tags=["logs"], summary="Frontend error sink (proxied)")
 async def receive_frontend_log(entry: FrontendLogEntry):
     """
     Accepts structured log entries from the React frontend and writes them

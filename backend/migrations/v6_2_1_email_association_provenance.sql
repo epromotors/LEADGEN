@@ -1,4 +1,4 @@
--- LEADGEN Migration v6.2.1: Email & Website Provenance and Association Status
+﻿-- LEADGEN Migration v6.2.1: Email & Website Provenance and Association Status
 -- Backward-compatible, additive schema update.
 -- Targets: leads table.
 -- Execution Mode: Operator-controlled ONLY. Not executed automatically on startup.
@@ -15,7 +15,7 @@ DO $$
 BEGIN
     IF current_database() IN (
         'leadgen', 'leadgen_test', 'leads_db', 'linkgen', 'offpage',
-        'postgres', 'template0', 'template1'
+        'leadgen_release_sandbox', 'postgres', 'template0', 'template1'
     ) THEN
         RAISE EXCEPTION 'MIGRATION ABORTED: Target database "%" is in the protected database list and cannot be modified.', current_database();
     END IF;

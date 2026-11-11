@@ -17,7 +17,7 @@ Core Guarantees:
 
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from unittest.mock import AsyncMock, MagicMock
 from contextlib import contextmanager
@@ -298,7 +298,7 @@ async def insert_compatible_campaign(db: AsyncSession, campaign: Campaign) -> Ca
     if campaign.id is None:
         campaign.id = uuid.uuid4()
     if campaign.created_at is None:
-        campaign.created_at = datetime.utcnow()
+        campaign.created_at = datetime.now(timezone.utc)
     if campaign.lead_ids is None:
         campaign.lead_ids = []
     if campaign.pending_lead_ids is None:

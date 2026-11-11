@@ -675,15 +675,23 @@ class ProviderKeyManager:
         # 3. Serper (Google Maps & Search Snippets)
         serper_keys, serper_scopes = self._collect_keys_and_scopes(
             provider="serper",
-            numbered_names=["SERPER_API_KEY_1", "SERPER_API_KEY_2"],
+            numbered_names=["SERPER_API_KEY_1", "SERPER_API_KEY_2", "SERPER_API_KEY_3", "SERPER_API_KEY_4"],
             legacy_aliases=["SERPER_API_KEY"],
-            numbered_scope_names=["SERPER_QUOTA_SCOPE_1", "SERPER_QUOTA_SCOPE_2"],
+            numbered_scope_names=["SERPER_QUOTA_SCOPE_1", "SERPER_QUOTA_SCOPE_2", "SERPER_QUOTA_SCOPE_3", "SERPER_QUOTA_SCOPE_4"],
         )
         self.pools["serper"] = ProviderKeyPool("serper", serper_keys, quota_scopes=serper_scopes)
 
-        # 4. Optional discovery providers (SerpApi, HasData, Outscraper, Hunter, etc.)
+        # 4. SerpApi (Google Maps & Search Discovery)
+        serpapi_keys, serpapi_scopes = self._collect_keys_and_scopes(
+            provider="serpapi",
+            numbered_names=["SERPAPI_API_KEY_1", "SERPAPI_API_KEY_2"],
+            legacy_aliases=["SERPAPI_API_KEY"],
+            numbered_scope_names=["SERPAPI_QUOTA_SCOPE_1", "SERPAPI_QUOTA_SCOPE_2"],
+        )
+        self.pools["serpapi"] = ProviderKeyPool("serpapi", serpapi_keys, quota_scopes=serpapi_scopes)
+
+        # 5. Optional discovery providers (HasData, Outscraper, Hunter, etc.)
         for prov, prefix in [
-            ("serpapi", "SERPAPI_API_KEY"),
             ("hasdata", "HASDATA_API_KEY"),
             ("outscraper", "OUTSCRAPER_API_KEY"),
             ("hunter", "HUNTER_API_KEY"),

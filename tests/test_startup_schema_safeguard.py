@@ -339,6 +339,168 @@ class DatabaseSafeguardAndLeastPrivilegeTests(unittest.TestCase):
         _run_coroutine(_run())
 
 
+class MigrationV620GuardStaticTests(unittest.TestCase):
+    """Static text inspection tests for v6_2_0_email_verification.sql.
+
+    Verifies that the migration has BEGIN/COMMIT, correct protected database
+    list (including leadgen_release_sandbox), and guard precedes DDL.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        cls.migration_path = repo_root / "backend" / "migrations" / "v6_2_0_email_verification.sql"
+        with open(cls.migration_path, "r", encoding="utf-8") as f:
+            cls.sql_content = f.read()
+
+    def test_migration_is_transactional(self):
+        content = self.sql_content.upper()
+        self.assertIn("BEGIN;", content, "v6.2.0 migration must be wrapped in BEGIN;")
+        self.assertIn("COMMIT;", content, "v6.2.0 migration must be wrapped in COMMIT;")
+
+    def test_all_forbidden_databases_including_sandbox_are_covered(self):
+        forbidden_dbs = [
+            "leadgen", "leadgen_test", "leads_db", "linkgen", "offpage",
+            "leadgen_release_sandbox", "postgres", "template0", "template1",
+        ]
+        for db in forbidden_dbs:
+            self.assertIn(
+                f"'{db}'", self.sql_content,
+                f"v6.2.0: protected database '{db}' must be in the preflight guard",
+            )
+
+    def test_guard_precedes_ddl(self):
+        guard_idx = self.sql_content.find("current_database()")
+        alter_idx = self.sql_content.find("ALTER TABLE")
+        self.assertNotEqual(guard_idx, -1, "preflight guard must exist")
+        self.assertNotEqual(alter_idx, -1, "ALTER TABLE must exist")
+        self.assertLess(guard_idx, alter_idx, "guard must precede ALTER TABLE")
+
+
+class MigrationV621GuardStaticTests(unittest.TestCase):
+    """Static text inspection tests for v6_2_1_email_association_provenance.sql."""
+
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        cls.migration_path = repo_root / "backend" / "migrations" / "v6_2_1_email_association_provenance.sql"
+        with open(cls.migration_path, "r", encoding="utf-8") as f:
+            cls.sql_content = f.read()
+
+    def test_migration_is_transactional(self):
+        content = self.sql_content.upper()
+        self.assertIn("BEGIN;", content, "v6.2.1 migration must be wrapped in BEGIN;")
+        self.assertIn("COMMIT;", content, "v6.2.1 migration must be wrapped in COMMIT;")
+
+    def test_all_forbidden_databases_including_sandbox_are_covered(self):
+        forbidden_dbs = [
+            "leadgen", "leadgen_test", "leads_db", "linkgen", "offpage",
+            "leadgen_release_sandbox", "postgres", "template0", "template1",
+        ]
+        for db in forbidden_dbs:
+            self.assertIn(
+                f"'{db}'", self.sql_content,
+                f"v6.2.1: protected database '{db}' must be in the preflight guard",
+            )
+
+    def test_guard_precedes_ddl(self):
+        guard_idx = self.sql_content.find("current_database()")
+        alter_idx = self.sql_content.find("ALTER TABLE")
+        self.assertNotEqual(guard_idx, -1, "preflight guard must exist")
+        self.assertNotEqual(alter_idx, -1, "ALTER TABLE must exist")
+        self.assertLess(guard_idx, alter_idx, "guard must precede ALTER TABLE")
+
+
+class MigrationV710GuardStaticTests(unittest.TestCase):
+    """Static text inspection tests for v7_1_0_audit_batch_sessions.sql.
+
+    Verifies BEGIN/COMMIT, complete forbidden-DB list, guard precedes DDL,
+    and the audit_batch_sessions table and index are present.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        cls.migration_path = repo_root / "backend" / "migrations" / "v7_1_0_audit_batch_sessions.sql"
+        with open(cls.migration_path, "r", encoding="utf-8") as f:
+            cls.sql_content = f.read()
+
+    def test_migration_is_transactional(self):
+        content = self.sql_content.upper()
+        self.assertIn("BEGIN;", content, "v7.1.0 migration must be wrapped in BEGIN;")
+        self.assertIn("COMMIT;", content, "v7.1.0 migration must be wrapped in COMMIT;")
+
+    def test_all_forbidden_databases_including_sandbox_are_covered(self):
+        forbidden_dbs = [
+            "leadgen", "leadgen_test", "leads_db", "linkgen", "offpage",
+            "leadgen_release_sandbox", "postgres", "template0", "template1",
+        ]
+        for db in forbidden_dbs:
+            self.assertIn(
+                f"'{db}'", self.sql_content,
+                f"v7.1.0: protected database '{db}' must be in the preflight guard",
+            )
+
+    def test_guard_precedes_ddl(self):
+        guard_idx = self.sql_content.find("current_database()")
+        create_idx = self.sql_content.find("CREATE TABLE")
+        self.assertNotEqual(guard_idx, -1, "preflight guard must exist")
+        self.assertNotEqual(create_idx, -1, "CREATE TABLE must exist")
+        self.assertLess(guard_idx, create_idx, "guard must precede CREATE TABLE")
+
+    def test_creates_audit_batch_sessions_table(self):
+        self.assertIn(
+            "CREATE TABLE IF NOT EXISTS audit_batch_sessions",
+            self.sql_content,
+            "v7.1.0 must create audit_batch_sessions table",
+        )
+
+    def test_creates_status_index(self):
+        self.assertIn(
+            "ix_audit_batch_sessions_status",
+            self.sql_content,
+            "v7.1.0 must create ix_audit_batch_sessions_status index",
+        )
+
+
+class MigrationV700GuardStaticTests(unittest.TestCase):
+    """Static text inspection tests for v7_0_0_niche_classification_and_suppression.sql."""
+
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        cls.migration_path = repo_root / "backend" / "migrations" / "v7_0_0_niche_classification_and_suppression.sql"
+        with open(cls.migration_path, "r", encoding="utf-8") as f:
+            cls.sql_content = f.read()
+
+    def test_migration_is_transactional(self):
+        content = self.sql_content.upper()
+        self.assertIn("BEGIN;", content, "v7.0.0 migration must be wrapped in BEGIN;")
+        self.assertIn("COMMIT;", content, "v7.0.0 migration must be wrapped in COMMIT;")
+
+    def test_all_forbidden_databases_including_sandbox_are_covered(self):
+        forbidden_dbs = [
+            "leadgen", "leadgen_test", "leads_db", "linkgen", "offpage",
+            "leadgen_release_sandbox", "postgres", "template0", "template1",
+        ]
+        for db in forbidden_dbs:
+            self.assertIn(
+                f"'{db}'", self.sql_content,
+                f"v7.0.0: protected database '{db}' must be in the preflight guard",
+            )
+
+    def test_guard_precedes_ddl(self):
+        guard_idx = self.sql_content.find("current_database()")
+        alter_idx = self.sql_content.find("ALTER TABLE")
+        self.assertNotEqual(guard_idx, -1, "preflight guard must exist")
+        self.assertNotEqual(alter_idx, -1, "ALTER TABLE must exist")
+        self.assertLess(guard_idx, alter_idx, "guard must precede ALTER TABLE")
+
+
 if __name__ == "__main__":
     unittest.main()
 

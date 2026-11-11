@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Users, Search, Mail, Activity, LogOut, Zap, Inbox, MailCheck, Menu, X
+  LayoutDashboard, Users, Search, Mail, Activity, LogOut, Zap, Inbox, MailCheck, Menu, X, Gauge
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/campaigns',    icon: Mail,            label: 'Campaigns' },
   { to: '/inbox',        icon: Inbox,           label: 'Inbox',         badge: 'converted' },
   { to: '/email-review', icon: MailCheck,        label: 'Email Review',  badge: 'emailReview' },
+  { to: '/api-usage',    icon: Gauge,            label: 'API Quotas' },
   { to: '/activity',     icon: Activity,        label: 'Activity Log' },
 ]
 

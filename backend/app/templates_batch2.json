@@ -1,0 +1,1202 @@
+[
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, diners searching for places to eat nearby may struggle to find you, which can mean empty tables.\n\nAt {company_name}, we build modern websites for restaurants and cafes that bring in table reservations and takeaway orders via WhatsApp, phone, and enquiry form, with room for your menus, food photos, and customer reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby diners find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing restaurants and cafes in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, diners looking for places to eat nearby cannot find your contact details or services, which can mean empty tables.\n\nAt {company_name}, we diagnose and restore broken websites for restaurants and cafes. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany diners search for places to eat nearby on their phones. A site that does not load well on mobile can mean empty tables before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when diners search for places to eat nearby:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for diners to find {business_name}, which supports **table reservations and takeaway orders**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **table reservations and takeaway orders**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for diners to see your menus, food photos, and customer reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when diners search for places to eat nearby, directly supporting **table reservations and takeaway orders**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what diners searching for places to eat nearby are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or reserve a table** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing restaurants and cafes in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for restaurants and cafes:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or reserve a table in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your menus, food photos, and customer reviews?\n\nThese factors directly influence table reservations and takeaway orders.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *empty tables*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 8,
+    "niche": "Restaurants & Cafes",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help restaurants and cafes build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **table reservations and takeaway orders**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for restaurants and cafes\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your menus, food photos, and customer reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, travellers searching for places to stay may struggle to find you, which can mean missed booking enquiries.\n\nAt {company_name}, we build modern websites for hotels and guesthouses that bring in direct booking enquiries via WhatsApp, phone, and enquiry form, with room for your room photos, tariff details, and guest reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby travellers find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing hotels and guesthouses in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, travellers looking for places to stay cannot find your contact details or services, which can mean missed booking enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for hotels and guesthouses. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany travellers search for places to stay on their phones. A site that does not load well on mobile can mean missed booking enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when travellers search for places to stay:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for travellers to find {business_name}, which supports **direct booking enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **direct booking enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for travellers to see your room photos, tariff details, and guest reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when travellers search for places to stay, directly supporting **direct booking enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what travellers searching for places to stay are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or request a booking** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing hotels and guesthouses in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for hotels and guesthouses:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or request a booking in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your room photos, tariff details, and guest reviews?\n\nThese factors directly influence direct booking enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed booking enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 9,
+    "niche": "Hotels & Guesthouses",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help hotels and guesthouses build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **direct booking enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for hotels and guesthouses\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your room photos, tariff details, and guest reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, couples and families searching for wedding and event planning may struggle to find you, which can mean missed event enquiries.\n\nAt {company_name}, we build modern websites for wedding planners and event managers that bring in event enquiries via WhatsApp, phone, and enquiry form, with room for your portfolio photos, past events, and client reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby couples and families find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing wedding planners and event managers in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, couples and families looking for wedding and event planning cannot find your contact details or services, which can mean missed event enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for wedding planners and event managers. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany couples and families search for wedding and event planning on their phones. A site that does not load well on mobile can mean missed event enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when couples and families search for wedding and event planning:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for couples and families to find {business_name}, which supports **event enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **event enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for couples and families to see your portfolio photos, past events, and client reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when couples and families search for wedding and event planning, directly supporting **event enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what couples and families searching for wedding and event planning are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or request a quote** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing wedding planners and event managers in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for wedding planners and event managers:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or request a quote in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your portfolio photos, past events, and client reviews?\n\nThese factors directly influence event enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed event enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 10,
+    "niche": "Wedding Planners & Event Managers",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help wedding planners and event managers build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **event enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for wedding planners and event managers\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your portfolio photos, past events, and client reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, travellers searching for holiday packages and tours may struggle to find you, which can mean missed trip enquiries.\n\nAt {company_name}, we build modern websites for travel and tourism agencies that bring in trip enquiries via WhatsApp, phone, and enquiry form, with room for your itineraries, destination photos, and traveller reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby travellers find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing travel and tourism agencies in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, travellers looking for holiday packages and tours cannot find your contact details or services, which can mean missed trip enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for travel and tourism agencies. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany travellers search for holiday packages and tours on their phones. A site that does not load well on mobile can mean missed trip enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when travellers search for holiday packages and tours:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for travellers to find {business_name}, which supports **trip enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **trip enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for travellers to see your itineraries, destination photos, and traveller reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when travellers search for holiday packages and tours, directly supporting **trip enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what travellers searching for holiday packages and tours are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or request a trip quote** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing travel and tourism agencies in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for travel and tourism agencies:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or request a trip quote in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your itineraries, destination photos, and traveller reviews?\n\nThese factors directly influence trip enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed trip enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 11,
+    "niche": "Travel & Tourism Agencies",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help travel and tourism agencies build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **trip enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for travel and tourism agencies\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your itineraries, destination photos, and traveller reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, clients searching for salon and spa services may struggle to find you, which can mean missed appointment requests.\n\nAt {company_name}, we build modern websites for salons and spas that bring in appointment bookings via WhatsApp, phone, and enquiry form, with room for your service menus, work photos, and client reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby clients find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing salons and spas in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, clients looking for salon and spa services cannot find your contact details or services, which can mean missed appointment requests.\n\nAt {company_name}, we diagnose and restore broken websites for salons and spas. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany clients search for salon and spa services on their phones. A site that does not load well on mobile can mean missed appointment requests before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when clients search for salon and spa services:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for clients to find {business_name}, which supports **appointment bookings**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **appointment bookings**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for clients to see your service menus, work photos, and client reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when clients search for salon and spa services, directly supporting **appointment bookings**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what clients searching for salon and spa services are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or book an appointment** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing salons and spas in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for salons and spas:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or book an appointment in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your service menus, work photos, and client reviews?\n\nThese factors directly influence appointment bookings.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed appointment requests*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 12,
+    "niche": "Salons & Spas",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help salons and spas build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **appointment bookings**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for salons and spas\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your service menus, work photos, and client reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, shoppers searching for jewellery may struggle to find you, which can mean missed product enquiries.\n\nAt {company_name}, we build modern websites for jewellery stores that bring in store visits and product enquiries via WhatsApp, phone, and enquiry form, with room for your collection photos, hallmark details, and customer reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby shoppers find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing jewellery stores in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, shoppers looking for jewellery cannot find your contact details or services, which can mean missed product enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for jewellery stores. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany shoppers search for jewellery on their phones. A site that does not load well on mobile can mean missed product enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when shoppers search for jewellery:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for shoppers to find {business_name}, which supports **store visits and product enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **store visits and product enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for shoppers to see your collection photos, hallmark details, and customer reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when shoppers search for jewellery, directly supporting **store visits and product enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what shoppers searching for jewellery are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or send an enquiry** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing jewellery stores in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for jewellery stores:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or send an enquiry in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your collection photos, hallmark details, and customer reviews?\n\nThese factors directly influence store visits and product enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed product enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 13,
+    "niche": "Jewellery Stores",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help jewellery stores build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **store visits and product enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for jewellery stores\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your collection photos, hallmark details, and customer reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, shoppers searching for clothing and fashion may struggle to find you, which can mean missed order enquiries.\n\nAt {company_name}, we build modern websites for clothing stores and boutiques that bring in store visits and order enquiries via WhatsApp, phone, and enquiry form, with room for your collection photos, size guides, and customer reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby shoppers find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing clothing stores and boutiques in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, shoppers looking for clothing and fashion cannot find your contact details or services, which can mean missed order enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for clothing stores and boutiques. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany shoppers search for clothing and fashion on their phones. A site that does not load well on mobile can mean missed order enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when shoppers search for clothing and fashion:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for shoppers to find {business_name}, which supports **store visits and order enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **store visits and order enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for shoppers to see your collection photos, size guides, and customer reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when shoppers search for clothing and fashion, directly supporting **store visits and order enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what shoppers searching for clothing and fashion are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or send an order enquiry** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing clothing stores and boutiques in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for clothing stores and boutiques:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or send an order enquiry in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your collection photos, size guides, and customer reviews?\n\nThese factors directly influence store visits and order enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed order enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 14,
+    "niche": "Clothing & Boutiques",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help clothing stores and boutiques build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **store visits and order enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for clothing stores and boutiques\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your collection photos, size guides, and customer reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 1,
+    "segment_key": "NO_WEBSITE_DESIGN",
+    "audit_required": false,
+    "subject": "{business_name} — get online",
+    "subject_alternatives": [
+      "Getting {business_name} online",
+      "A website for {business_name}"
+    ],
+    "preview": "No website found for {business_name}. Here's how we can help.",
+    "body": "Hello, team at {business_name},\n\nI was searching for {business_name} online and noticed that **there is no active website** for your business.\n\nWithout a dedicated website, customers searching for everyday essentials nearby may struggle to find you, which can mean missed order enquiries.\n\nAt {company_name}, we build modern websites for grocery and retail stores that bring in order and delivery enquiries via WhatsApp, phone, and enquiry form, with room for your product ranges, store photos, and customer reviews.\n\n### Every website we build includes:\n- **Mobile-ready design** — matched to your services and branding\n- **Direct enquiry capture** — one-tap WhatsApp, phone, and contact forms\n- **Local search discoverability** — so nearby customers find you first\n\nIf you are reviewing your online presence, reply here and I would be glad to share a few examples and a tailored quotation."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 2,
+    "segment_key": "BROKEN_WEBSITE_REPAIR",
+    "audit_required": true,
+    "subject": "Issue found on {domain}",
+    "subject_alternatives": [
+      "{domain} is unreachable",
+      "{domain} error — quick note"
+    ],
+    "preview": "{domain} has a technical error. Here's what we found.",
+    "body": "Hello, team at {business_name},\n\nWhile reviewing grocery and retail stores in your area, I noticed that **{domain} is currently encountering a technical issue** that prevents visitors from reaching your site:\n\n### Identified Technical Issue:\n{audit_findings}\n\nWhen a website is unreachable, customers looking for everyday essentials nearby cannot find your contact details or services, which can mean missed order enquiries.\n\nAt {company_name}, we diagnose and restore broken websites for grocery and retail stores. *If your team is already working on a fix, please disregard this note.* Otherwise, reply here and we can run a no-obligation diagnostic."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 3,
+    "segment_key": "OUTDATED_WEBSITE_MODERNIZATION",
+    "audit_required": true,
+    "subject": "Mobile review: {domain}",
+    "subject_alternatives": [
+      "Mobile gaps on {domain}",
+      "{domain} mobile check"
+    ],
+    "preview": "{domain} has mobile gaps that may affect enquiries. Audit inside.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and found several areas where the visitor experience falls short, *particularly on mobile devices*:\n\n### Mobile & Usability Findings:\n{audit_findings}\n\n### Recommended Modernisation:\n{audit_recommendations}\n\nMany customers search for everyday essentials nearby on their phones. A site that does not load well on mobile can mean missed order enquiries before a visitor reads about your services.\n\nWould a brief call this week work? I am happy to walk through a **tailored modernisation plan** specific to {business_name}."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 4,
+    "segment_key": "VALID_WEBSITE_SEO",
+    "audit_required": true,
+    "subject": "SEO findings for {domain}",
+    "subject_alternatives": [
+      "Technical SEO: {domain}",
+      "Search gaps on {domain}"
+    ],
+    "preview": "Technical SEO gaps on {domain} that may limit your visibility.",
+    "body": "Hello, team at {business_name},\n\nWe ran a technical audit of {domain} and identified specific gaps that may be reducing how often {business_name} appears when customers search for everyday essentials nearby:\n\n### Technical SEO Audit:\n{audit_findings}\n\n### Recommended Actions:\n{audit_recommendations}\n\nFixing these technical foundations helps search engines index your pages accurately, making it much easier for customers to find {business_name}, which supports **order and delivery enquiries**.\n\nIf you would like the full report, just reply here."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 5,
+    "segment_key": "VALID_WEBSITE_REDESIGN",
+    "audit_required": true,
+    "subject": "Design review: {domain}",
+    "subject_alternatives": [
+      "UX notes for {domain}",
+      "{domain} visitor experience"
+    ],
+    "preview": "UX gaps on {domain} that may reduce enquiries. Here's what we saw.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and noted a few areas where the visitor experience may be reducing user trust or limiting **order and delivery enquiries**:\n\n### Design & User Experience Review:\n{audit_findings}\n\n### Recommended Design Enhancements:\n{audit_recommendations}\n\nA cleaner, modern layout makes it easier for customers to see your product ranges, store photos, and customer reviews and take the next step — whether that is calling, messaging on WhatsApp, or submitting a contact form.\n\nIf this is something your team is evaluating, reply here and I am happy to share a **quick visual walkthrough**."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 6,
+    "segment_key": "VALID_WEBSITE_LINK_BUILDING",
+    "audit_required": true,
+    "subject": "Authority review: {domain}",
+    "subject_alternatives": [
+      "Authority gaps: {domain}",
+      "{domain} search authority"
+    ],
+    "preview": "{domain} shows weak authority signals. Quick summary inside.",
+    "body": "Hello, team at {business_name},\n\nWe reviewed {domain} and examined how well it performs across search authority signals and verified digital references:\n\n### Digital Authority & Citation Gaps:\n{audit_findings}\n\n### Actionable Authority Strategy:\n{audit_recommendations}\n\nStronger citation coverage and verified business listings help {business_name} establish trust when customers search for everyday essentials nearby, directly supporting **order and delivery enquiries**.\n\nWould you like to see a **structured plan** for improving your search authority? Reply here and I will put one together."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 7,
+    "segment_key": "VALID_WEBSITE_MARKETING",
+    "audit_required": true,
+    "subject": "Getting more from {domain}",
+    "subject_alternatives": [
+      "Conversion gaps: {domain}",
+      "More enquiries: {domain}"
+    ],
+    "preview": "{domain} has conversion gaps. Here's what may be in the way.",
+    "body": "Hello, team at {business_name},\n\nI reviewed {domain} and identified several gaps between what your site communicates and what customers searching for everyday essentials nearby are looking for:\n\n### Conversion & Enquiry Audit:\n{audit_findings}\n\n### Priority Recommendations:\n{audit_recommendations}\n\nAligning your site's messaging, call-to-action placement, and search visibility makes it far more likely that visitors will **call, WhatsApp, or send an order enquiry** rather than go elsewhere.\n\nIf useful, reply here and I'll share a short summary of the recommended changes."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 8,
+    "segment_key": "GENERIC_FIRST_CONTACT",
+    "audit_required": false,
+    "subject": "Five checks for {domain}",
+    "subject_alternatives": [
+      "{domain} website checklist",
+      "Quick checklist: {domain}"
+    ],
+    "preview": "Five checks I'd suggest for {domain} before your next update.",
+    "body": "Hello, team at {business_name},\n\nI came across {domain} while reviewing grocery and retail stores in your area and wanted to share a quick checklist: *five things worth verifying before your next website update*.\n\n### Five critical checks for grocery and retail stores:\n✓ **Mobile responsiveness** — does the layout adapt cleanly to phones and tablets?\n✓ **Page load speed** — does the site load quickly on a mobile connection?\n✓ **Direct contact pathways** — can a visitor call, WhatsApp, or send an order enquiry in one tap?\n✓ **Search visibility foundations** — does the homepage have clear title tags and local keyword signals?\n✓ **Verified trust elements** — does the site prominently showcase your product ranges, store photos, and customer reviews?\n\nThese factors directly influence order and delivery enquiries.\n\nIf {business_name} would benefit from a full audit covering all of the above *(with no obligation)*, just reply and I'll get one prepared."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 9,
+    "segment_key": "AUDIT_FOLLOW_UP",
+    "audit_required": true,
+    "subject": "Following up: {domain}",
+    "subject_alternatives": [
+      "{domain} audit follow-up",
+      "Still relevant? {domain}"
+    ],
+    "preview": "Following up on {domain}. The audit is done; here's what we found.",
+    "body": "Hello, team at {business_name},\n\nJust following up on my earlier note regarding **{domain}**.\n\nWe completed the technical review. Here is a summary of the key findings:\n\n### Key Technical Findings:\n{audit_findings}\n\n### Recommended Next Steps:\n{audit_recommendations}\n\nAddressing these items will help {business_name} avoid *missed order enquiries*.\n\n*I'll keep this brief.* If it would help, I can put together a short summary document or jump on a **10-minute call** at your convenience."
+  },
+  {
+    "template_version": "1.0",
+    "niche_id": 15,
+    "niche": "Grocery & Retail Stores",
+    "segment_no": 10,
+    "segment_key": "PUBLIC_PROVIDER_DEMO",
+    "audit_required": false,
+    "subject": "Website demo for {business_name}",
+    "subject_alternatives": [
+      "Demo for {business_name}",
+      "{business_name}: a quick demo"
+    ],
+    "preview": "A no-obligation demo for {business_name}. Reply to arrange it.",
+    "body": "Hello, team at {business_name},\n\nMy name is {sender_name} from {company_name}. We help grocery and retail stores build or improve their digital presence: *websites, mobile experience, and local search visibility*.\n\nI'd like to offer a brief, no-obligation demonstration of what an improved online presence could look like for {business_name}, with a focus on **order and delivery enquiries**.\n\n### What we typically showcase:\n- **Mobile-ready design** — tailored specifically for grocery and retail stores\n- **Direct enquiry capture** — via WhatsApp, phone, and contact form\n- **Verified trust elements** — a place to display your product ranges, store photos, and customer reviews\n\nIf you're open to a quick walkthrough, simply reply and I'll arrange it at a time that works for you."
+  }
+]

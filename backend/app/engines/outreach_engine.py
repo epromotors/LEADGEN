@@ -17,7 +17,7 @@ import logging
 import uuid
 import re
 from html import escape
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
@@ -37,6 +37,12 @@ from app.services.campaign_eligibility_service import (
 )
 
 from app.services.campaign_schema_service import get_campaign_safe
+from app.services.email_limit_service import (
+    check_global_email_capacity,
+    claim_global_email_capacity_atomic,
+    get_account_sent_count_today,
+    GLOBAL_DAILY_EMAIL_CAP,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1674,7 +1680,7 @@ def _send_email_sync(
     smtp_host    = account["smtp_host"]
     smtp_port    = int(account.get("smtp_port", 465))
     password     = account["password"]
-    sender_name  = account.get("sender_name", "Ashish")   # human first name from config
+    sender_name  = account.get("sender_name", "Ashish Sharma")   # sender person name from config
 
     try:
         msg = MIMEMultipart("alternative")
@@ -1837,23 +1843,7 @@ async def _run_campaign_worker(campaign_id: str):
         campaign.next_email_at = None
         await db.commit()
 
-        # Helper to check today's sent count per SMTP account
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        async def get_today_count(sender_email: str) -> int:
-            from sqlalchemy import select, func
-            stmt = (
-                select(func.count(CampaignEmailLog.id))
-                .where(
-                    CampaignEmailLog.status == "sent",
-                    CampaignEmailLog.created_at >= today_start,
-                    CampaignEmailLog.message.ilike(f"%({sender_email})%")
-                )
-            )
-            result = await db.execute(stmt)
-            val = result.scalar() if hasattr(result, "scalar") else None
-            return int(val) if isinstance(val, (int, float)) else 0
-
+        # Authoritative global email limit (1,000/day in Asia/Kolkata) enforced via email_limit_service
         subject_template = campaign.subject_template or DEFAULT_SUBJECT_TEMPLATE
 
         # ── Determine which leads still need sending ───────────────────────
@@ -1866,7 +1856,7 @@ async def _run_campaign_worker(campaign_id: str):
         skipped = campaign.skipped_count or 0
         failed  = campaign.failed_count or 0
 
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
         for idx, lead_id_str in enumerate(list(pending)):
             # ── Check for pause/stop before every send ─────────────────────
@@ -1967,12 +1957,16 @@ async def _run_campaign_worker(campaign_id: str):
                     continue
 
                 # Check 2: Suppression, hard-bounce, or opt-out state
-                is_suppressed = getattr(lead, "is_suppressed", False)
-                reply_type = getattr(lead, "reply_type", None)
-                if is_suppressed or reply_type in ("stop", "bounce"):
+                from app.services.suppression_service import is_suppressed as check_is_suppressed
+                is_global_suppressed = await check_is_suppressed(lead.email, db)
+                is_lead_suppressed = getattr(lead, "is_suppressed", False) is True
+                reply_raw = getattr(lead, "reply_type", None)
+                reply_type = None if hasattr(reply_raw, "_mock_name") else reply_raw
+                if is_global_suppressed or is_lead_suppressed or reply_type in ("stop", "bounce"):
                     skipped += 1
                     campaign.skipped_count = skipped
                     lead.is_quarantined = True
+                    lead.is_suppressed = True
                     lead.quarantine_reason = "Recipient suppressed, bounced, or opted-out"
                     log_entry = CampaignEmailLog(
                         campaign_id=campaign.id,
@@ -1986,6 +1980,27 @@ async def _run_campaign_worker(campaign_id: str):
                     campaign.pending_lead_ids = pending[idx + 1:]
                     await db.commit()
                     logger.info(f"Skipped {lead.email} — suppressed/bounced/opt-out")
+                    continue
+
+                # Check 2b: Sequence touch & cooling window gate
+                from app.services.campaign_eligibility_service import check_sequence_gate
+                seq_reason = check_sequence_gate(lead)
+                seq_blocked = seq_reason is not None
+                if seq_blocked:
+                    skipped += 1
+                    campaign.skipped_count = skipped
+                    log_entry = CampaignEmailLog(
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        business_name=lead.business_name,
+                        email=lead.email,
+                        status="skipped",
+                        message=f"Skipped — Sequence gate: {seq_reason}",
+                    )
+                    db.add(log_entry)
+                    campaign.pending_lead_ids = pending[idx + 1:]
+                    await db.commit()
+                    logger.info(f"Skipped {lead.email} — Sequence gate: {seq_reason}")
                     continue
 
                 # Check 3: Fail-closed association & quarantine gatekeeper
@@ -2141,51 +2156,113 @@ async def _run_campaign_worker(campaign_id: str):
                     logger.info(f"Skipped {lead.email} — {el_reason}")
                     continue
 
-                # Rotate sender account and enforce Hostinger Daily Limit (1000/day)
-                account = None
-                original_index = account_index
-                
-                while True:
-                    candidate_account = accounts[account_index % len(accounts)]
-                    candidate_email = candidate_account["email"]
-                    
-                    if await get_today_count(candidate_email) < 1000:
-                        account = candidate_account
-                        account_index += 1
-                        break
-                    
-                    account_index += 1
-                    # If we checked every account and none has capacity
-                    if account_index - original_index >= len(accounts):
-                        break
-
-                if not account:
-                    logger.info("Daily send limit reached for all accounts. Resume tomorrow.")
+                # 1. Enforce authoritative global daily email limit (1,000/day in Asia/Kolkata) across ALL accounts
+                can_send_global, current_global_sent, remaining_global = await check_global_email_capacity(db, 1)
+                if not can_send_global or remaining_global <= 0:
+                    logger.info(
+                        "[outreach_engine] Global daily email limit (%d/day in Asia/Kolkata) reached across all sender accounts. "
+                        "Sent today: %d. Pausing campaign until next IST calendar day.",
+                        GLOBAL_DAILY_EMAIL_CAP,
+                        current_global_sent,
+                    )
                     campaign.status = CampaignStatus.paused
                     campaign.next_email_at = None
                     campaign.pending_lead_ids = pending[idx:]
                     campaign.sent_count = sent
                     campaign.skipped_count = skipped
                     campaign.failed_count = failed
+                    db.add(ActivityLog(
+                        event_type="campaign_paused",
+                        message=(
+                            f"Campaign '{campaign.name}' paused: Global daily email limit "
+                            f"({GLOBAL_DAILY_EMAIL_CAP}/day in Asia/Kolkata) reached across all sender accounts. "
+                            f"Sent today: {current_global_sent}, remaining: 0. Resumes next IST calendar day."
+                        ),
+                    ))
+                    await db.commit()
+                    return
+
+                # 2. Select eligible sender account respecting individual account caps without exceeding global cap
+                account = None
+                original_index = account_index
+
+                while True:
+                    candidate_account = accounts[account_index % len(accounts)]
+                    candidate_email = candidate_account["email"]
+                    cand_limit = candidate_account.get("daily_limit", GLOBAL_DAILY_EMAIL_CAP)
+                    cand_sent = await get_account_sent_count_today(db, candidate_email)
+
+                    if cand_sent < cand_limit:
+                        account = candidate_account
+                        account_index += 1
+                        break
+
+                    account_index += 1
+                    # If we checked every account and none has capacity
+                    if account_index - original_index >= len(accounts):
+                        break
+
+                if not account:
+                    logger.info("[outreach_engine] Daily send limit reached for all individual sender accounts. Resume tomorrow.")
+                    campaign.status = CampaignStatus.paused
+                    campaign.next_email_at = None
+                    campaign.pending_lead_ids = pending[idx:]
+                    campaign.sent_count = sent
+                    campaign.skipped_count = skipped
+                    campaign.failed_count = failed
+                    db.add(ActivityLog(
+                        event_type="campaign_paused",
+                        message=f"Campaign '{campaign.name}' paused: Daily send limit reached for all individual sender accounts. Resumes next IST calendar day.",
+                    ))
+                    await db.commit()
+                    return
+
+                # 3. Concurrency-safe atomic capacity claim before dispatching
+                granted, current_sent_atomic, _ = await claim_global_email_capacity_atomic(db, 1)
+                if not granted:
+                    logger.info(
+                        "[outreach_engine] Global daily cap claimed concurrently (sent today: %d). Pausing campaign.",
+                        current_sent_atomic,
+                    )
+                    campaign.status = CampaignStatus.paused
+                    campaign.next_email_at = None
+                    campaign.pending_lead_ids = pending[idx:]
+                    campaign.sent_count = sent
+                    campaign.skipped_count = skipped
+                    campaign.failed_count = failed
+                    db.add(ActivityLog(
+                        event_type="campaign_paused",
+                        message=f"Campaign '{campaign.name}' paused: Global daily cap claimed concurrently (sent today: {current_sent_atomic}). Resumes next IST calendar day.",
+                    ))
                     await db.commit()
                     return
 
                 # Authoritative template rendering: campaign.template is the source of truth!
                 template_to_use = campaign.template
                 subject_to_use = campaign.subject_template or subject_template
+                from app.services.niche_template_service import NicheTemplateError
+                use_niche = bool(
+                    getattr(lead, "niche_id", None)
+                    and (
+                        getattr(campaign, "use_niche_templates", False)
+                        or c_type in ("niche_outreach", "niche_campaign")
+                        or not template_to_use
+                    )
+                )
                 try:
+                    campaign_c_type = "niche_outreach" if use_niche else c_type
                     rendered = TemplateRenderer.render_campaign_email(
-                        template=template_to_use,
-                        subject_template=subject_to_use,
+                        template=template_to_use if not use_niche else None,
+                        subject_template=subject_to_use if not use_niche else None,
                         lead=lead,
                         audit=audit,
-                        campaign_type=c_type,
+                        campaign_type=campaign_c_type,
                         sender_account=account,
                     )
                     subject = rendered["subject"]
                     plain_body = rendered["plain_body"]
                     html_body = rendered["html_body"]
-                except TemplateRenderingError as render_err:
+                except (TemplateRenderingError, NicheTemplateError) as render_err:
                     skipped += 1
                     campaign.skipped_count = skipped
                     log_entry = CampaignEmailLog(
@@ -2265,7 +2342,11 @@ async def _run_campaign_worker(campaign_id: str):
                 if success:
                     sent += 1
                     lead.status          = LeadStatus.emailed
-                    lead.last_emailed_at = datetime.utcnow()
+                    lead.last_emailed_at = datetime.now(timezone.utc)
+                    lead.sequence_touch_count = (getattr(lead, "sequence_touch_count", 0) or 0) + 1
+                    lead.last_sequence_touch_at = datetime.now(timezone.utc)
+                    if c_type == "public_provider_demo" or (isinstance(rendered, dict) and rendered.get("segment_no") == 10):
+                        lead.has_received_demo = True
                     campaign.sent_count  = sent
 
                     log_entry = CampaignEmailLog(
@@ -2298,7 +2379,7 @@ async def _run_campaign_worker(campaign_id: str):
                     # ── Humanised delay — set countdown timer ─────────────
                     if not is_last:
                         delay      = random.randint(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS)  # 1 to 1.5 min between emails
-                        next_time  = datetime.utcnow() + timedelta(seconds=delay)
+                        next_time  = datetime.now(timezone.utc) + timedelta(seconds=delay)
                         campaign.next_email_at = next_time
                         # Save progress so resume works after a crash
                         campaign.pending_lead_ids = pending[idx + 1:]

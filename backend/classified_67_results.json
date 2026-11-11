@@ -1,0 +1,1793 @@
+{
+  "auto_association": [
+    {
+      "id": "837d48ad-9824-493c-ac73-8ce750d0bf1e",
+      "business_name": "Imperial Agro Exchange",
+      "email": "exchange.imperialagro@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 90753 57208",
+      "address": null,
+      "source_url": "https://www.instagram.com/reel/DGZx6w1NyUM/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 2,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "imperial",
+        "agro",
+        "exchange"
+      ],
+      "matched_distinctive": [
+        "imperial",
+        "agro",
+        "exchange"
+      ],
+      "matched_all": [
+        "imperial",
+        "agro",
+        "exchange"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Verified business presence on https://www.instagram.com/reel/DGZx6w1NyUM/; email handle 'exchange.imperialagro' matches distinctive business token 'imperial'"
+    },
+    {
+      "id": "85d6d5ab-0b4f-4b78-908a-8b8eb490777e",
+      "business_name": "EXPORT HOUSE BAREILLY",
+      "email": "exporthousefashion@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 89237 50402",
+      "address": null,
+      "source_url": "https://www.facebook.com/exporthousefashion/?locale=fo_FO",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "export",
+        "house",
+        "bareilly"
+      ],
+      "matched_distinctive": [
+        "export",
+        "house"
+      ],
+      "matched_all": [
+        "export",
+        "house"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Verified business presence on https://www.facebook.com/exporthousefashion/?locale=fo_FO; email handle 'exporthousefashion' matches distinctive business token 'export'"
+    },
+    {
+      "id": "f8901286-9e29-4f26-8e35-7eb778987384",
+      "business_name": "Shishu Exports Pvt. Ltd.",
+      "email": "shishulocks@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 92196 95401",
+      "address": null,
+      "source_url": "https://www.facebook.com/peaklocks/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "shishu"
+      ],
+      "matched_distinctive": [
+        "shishu"
+      ],
+      "matched_all": [
+        "shishu"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Verified business presence on https://www.facebook.com/peaklocks/; email handle 'shishulocks' matches distinctive business token 'shishu'"
+    },
+    {
+      "id": "113b7f38-7db5-48f3-ba6c-da7bcc479167",
+      "business_name": "AMRUTAM GLOBAL TRADE",
+      "email": "amrutamglobaltrade@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://www.globallinker.com/seller/amrutam-global-trade?srsltid=AU7gw4VbqxzHU66SvIX511PYCKN0SsSb0kAaQiSWgTY8j_UuuMPmSVtd",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "amrutam",
+        "global",
+        "trade"
+      ],
+      "matched_distinctive": [
+        "amrutam",
+        "global",
+        "trade"
+      ],
+      "matched_all": [
+        "amrutam",
+        "global",
+        "trade"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Verified business presence on https://www.globallinker.com/seller/amrutam-global-trade?srsltid=AU7gw4VbqxzHU66SvIX511PYCKN0SsSb0kAaQiSWgTY8j_UuuMPmSVtd; email handle 'amrutamglobaltrade' matches distinctive business token 'amrutam'"
+    },
+    {
+      "id": "7e238319-7e11-4aca-8ab5-6c713b2028ae",
+      "business_name": "Sheepra Overseas",
+      "email": "sheepra.overseas@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 82864 55666",
+      "address": null,
+      "source_url": "https://www.facebook.com/indian.bandhani.handloom.saree/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "sheepra",
+        "overseas"
+      ],
+      "matched_distinctive": [
+        "sheepra",
+        "overseas"
+      ],
+      "matched_all": [
+        "sheepra",
+        "overseas"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Verified business presence on https://www.facebook.com/indian.bandhani.handloom.saree/; email handle 'sheepra.overseas' matches distinctive business token 'sheepra'"
+    }
+  ],
+  "operator_approval": [
+    {
+      "id": "b191349d-da51-4afe-98ae-2076d4ccc2dc",
+      "business_name": "Export House",
+      "email": "exporthouse70@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98374 10983",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "export",
+        "house"
+      ],
+      "matched_distinctive": [
+        "export",
+        "house"
+      ],
+      "matched_all": [
+        "export",
+        "house"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'exporthouse70' matches business name 'export', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "e182785b-64b6-4175-9d13-571c1414040b",
+      "business_name": "Import export company",
+      "email": "kagdi.mushir@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 70072 46473",
+      "address": null,
+      "source_url": "https://howtoexportimport.com/How-to-set-up-an-export-import-firm-in-India-ndash-398.aspx",
+      "source_type": "http_page_scrape",
+      "extraction_method": "http_page_scrape",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 16,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "import",
+        "export"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://howtoexportimport.com/How-to-set), but email handle 'kagdi.mushir' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "31509c28-8741-4687-b981-1828fd62e62c",
+      "business_name": "JAP EXPORTS",
+      "email": "japexports23@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98110 28200",
+      "address": null,
+      "source_url": "https://in.linkedin.com/company/japexports",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "jap"
+      ],
+      "matched_distinctive": [
+        "jap"
+      ],
+      "matched_all": [
+        "jap",
+        "exports"
+      ],
+      "has_explicit_source": true,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://in.linkedin.com/company/japexports, but email handle 'japexports23' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "ce2795ad-e04c-46c5-ba0b-52b6fd29c5b8",
+      "business_name": "Prime Route Exports",
+      "email": "primerouteexports@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93706 25909",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "prime",
+        "route"
+      ],
+      "matched_distinctive": [
+        "prime",
+        "route"
+      ],
+      "matched_all": [
+        "prime",
+        "route",
+        "exports"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'primerouteexports' matches business name 'prime', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "0c808c29-cf2a-4aae-b1bf-36f017f2b725",
+      "business_name": "Easy Life Global Marketing",
+      "email": "justlookonabad@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 97303 30177",
+      "address": null,
+      "source_url": "https://www.justlookon.com/Easy-Life-Global-Marketing/aurangabad/5584",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "easy",
+        "life",
+        "global",
+        "marketing"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://www.justlookon.com/Easy-Life-Glo), but email handle 'justlookonabad' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "f71aaf2e-c0cb-42e3-922f-f92797b9d57b",
+      "business_name": "K V S EXPORT AND IMPORT",
+      "email": "sunilkumarruttrakhand26@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 96396 30507",
+      "address": null,
+      "source_url": "https://www.instagram.com/reel/Dap9igwCqzi/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "export",
+        "and",
+        "import"
+      ],
+      "matched_distinctive": [
+        "and"
+      ],
+      "matched_all": [
+        "and"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.instagram.com/reel/Dap9igwCqzi/, but email handle 'sunilkumarruttrakhand26' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "88cc684d-5614-4252-b885-9d6c3e5bf5ec",
+      "business_name": "Agra Import Export House LLP",
+      "email": "arora0005@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93356 69914",
+      "address": null,
+      "source_url": "https://www.falconebiz.com/LLP/AGRA-IMPORT-EXPORT-HOUSE-LLP-AAS-1256",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "agra",
+        "import",
+        "export",
+        "house"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.falconebiz.com/LLP/AGRA-IMPORT-EXPORT-HOUSE-LLP-AAS-1256, but email handle 'arora0005' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "d920b5a1-b11a-4625-8708-be2f1744376e",
+      "business_name": "MAA SATI EXPORTS",
+      "email": "maasatiexport257@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98289 96865",
+      "address": null,
+      "source_url": "https://www.instagram.com/reel/DIsyBLTsHSJ/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "maa",
+        "sati"
+      ],
+      "matched_distinctive": [
+        "maa",
+        "sati"
+      ],
+      "matched_all": [
+        "maa",
+        "sati"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.instagram.com/reel/DIsyBLTsHSJ/, but email handle 'maasatiexport257' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "e35e8889-3cac-4783-9579-29e353920290",
+      "business_name": "Khemchand Handicrafts Limited",
+      "email": "khemjdh@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://www.zaubacorp.com/KHEMCHAND-HANDICRAFTS-LIMITED-U36109RJ2021PLC074082",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "khemchand",
+        "handicrafts"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://www.zaubacorp.com/KHEMCHAND-HAND), but email handle 'khemjdh' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "a58dc29c-4242-4990-a403-4748ad378d6b",
+      "business_name": "Royanza Exports",
+      "email": "calibreseals@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93560 69968",
+      "address": null,
+      "source_url": "https://in.linkedin.com/company/calibre-seals",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "royanza"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://in.linkedin.com/company/calibre-seals, but email handle 'calibreseals' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "dc4e3e83-c3db-48eb-916b-26989b8ca21a",
+      "business_name": "M P Enterprises",
+      "email": "mpe_sil2008@rediffmail.com",
+      "domain": "rediffmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://in.sharp/b2c/where-to-buy/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (rediffmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://in.sharp/b2c/where-to-buy/), but email handle 'mpe_sil2008' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "605971df-6cf5-41b5-b9c8-5c32a92015d7",
+      "business_name": "Vast Exim Pvt Ltd",
+      "email": "office.vastexim@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 78901 50628",
+      "address": null,
+      "source_url": "https://www.vastgroup.co.in/contact-us",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "vast",
+        "exim"
+      ],
+      "matched_distinctive": [
+        "vast",
+        "exim"
+      ],
+      "matched_all": [
+        "vast",
+        "exim"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'office.vastexim' matches business identity 'vast', but source 'https://www.vastgroup.co.in/contact-us' is a secondary directory/aggregator; operator verification required"
+    },
+    {
+      "id": "66ede098-02c0-4d4e-b329-928ec03ab30e",
+      "business_name": "Volzex",
+      "email": "polluxsurface@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 75750 48825",
+      "address": null,
+      "source_url": "https://www.facebook.com/Volzexx/posts/volzexs-supreme-tealvolzextiles-tiledesign-eleganttiles-interiorinspohomedecor-t/339161119077339/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "volzex"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.facebook.com/Volzexx/posts/volzexs-supreme-tealvolzextiles-tiledesign-eleganttiles-interiorinspohomedecor-t/339161119077339/, but email handle 'polluxsurface' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "19614762-879b-4a1d-8701-447cd07eae5c",
+      "business_name": "Shanti Trading Company",
+      "email": "shantimultilink@yahoo.co.in",
+      "domain": "yahoo.co.in",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.co.in) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "shanti"
+      ],
+      "matched_distinctive": [
+        "shanti"
+      ],
+      "matched_all": [
+        "shanti"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'shantimultilink' matches business name 'shanti', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "af83a35c-90dc-41a2-9e17-9e178d9ae781",
+      "business_name": "Seth Trading Co",
+      "email": "seth.trading.co@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98983 38825",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "seth"
+      ],
+      "matched_distinctive": [
+        "seth"
+      ],
+      "matched_all": [
+        "seth",
+        "trading"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'seth.trading.co' matches business name 'seth', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "311adb45-907a-4a5b-b74c-c8658f6390b4",
+      "business_name": "P R Trading Corporation",
+      "email": "ankurtiwariab@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://5.imimg.com/data5/SELLER/Doc/2025/1/479893062/FQ/LU/WI/38024097/surbo-encoder-siemens-cable.pdf",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "corporation"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://5.imimg.com/data5/SELLER/Doc/202), but email handle 'ankurtiwariab' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "3e0f231e-a682-4c3b-9199-7bf617c07275",
+      "business_name": "UNICO Trading Company",
+      "email": "unico_tradingco@yahoo.co.in",
+      "domain": "yahoo.co.in",
+      "phone": "+91 98256 56127",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.co.in) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "unico"
+      ],
+      "matched_distinctive": [
+        "unico"
+      ],
+      "matched_all": [
+        "unico",
+        "trading"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'unico_tradingco' matches business name 'unico', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "f550a9f7-8b34-41e2-9c46-57ca73b94911",
+      "business_name": "Choudhary trading co.",
+      "email": "online.choudhary@rediffmail.com",
+      "domain": "rediffmail.com",
+      "phone": "+91 92056 63430",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (rediffmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "choudhary"
+      ],
+      "matched_distinctive": [
+        "choudhary"
+      ],
+      "matched_all": [
+        "choudhary"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'online.choudhary' matches business name 'choudhary', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "22596a42-d095-4b80-ae81-cac4520eab68",
+      "business_name": "SIA TRADING COMPANY",
+      "email": "bisht4879@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://www.instagram.com/reel/Db-ixQwM57d/",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "sia"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": true,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.instagram.com/reel/Db-ixQwM57d/, but email handle 'bisht4879' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "ffe0600a-7a42-4dd6-8e92-00dd371a205b",
+      "business_name": "Ajay Trading Company",
+      "email": "ajaytradingcompany0902@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://fulfilment.gem.gov.in/contract/fds?orderId=TUE5OGZvMWZDSEd3dkNIcDV3R3hJUT09",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "ajay"
+      ],
+      "matched_distinctive": [
+        "ajay"
+      ],
+      "matched_all": [
+        "ajay",
+        "trading",
+        "company"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'ajaytradingcompany0902' matches business identity 'ajay', but source 'https://fulfilment.gem.gov.in/contract/f' is a secondary directory/aggregator; operator verification required"
+    },
+    {
+      "id": "63d01e91-36a5-4af0-88a5-0d4b0703fd12",
+      "business_name": "Jaipur Trading Co.",
+      "email": "jaipurtrading@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 88248 88889",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "jaipur"
+      ],
+      "matched_distinctive": [
+        "jaipur"
+      ],
+      "matched_all": [
+        "jaipur",
+        "trading"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'jaipurtrading' matches business name 'jaipur', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "b1e3273e-dd0a-4aed-828a-e935a778c054",
+      "business_name": "Shri Ram Trading Company",
+      "email": "mahendrasinghyadav152@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98263 91731",
+      "address": null,
+      "source_url": "https://dealers.newhollandtractorindia.com/new-holland-shri-ram-trading-company-tractor-dealer-fatehpur-road-shivpuri-496653/Contact-Us",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "shri",
+        "ram"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://dealers.newhollandtractorindia.c), but email handle 'mahendrasinghyadav152' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "874290e9-8527-47b1-b213-fbe92683ed67",
+      "business_name": "Aman Trading Company",
+      "email": "amantradingcompany01@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 96396 32662",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "aman"
+      ],
+      "matched_distinctive": [
+        "aman"
+      ],
+      "matched_all": [
+        "aman",
+        "trading",
+        "company"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'amantradingcompany01' matches business name 'aman', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "0e05faba-c72c-4913-8a1f-046659cd611a",
+      "business_name": "MODERN TRADING CO.",
+      "email": "hiten_modern@yahoo.com",
+      "domain": "yahoo.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "modern"
+      ],
+      "matched_distinctive": [
+        "modern"
+      ],
+      "matched_all": [
+        "modern"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'hiten_modern' matches business name 'modern', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "2ee41dc0-351e-4b4f-97ae-614334f3a5d1",
+      "business_name": "Prem Trading Company",
+      "email": "premtradingindia@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 80060 06655",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "prem"
+      ],
+      "matched_distinctive": [
+        "prem"
+      ],
+      "matched_all": [
+        "prem",
+        "trading"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'premtradingindia' matches business name 'prem', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "80c04bc5-8466-48b0-8b0d-a06f23b57126",
+      "business_name": "Vikas Trading Company",
+      "email": "jammu@hotmail.com",
+      "domain": "hotmail.com",
+      "phone": "+91 74002 58279",
+      "address": null,
+      "source_url": "https://jawaharcustoms.gov.in/pdf/LIST_OF_DPD_IMPORTERS_NHAVA_SHEVA_till_05-04-18.pdf",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (hotmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "vikas"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://jawaharcustoms.gov.in/pdf/LIST_O), but email handle 'jammu' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "0a66c940-aa41-4a29-84c4-6e476d9c5548",
+      "business_name": "Agarwal Trading Company",
+      "email": "umeshop540@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://johnsonbathrooms.in/locate/dealer",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "agarwal"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://johnsonbathrooms.in/locate/deale), but email handle 'umeshop540' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "a0ef4768-ee84-4ba9-aa3e-942b0f2d05d6",
+      "business_name": "Global Trading Corporation India",
+      "email": "sainiglobaltrade@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98336 72777",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "global",
+        "corporation"
+      ],
+      "matched_distinctive": [
+        "global"
+      ],
+      "matched_all": [
+        "global"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'sainiglobaltrade' matches business name 'global', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "4f73f426-d451-4ba7-a42e-fa5f55d8037b",
+      "business_name": "Metro Trading Company",
+      "email": "metrotco@yahoo.in",
+      "domain": "yahoo.in",
+      "phone": "+91 40 6684 2356",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.in) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "metro"
+      ],
+      "matched_distinctive": [
+        "metro"
+      ],
+      "matched_all": [
+        "metro"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'metrotco' matches business name 'metro', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "8a5f266c-05c6-439d-bfbf-a2922e53504a",
+      "business_name": "Anil Trading Co.",
+      "email": "atc2581@yahoo.in",
+      "domain": "yahoo.in",
+      "phone": null,
+      "address": null,
+      "source_url": "https://dpdjnch.com/OTDI_Declared_Report.aspx",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.in) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "anil"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://dpdjnch.com/OTDI_Declared_Report), but email handle 'atc2581' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "7b14a9fd-e1fa-467d-96b0-42e1b61c4ae1",
+      "business_name": "MAHAVEER TRADING CO.",
+      "email": "mahaveerniwar@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 90141 44413",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "mahaveer"
+      ],
+      "matched_distinctive": [
+        "mahaveer"
+      ],
+      "matched_all": [
+        "mahaveer"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'mahaveerniwar' matches business name 'mahaveer', but source provenance is missing; requires operator approval"
+    },
+    {
+      "id": "cc9e79e1-f645-49fe-a3c1-c8f596b9e82e",
+      "business_name": "Astha Trading Co.",
+      "email": "naarastudio.india@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 181 461 2885",
+      "address": null,
+      "source_url": "https://ihgfdelhifair.in/mis/exhibitors-spring/index/1196",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "astha"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://ihgfdelhifair.in/mis/exhibitors-), but email handle 'naarastudio.india' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "dec1eefe-e5e9-4bf5-a1db-867fa8668787",
+      "business_name": "G.N.Exports",
+      "email": "ortskol@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://www.falconebiz.com/company/GN-EXPORTS-PRIVATE-LIMITED-U46900WB2026PTC287783",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.falconebiz.com/company/GN-EXPORTS-PRIVATE-LIMITED-U46900WB2026PTC287783, but email handle 'ortskol' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "80bf3def-f173-461b-bab2-7dbadd784fd4",
+      "business_name": "SNWorldwide Exports Private Limited",
+      "email": "compoffice07@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98970 24442",
+      "address": null,
+      "source_url": "https://www.zaubacorp.com/company/SNWORLDWIDE-EXPORTS-PRIVATE-LIMITED/U51909UR2019PTC009573",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "snworldwide"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.zaubacorp.com/company/SNWORLDWIDE-EXPORTS-PRIVATE-LIMITED/U51909UR2019PTC009573, but email handle 'compoffice07' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "58b2f6d5-6cdc-4a60-a417-39f41a5c8b9e",
+      "business_name": "Sai Baba Freight Carrier",
+      "email": "vyasgautam71@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93362 17870",
+      "address": null,
+      "source_url": "https://hellomedia.co.in/single-location/kanpur/page/9/?view=list",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "sai",
+        "baba",
+        "freight",
+        "carrier"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://hellomedia.co.in/single-location), but email handle 'vyasgautam71' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "eba76969-210b-4bbb-86a6-dff918beafd1",
+      "business_name": "Heena Trading company",
+      "email": "active_cutweld@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93425 37945",
+      "address": null,
+      "source_url": "https://www.facebook.com/p/Heena-trading-company-100065468919994/",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "heena"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": true,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.facebook.com/p/Heena-trading-company-100065468919994/, but email handle 'active_cutweld' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "c8449335-03e3-47bd-bb56-b5d28febaf73",
+      "business_name": "S.R International",
+      "email": "neogoodfaith1@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 91296 31393",
+      "address": null,
+      "source_url": "https://www.instagram.com/reel/DawvV5kvjR-/",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.instagram.com/reel/DawvV5kvjR-/, but email handle 'neogoodfaith1' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "b5db618e-1564-4c16-b80f-6f7b2937754f",
+      "business_name": "RATHORE CARGO LOGISTICS",
+      "email": "dtltransport55@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 97646 23114",
+      "address": null,
+      "source_url": "https://www.instagram.com/reel/Da8CtVOTxQk/",
+      "source_type": "serper",
+      "extraction_method": "api_search_snippet",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "rathore",
+        "cargo",
+        "logistics"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": true,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.instagram.com/reel/Da8CtVOTxQk/, but email handle 'dtltransport55' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "e9460523-4975-46f8-8aa1-2f0bb9999953",
+      "business_name": "ABQA IMPEX",
+      "email": "abqaimpex@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 96902 67861",
+      "address": null,
+      "source_url": "https://www.amazon.in/10-Inch-Rangoli-Traditional-Rolling-Paratha/dp/B0DRFY8TM6",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "abqa"
+      ],
+      "matched_distinctive": [
+        "abqa"
+      ],
+      "matched_all": [
+        "abqa",
+        "impex"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'abqaimpex' matches business identity 'abqa', but source 'https://www.amazon.in/10-Inch-Rangoli-Tr' is a secondary directory/aggregator; operator verification required"
+    },
+    {
+      "id": "91f43b55-5510-4891-975f-b476894b0f62",
+      "business_name": "Shahjada Exports Limited",
+      "email": "eastern.house@yahoo.com",
+      "domain": "yahoo.com",
+      "phone": "+91 95699 17177",
+      "address": null,
+      "source_url": "https://www.zaubacorp.com/SHAHJADA-EXPORTS-LIMITED-U15491PB2008PLC031700",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.com) retained for review",
+      "candidates_count": 2,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "shahjada"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://www.zaubacorp.com/SHAHJADA-EXPOR), but email handle 'eastern.house' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "68cd25e2-4099-4dfb-8544-1e8d32b519b5",
+      "business_name": "Manku exporters",
+      "email": "rsinghmanku@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 76588 13025",
+      "address": null,
+      "source_url": "https://www.ibphub.com/companydesc/kartarpur/manku-exporters/1322329",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "manku",
+        "exporters"
+      ],
+      "matched_distinctive": [
+        "manku"
+      ],
+      "matched_all": [
+        "manku"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'rsinghmanku' matches business identity 'manku', but source 'https://www.ibphub.com/companydesc/karta' is a secondary directory/aggregator; operator verification required"
+    },
+    {
+      "id": "981edf65-beb7-4653-88d0-1f39e7fe1d22",
+      "business_name": "ARA Global Traders",
+      "email": "araglobaltraders@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 63999 60463",
+      "address": null,
+      "source_url": "https://www.facebook.com/61581377744851/?locale=ro_RO",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "ara",
+        "global",
+        "traders"
+      ],
+      "matched_distinctive": [
+        "ara",
+        "global",
+        "traders"
+      ],
+      "matched_all": [
+        "ara",
+        "global",
+        "traders"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.facebook.com/61581377744851/?locale=ro_RO, but email handle 'araglobaltraders' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "d455b7ec-3d46-4945-9094-30a0596618e1",
+      "business_name": "CHASE WORLDWIDE LLP",
+      "email": "atel4143@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 81415 44143",
+      "address": null,
+      "source_url": "https://www.falconebiz.com/LLP/CHASE-WORLDWIDE-LLP-ACA-2041",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "chase",
+        "worldwide"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.falconebiz.com/LLP/CHASE-WORLDWIDE-LLP-ACA-2041, but email handle 'atel4143' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "5c06c25c-53bd-4559-847f-2843ea5c2a6a",
+      "business_name": "Portrack Private Limited",
+      "email": "pgvinod53@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 97026 33022",
+      "address": null,
+      "source_url": "https://www.zaubacorp.com/PORTRACK-PRIVATE-LIMITED-U51909MH2019PTC328557",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "portrack"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Source URL present (https://www.zaubacorp.com/PORTRACK-PRIVA), but email handle 'pgvinod53' lacks identifiable business name tokens; operator review needed"
+    },
+    {
+      "id": "333968d6-b4bd-45d7-acbb-009617c0142a",
+      "business_name": "AaurGrow Exim LLP",
+      "email": "row@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://www.falconebiz.com/LLP/AAURGROW-EXIM-LLP-ACP-7210",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "aaurgrow",
+        "exim"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Official business profile on https://www.falconebiz.com/LLP/AAURGROW-EXIM-LLP-ACP-7210, but email handle 'row' uses personal/alternate name; requires operator confirmation"
+    },
+    {
+      "id": "ba3a18de-9f1e-47d1-9d97-d11467636027",
+      "business_name": "AK EXIM",
+      "email": "akeximkop@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "https://www.youtube.com/shorts/XOIi2Xa6aIk",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 1,
+      "cand_snippet": null,
+      "distinctive_tokens": [
+        "exim"
+      ],
+      "matched_distinctive": [
+        "exim"
+      ],
+      "matched_all": [
+        "exim"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "Email handle 'akeximkop' matches business identity 'exim', but source 'https://www.youtube.com/shorts/XOIi2Xa6a' is a secondary directory/aggregator; operator verification required"
+    }
+  ],
+  "remain_excluded": [
+    {
+      "id": "3e513f58-7a89-4fa0-b0ae-6b7e5d14ba12",
+      "business_name": "Century Trading Company",
+      "email": "veduku@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 98491 31266",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "century"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'veduku' does not match business name 'Century Trading Company'; unsupported"
+    },
+    {
+      "id": "116528a7-b688-4e3d-bfac-140885327085",
+      "business_name": "Unique Exports",
+      "email": "mageeexports.india@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "unique"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [
+        "exports"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'mageeexports.india' does not match business name 'Unique Exports'; unsupported"
+    },
+    {
+      "id": "b3d5036a-07d1-486b-a7ec-0427292471e7",
+      "business_name": "SUMIT ENTERPRISES",
+      "email": "ravivashnav589@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "sumit"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'ravivashnav589' does not match business name 'SUMIT ENTERPRISES'; unsupported"
+    },
+    {
+      "id": "f8fd8688-0ae6-4e92-963a-aca177f1ce48",
+      "business_name": "Jagdamba Trading Company",
+      "email": "nimbaramkhurkhuriya@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93145 08833",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "jagdamba"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'nimbaramkhurkhuriya' does not match business name 'Jagdamba Trading Company'; unsupported"
+    },
+    {
+      "id": "6f55f77e-8287-4b58-a032-f9d69c0148c5",
+      "business_name": "SEAWARD EXPORTS PVT. LTD.",
+      "email": "sdpgroupindia@yahoo.co.in",
+      "domain": "yahoo.co.in",
+      "phone": "+91 98290 35744",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.co.in) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "seaward"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'sdpgroupindia' does not match business name 'SEAWARD EXPORTS PVT. LTD.'; unsupported"
+    },
+    {
+      "id": "d6d1d9b6-f2ad-4a2e-bb04-4b6313da5770",
+      "business_name": "Rs Trading Company",
+      "email": "surajchauhan151@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'surajchauhan151' does not match business name 'Rs Trading Company'; unsupported"
+    },
+    {
+      "id": "847adfc5-7e14-4b62-8a02-25081f1a6ad2",
+      "business_name": "LSK VAISHNO EXPORTER IMPORTER PRIVATE LIMITED",
+      "email": "lskvaishnoexporterimporter@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "lsk",
+        "vaishno",
+        "exporter",
+        "importer"
+      ],
+      "matched_distinctive": [
+        "lsk",
+        "vaishno",
+        "exporter",
+        "importer"
+      ],
+      "matched_all": [
+        "lsk",
+        "vaishno",
+        "exporter",
+        "importer"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'lskvaishnoexporterimporter' does not match business name 'LSK VAISHNO EXPORTER IMPORTER PRIVATE LIMITED'; unsupported"
+    },
+    {
+      "id": "0b48eee6-09f1-4fdf-ad5b-cd1d3fc3a397",
+      "business_name": "SB Trading Co.",
+      "email": "sb.bansal69@yahoo.in",
+      "domain": "yahoo.in",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.in) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'sb.bansal69' does not match business name 'SB Trading Co.'; unsupported"
+    },
+    {
+      "id": "bcef7574-7910-4bf3-b824-8d63e7931633",
+      "business_name": "Shiv trading company",
+      "email": "dilkhushchoudhary131@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 97829 46908",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "shiv"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'dilkhushchoudhary131' does not match business name 'Shiv trading company'; unsupported"
+    },
+    {
+      "id": "808ae3e0-4f0f-4c50-ad9d-6ff3c1156cee",
+      "business_name": "Sahara Trading Company",
+      "email": "saifi.cakhalid@gmail.com",
+      "domain": "gmail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "sahara"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'saifi.cakhalid' does not match business name 'Sahara Trading Company'; unsupported"
+    },
+    {
+      "id": "146a6fdc-964f-4ccb-8178-20751837f61e",
+      "business_name": "A R Trading Company",
+      "email": "jaiswals.saurabh@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 97170 14351",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'jaiswals.saurabh' does not match business name 'A R Trading Company'; unsupported"
+    },
+    {
+      "id": "73689e19-559d-41b6-a03f-166d2b2f902a",
+      "business_name": "Global Trading Company",
+      "email": "drpankajmital@hotmail.com",
+      "domain": "hotmail.com",
+      "phone": "+91 70379 95808",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (hotmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "global"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'drpankajmital' does not match business name 'Global Trading Company'; unsupported"
+    },
+    {
+      "id": "8b1a47cb-ba21-4bbc-9cb5-4a72ef0bfc27",
+      "business_name": "S N Trading Company",
+      "email": "sntrading2000@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 93125 03834",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [
+        "trading"
+      ],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'sntrading2000' does not match business name 'S N Trading Company'; unsupported"
+    },
+    {
+      "id": "32786515-c638-4887-a43e-b799db555407",
+      "business_name": "RAINBOW TRADING COMPANY",
+      "email": "nandjitraders@mail.com",
+      "domain": "mail.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (mail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "rainbow"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'nandjitraders' does not match business name 'RAINBOW TRADING COMPANY'; unsupported"
+    },
+    {
+      "id": "fa65d79e-6e8d-4536-88c7-a215fce66a95",
+      "business_name": "Lakshmi Trading company",
+      "email": "ltcalpy@yahoo.com",
+      "domain": "yahoo.com",
+      "phone": null,
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (yahoo.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [
+        "lakshmi"
+      ],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'ltcalpy' does not match business name 'Lakshmi Trading company'; unsupported"
+    },
+    {
+      "id": "accef14b-f202-4f27-b120-9abd46f2e122",
+      "business_name": "A To Z Trading Co.",
+      "email": "shivanjalelastics@gmail.com",
+      "domain": "gmail.com",
+      "phone": "+91 81785 98722",
+      "address": null,
+      "source_url": "",
+      "source_type": "",
+      "extraction_method": "",
+      "assoc_status": "public_provider",
+      "assoc_reason": "Public email provider contact (gmail.com) retained for review",
+      "candidates_count": 0,
+      "cand_snippet": "",
+      "distinctive_tokens": [],
+      "matched_distinctive": [],
+      "matched_all": [],
+      "has_explicit_source": false,
+      "is_quarantined": false,
+      "quarantine_reason": null,
+      "class_reason": "No source URL provenance and email handle 'shivanjalelastics' does not match business name 'A To Z Trading Co.'; unsupported"
+    }
+  ]
+}

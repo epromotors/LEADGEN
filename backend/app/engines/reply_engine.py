@@ -18,7 +18,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from email.header import decode_header, make_header
 from typing import Optional
 
@@ -375,7 +375,7 @@ async def _mark_converted(db, lead: Lead, snippet: str, reply_type: str,
     lead.status       = LeadStatus.converted
     lead.reply_type   = reply_type
     lead.reply_snippet = snippet[:500]
-    lead.replied_at   = datetime.utcnow()
+    lead.replied_at   = datetime.now(timezone.utc)
 
     tag_note = f" [{tier_tag}]" if tier_tag else ""
     log = ActivityLog(
@@ -398,7 +398,7 @@ async def _flag_soft_bounce(db, lead: Lead, snippet: str) -> None:
     """Flag a lead as soft-bounced (OOO) — do not delete."""
     lead.reply_type    = "soft_bounce"
     lead.reply_snippet = snippet[:500]
-    lead.replied_at    = datetime.utcnow()
+    lead.replied_at    = datetime.now(timezone.utc)
 
     log = ActivityLog(
         event_type="lead_soft_bounce",
@@ -464,6 +464,11 @@ async def process_replies() -> dict:
 
                 lead = await _find_lead_by_email(db, target_email)
 
+                # Also check suppression_service classification for unsubscribe / opt-out intent
+                from app.services.suppression_service import classify_reply as check_reply_intent, suppress_email
+                if reply_type not in ("stop", "bounce") and check_reply_intent(f"{subject}\n{body}") == "unsubscribe":
+                    reply_type = "stop"
+
                 if reply_type == "positive":
                     if lead:
                         await _mark_converted(db, lead, snippet, "positive", tier_tag=tier_tag)
@@ -473,6 +478,13 @@ async def process_replies() -> dict:
                         stats["other"] += 1
 
                 elif reply_type == "stop":
+                    await suppress_email(
+                        email=target_email,
+                        reason="unsubscribe",
+                        source="inbound_reply",
+                        db=db,
+                        lead=lead,
+                    )
                     if lead:
                         await _delete_lead(db, lead, "STOP request — unsubscribed")
                         stats["deleted"] += 1
@@ -481,6 +493,13 @@ async def process_replies() -> dict:
                         stats["other"] += 1
 
                 elif reply_type == "bounce":
+                    await suppress_email(
+                        email=target_email,
+                        reason="bounce",
+                        source="inbound_reply",
+                        db=db,
+                        lead=lead,
+                    )
                     if lead:
                         await _delete_lead(db, lead, f"Hard bounce — invalid email address")
                         stats["deleted"] += 1

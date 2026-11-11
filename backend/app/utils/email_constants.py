@@ -1140,6 +1140,11 @@ def is_third_party_directory_or_aggregator(url_or_domain: str | None) -> bool:
         return True
     if any(norm.endswith("." + d) for d in SEARCH_ENGINE_WEBSITE_DOMAINS):
         return True
+    # Catch all regional Google / Maps domains (e.g. google.co.uk, maps.google.com, goo.gl)
+    if norm.startswith("google.") or ".google." in norm or norm in ("goo.gl", "maps.app.goo.gl") or norm.endswith(".goo.gl"):
+        return True
+    if norm in ("maps.apple.com", "waze.com") or norm.endswith(".waze.com"):
+        return True
     return False
 
 

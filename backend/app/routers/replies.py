@@ -3,7 +3,7 @@
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, HTTPException
@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models import Lead, Audit, ActivityLog, LeadStatus
 from app.schemas import LeadResponse, LeadListResponse
 from app.routers.auth import require_authorized_operator
+from app.services.email_limit_service import claim_global_email_capacity_atomic, GLOBAL_DAILY_EMAIL_CAP
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -137,7 +138,7 @@ async def reply_stats(db: AsyncSession = Depends(get_db)):
     ).scalar_one()
 
     # Leads deleted today (from activity log)
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     deleted_today = (
         await db.execute(
             select(func.count()).select_from(ActivityLog).where(
@@ -242,6 +243,17 @@ async def send_email2(
         html_body = build_html_email_full(lead, audit)
 
     subject = (body.custom_subject if body and body.custom_subject else None) or f"Website redesign proposal for {domain_str}"
+
+    # Enforce global daily email limit (1,000/day in Asia/Kolkata) across all accounts
+    can_send, current_sent, remaining = await claim_global_email_capacity_atomic(db, 1)
+    if not can_send:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Global daily email limit ({GLOBAL_DAILY_EMAIL_CAP}/day in Asia/Kolkata) "
+                f"reached across all sender accounts. Sent today: {current_sent}, remaining: 0."
+            ),
+        )
 
     loop = asyncio.get_running_loop()
     success, err = await loop.run_in_executor(

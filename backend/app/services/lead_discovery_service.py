@@ -158,7 +158,8 @@ def clean_email(raw: Any) -> Optional[str]:
     """Clean and validate an extracted email candidate."""
     if not raw:
         return None
-    e = re.sub(r"[>\"');,\s]+$", "", str(raw).lower().strip())
+    cleaned_raw = str(raw).replace("\x00", "").replace("\u0000", "")
+    e = re.sub(r"[>\"');,\s]+$", "", cleaned_raw.lower().strip())
     if "@" not in e:
         return None
     local, _, domain = e.partition("@")
@@ -187,8 +188,19 @@ def extract_email(text: Optional[str]) -> Optional[str]:
     return None
 
 
+def sanitize_null_bytes(val: Any) -> Any:
+    """Recursively strip NUL bytes (\x00 / \u0000) from strings, dicts, and lists so Postgres JSON and TEXT fields never reject them."""
+    if isinstance(val, str):
+        return val.replace("\x00", "").replace("\u0000", "")
+    elif isinstance(val, dict):
+        return {sanitize_null_bytes(k): sanitize_null_bytes(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [sanitize_null_bytes(v) for v in val]
+    return val
+
+
 def clean_website(url: Any) -> str:
-    """Normalize and sanitize a website URL."""
+    """Normalize and sanitize a website URL to its root (scheme + domain + trailing slash)."""
     if not url:
         return ""
     u = str(url).strip()
@@ -197,14 +209,24 @@ def clean_website(url: Any) -> str:
             u = unquote(u[len(prefix):].split("&")[0])
             break
     if not u.startswith(("http://", "https://")):
-        u = "http://" + u
+        u = "https://" + u
     try:
-        netloc = urlparse(u).netloc.lower().lstrip("www.")
-        if netloc in JUNK_DOMAINS or "google.com" in netloc or is_third_party_directory_or_aggregator(netloc):
+        parsed = urlparse(u)
+        netloc = parsed.netloc.lower()
+        clean_net = netloc.lstrip("www.")
+        if (
+            clean_net in JUNK_DOMAINS
+            or "google." in netloc
+            or netloc in ("goo.gl", "maps.app.goo.gl")
+            or is_third_party_directory_or_aggregator(netloc)
+            or is_third_party_directory_or_aggregator(u)
+        ):
             return ""
+        # Rebuild proper website to root URL: scheme + netloc + '/'
+        scheme = parsed.scheme.lower() or "https"
+        return f"{scheme}://{parsed.netloc}/"
     except Exception:
         return ""
-    return u
 
 
 def extract_domain_from_url(url: Any) -> str:
@@ -435,16 +457,20 @@ def classify_email_association(
     # 5. Search Snippet / Directory API
     if source_type in ("api_search_snippet", "serper", "duckduckgo_fallback", "external_directory"):
         loc_lower = location.lower()
+        matched_country_tlds = set()
         for country, tlds in COUNTRY_CCTLD_MAP.items():
             if country in loc_lower:
+                matched_country_tlds.update(tlds)
+
+        if matched_country_tlds:
+            if not any(email_dom.endswith(tld) for tld in matched_country_tlds):
                 for other_country, other_tlds in COUNTRY_CCTLD_MAP.items():
-                    if other_country != country and any(email_dom.endswith(otld) for otld in other_tlds):
+                    if other_country not in loc_lower and any(email_dom.endswith(otld) for otld in other_tlds):
                         return (
                             EmailAssociationStatus.MISMATCHED_SOURCE,
                             f"Email domain '{email_dom}' has conflicting ccTLD for business located in '{location}'",
                             False,
                         )
-                break
 
         clean_name = re.sub(r"[^a-zA-Z0-9]", "", business_name.lower())
         dom_body = email_dom.split(".")[0]
@@ -627,6 +653,17 @@ def reconcile_duplicate_business_records(
 
 
 
+def deobfuscate_email_text(text: str) -> str:
+    """Normalize common email obfuscation patterns like [at], (at), [dot], (dot), etc."""
+    if not text:
+        return ""
+    t = re.sub(r'[\(\[\{]\s*(?:at|@)\s*[\)\]\}]', '@', text, flags=re.IGNORECASE)
+    t = re.sub(r'\s+(?:at|@)\s+', '@', t, flags=re.IGNORECASE)
+    t = re.sub(r'[\(\[\{]\s*(?:dot|\.)\s*[\)\]\}]', '.', t, flags=re.IGNORECASE)
+    t = re.sub(r'\s+dot\s+', '.', t, flags=re.IGNORECASE)
+    return t
+
+
 def extract_email_candidates_with_context(
     html: Optional[str],
     website: str = "",
@@ -641,8 +678,29 @@ def extract_email_candidates_with_context(
     if not html:
         return []
 
+    html = html.replace("\x00", "").replace("\u0000", "")
     results: List[Dict[str, Any]] = []
     seen_emails: Set[str] = set()
+
+    # 0. Check for JSON / JS variable company profile payloads (e.g. settingsCompanyDetail / email fields)
+    for json_email in re.findall(r'["\']email["\']\s*:\s*["\']([^"\']+)["\']', html, flags=re.IGNORECASE):
+        cleaned = clean_email(json_email)
+        if cleaned and cleaned not in seen_emails:
+            seen_emails.add(cleaned)
+            status, reason, is_sendable = classify_email_association(
+                cleaned, business_name, website, source_type=source_type, context_text="company_profile_data", location=location
+            )
+            results.append({
+                "email": cleaned,
+                "email_domain": extract_email_domain(cleaned),
+                "source_type": source_type,
+                "extraction_method": "company_profile_json",
+                "source_url": website or "",
+                "context": f"Found in structured company profile data: {cleaned}",
+                "association_status": status.value,
+                "association_reason": reason,
+                "is_sendable": is_sendable,
+            })
 
     # 1. Search mailto: links first (explicit contact link)
     mailto_matches = re.finditer(r'href=[\'"]mailto:([^\'"?]+)[^"\']*[\'"]', html, flags=re.IGNORECASE)
@@ -663,7 +721,7 @@ def extract_email_candidates_with_context(
                 "source_type": source_type,
                 "extraction_method": "mailto_link",
                 "source_url": website or "",
-                "context": re.sub(r"<[^>]+>", " ", context).strip()[:120],
+                "context": re.sub(r"<[^>]+>", " ", context).replace("\x00", "").replace("\u0000", "").strip()[:120],
                 "association_status": status.value,
                 "association_reason": reason,
                 "is_sendable": is_sendable,
@@ -686,11 +744,36 @@ def extract_email_candidates_with_context(
                 "source_type": source_type,
                 "extraction_method": "http_page_scrape",
                 "source_url": website or "",
-                "context": re.sub(r"<[^>]+>", " ", context).strip()[:120],
+                "context": re.sub(r"<[^>]+>", " ", context).replace("\x00", "").replace("\u0000", "").strip()[:120],
                 "association_status": status.value,
                 "association_reason": reason,
                 "is_sendable": is_sendable,
             })
+
+    # 3. Deobfuscated text scanning (handles 'user [at] domain [dot] com')
+    deobf_html = deobfuscate_email_text(html)
+    if deobf_html != html:
+        for m in re.finditer(EMAIL_REGEX, deobf_html):
+            cleaned = clean_email(m.group(0))
+            if cleaned and cleaned not in seen_emails:
+                seen_emails.add(cleaned)
+                start_pos = max(0, m.start() - 150)
+                end_pos = min(len(deobf_html), m.end() + 150)
+                context = deobf_html[start_pos:end_pos]
+                status, reason, is_sendable = classify_email_association(
+                    cleaned, business_name, website, source_type=source_type, context_text=context, location=location
+                )
+                results.append({
+                    "email": cleaned,
+                    "email_domain": extract_email_domain(cleaned),
+                    "source_type": source_type,
+                    "extraction_method": "deobfuscated_scrape",
+                    "source_url": website or "",
+                    "context": re.sub(r"<[^>]+>", " ", context).replace("\x00", "").replace("\u0000", "").strip()[:120],
+                    "association_status": status.value,
+                    "association_reason": reason,
+                    "is_sendable": is_sendable,
+                })
 
     priority_order = {
         EmailAssociationStatus.MATCHED.value: 0,
@@ -1017,7 +1100,9 @@ class LeadDiscoveryService:
 
         serper_conf = (serper_pool.is_configured() if serper_pool else False) or bool(getattr(settings, "SERPER_API_KEY", ""))
         treg_conf = (treg_pool.is_configured() if treg_pool else False) or bool(getattr(settings, "TREG_API_TOKEN", "") or getattr(settings, "TREG_API_KEY", ""))
-        serpapi_conf = (serpapi_pool.is_configured() if serpapi_pool else False) or bool(getattr(settings, "SERPAPI_API_KEY", ""))
+        serpapi_conf = (serpapi_pool.is_configured() if serpapi_pool else False) or bool(
+            getattr(settings, "SERPAPI_API_KEY_1", "") or getattr(settings, "SERPAPI_API_KEY_2", "") or getattr(settings, "SERPAPI_API_KEY", "")
+        )
         hasdata_conf = (hasdata_pool.is_configured() if hasdata_pool else False) or bool(getattr(settings, "HASDATA_API_KEY", ""))
         outscraper_conf = (outscraper_pool.is_configured() if outscraper_pool else False) or bool(getattr(settings, "OUTSCRAPER_API_KEY", ""))
         hunter_conf = (hunter_pool.is_configured() if hunter_pool else False) or bool(getattr(settings, "HUNTER_API_KEY", ""))
@@ -1032,7 +1117,11 @@ class LeadDiscoveryService:
             "serpapi": {
                 "status": ProviderStatus.AVAILABLE if serpapi_conf else ProviderStatus.DISABLED,
                 "configured": serpapi_conf,
-                "key_masked": self._mask_key(getattr(settings, "SERPAPI_API_KEY", "")),
+                "key_masked": self._mask_key(
+                    getattr(settings, "SERPAPI_API_KEY_1", "")
+                    or getattr(settings, "SERPAPI_API_KEY", "")
+                    or (serpapi_pool.keys[0].secret if serpapi_pool and serpapi_pool.keys else "")
+                ),
                 "last_error": None,
             },
             "hasdata": {
@@ -1391,38 +1480,61 @@ class LeadDiscoveryService:
                         self._provider_status["serper"]["last_error"] = str(exc)
                     break
 
-        # 3. SerpApi Direct
+        # 3. SerpApi Direct (Multi-key pool rotation)
         serpapi_pool = km.get_pool("serpapi")
-        serpapi_key = getattr(settings, "SERPAPI_API_KEY", "") or (serpapi_pool.keys[0].secret if serpapi_pool and serpapi_pool.keys else "")
-        if serpapi_key and self._provider_status.get("serpapi", {}).get("status") == ProviderStatus.AVAILABLE:
-            try:
-                url = "https://serpapi.com/search.json"
-                params = {"engine": "google_maps", "q": query, "api_key": serpapi_key}
-                async with session.get(url, params=params, timeout=20) as resp:
-                    if resp.status != 200:
-                        st = self._classify_http_status(resp.status)
-                        self._provider_status["serpapi"]["status"] = st
-                        self._provider_status["serpapi"]["last_error"] = f"HTTP {resp.status}"
-                    else:
-                        data = await resp.json()
-                        places = data.get("local_results", [])
-                        if places:
-                            return [
-                                {
-                                    "name": p.get("title", "").strip(),
-                                    "website": clean_website(p.get("website", "")),
-                                    "phone": p.get("phone"),
-                                    "email": None,
-                                    "source": "serpapi",
-                                    "endpoint": "google_maps",
-                                    "key_slot": 1,
-                                    "method": "api_maps",
-                                }
-                                for p in places
-                            ], "serpapi", "api_maps"
-            except Exception as exc:
-                self._provider_status["serpapi"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
-                self._provider_status["serpapi"]["last_error"] = str(exc)
+        serpapi_keys_to_try = (
+            serpapi_pool.keys
+            if serpapi_pool and serpapi_pool.keys
+            else [getattr(settings, "SERPAPI_API_KEY_1", "") or getattr(settings, "SERPAPI_API_KEY", "")]
+        )
+        if any(bool(k) for k in serpapi_keys_to_try) and self._provider_status.get("serpapi", {}).get("status") == ProviderStatus.AVAILABLE:
+            for slot_idx, k_item in enumerate(serpapi_keys_to_try, start=1):
+                prov_key = k_item if hasattr(k_item, "secret") else None
+                key_secret = prov_key.secret if prov_key else str(k_item)
+                if not key_secret or (prov_key and not prov_key.is_available()):
+                    continue
+                try:
+                    url = "https://serpapi.com/search.json"
+                    params = {"engine": "google_maps", "q": query, "api_key": key_secret}
+                    async with session.get(url, params=params, timeout=20) as resp:
+                        if resp.status != 200:
+                            st = self._classify_http_status(resp.status)
+                            if prov_key and serpapi_pool:
+                                serpapi_pool.report_result(prov_key, resp.status, error_message=f"HTTP {resp.status}")
+                            if "serpapi" in self._provider_status:
+                                self._provider_status["serpapi"]["status"] = st
+                                self._provider_status["serpapi"]["last_error"] = f"HTTP {resp.status}"
+                            if resp.status in (402, 429):
+                                continue
+                        else:
+                            if prov_key and serpapi_pool:
+                                serpapi_pool.report_result(prov_key, 200)
+                            data = await resp.json()
+                            places = data.get("local_results", [])
+                            if places:
+                                return [
+                                    {
+                                        "name": p.get("title", "").strip(),
+                                        "website": clean_website(p.get("website", "")),
+                                        "phone": p.get("phone"),
+                                        "email": None,
+                                        "source": "serpapi",
+                                        "endpoint": "google_maps",
+                                        "key_slot": slot_idx,
+                                        "account_id": prov_key.account_id if prov_key else f"serpapi_slot_{slot_idx}",
+                                        "quota_scope": prov_key.quota_scope.scope_id if prov_key else f"serpapi_account_{slot_idx}",
+                                        "method": "api_maps",
+                                    }
+                                    for p in places
+                                ], "serpapi", "api_maps"
+                            break
+                except Exception as exc:
+                    if prov_key and serpapi_pool:
+                        serpapi_pool.report_result(prov_key, 500, error_message=str(exc))
+                    if "serpapi" in self._provider_status:
+                        self._provider_status["serpapi"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
+                        self._provider_status["serpapi"]["last_error"] = str(exc)
+                    continue
 
         # 4. HasData Google Maps API
         hasdata_pool = km.get_pool("hasdata")
@@ -2155,30 +2267,75 @@ class LeadDiscoveryService:
         )
 
         has_matched = any(c.get("association_status") == EmailAssociationStatus.MATCHED.value for c in candidates)
-        if is_target and not has_matched and status == 200:
-            for path in ("/contact", "/contact-us", "/about", "/about-us"):
-                target_url = final_url.rstrip("/") + path
+        if not has_matched and status == 200:
+            parsed_final = urlparse(final_url)
+            origin = f"{parsed_final.scheme}://{parsed_final.netloc}"
+
+            # 1. Discover links inside homepage/rendered HTML
+            discovered_paths: list[str] = []
+            if html:
+                # Find <a href="..."> pointing to contact/about
+                for href_match in re.finditer(r'<a[^>]+href=["\']([^"\']+)["\']', html, re.I):
+                    h_val = href_match.group(1).strip()
+                    if any(k in h_val.lower() for k in ("contact", "about", "reach", "support", "help", "connect")):
+                        discovered_paths.append(h_val)
+                # Find script endpoints referenced in JavaScript
+                for ep_match in re.finditer(r'["\'](\.{0,2}/(?:api/)?[a-zA-Z0-9_/.-]+(?:profile|company|setting|contact)[a-zA-Z0-9_/.-]*)["\']', html, re.I):
+                    discovered_paths.append(ep_match.group(1).strip())
+
+            # Candidate paths to inspect (bounded limit: max 6)
+            standard_paths = [
+                "/contact", "/contact-us", "/about", "/about-us",
+                "/api/SettingsApi/GetSettingsCompanyProfile",
+            ]
+            
+            combined_paths: list[str] = []
+            for p in discovered_paths + standard_paths:
+                p_clean = p.split("?")[0].strip()
+                if p_clean and p_clean not in combined_paths:
+                    combined_paths.append(p_clean)
+
+            for path in combined_paths[:8]:
+                if path.startswith(("http://", "https://")):
+                    target_url = path
+                else:
+                    target_url = urllib.parse.urljoin(origin + "/", path.lstrip("/"))
+
+                # Stay on same domain / origin
+                if urlparse(target_url).netloc.lower() != parsed_final.netloc.lower():
+                    continue
+
                 safe_sub, _ = is_safe_external_url(target_url, allow_test_loopback=self.allow_test_loopback)
                 if not safe_sub:
                     continue
                 try:
                     async with session.get(target_url, headers=headers, timeout=10, ssl=True) as r2:
                         if r2.status < 400:
-                            contact_html = await r2.text(errors="ignore")
-                            contact_candidates = extract_email_candidates_with_context(
-                                contact_html,
+                            sub_text = await r2.text(errors="ignore")
+                            sub_candidates = extract_email_candidates_with_context(
+                                sub_text,
                                 website=target_url,
                                 business_name=business_name,
                                 location=location,
                                 source_type="http_contact_page",
                             )
-                            for cc in contact_candidates:
+                            for cc in sub_candidates:
                                 if not any(existing["email"] == cc["email"] for existing in candidates):
                                     candidates.append(cc)
                             if any(c.get("association_status") == EmailAssociationStatus.MATCHED.value for c in candidates):
                                 break
                 except Exception:
                     pass
+
+        # Re-sort candidates by priority
+        priority_order = {
+            EmailAssociationStatus.MATCHED.value: 0,
+            EmailAssociationStatus.EXTERNAL_DOMAIN_REVIEW.value: 1,
+            EmailAssociationStatus.UNVERIFIED_ASSOCIATION.value: 2,
+            EmailAssociationStatus.MISMATCHED_SOURCE.value: 3,
+            EmailAssociationStatus.INVALID_FORMAT.value: 4,
+        }
+        candidates.sort(key=lambda x: priority_order.get(x.get("association_status", ""), 99))
 
         primary_email = candidates[0]["email"] if candidates else None
         return is_target, class_reason, primary_email, candidates, final_url
@@ -2381,12 +2538,22 @@ class LeadDiscoveryService:
                                 "is_sendable": send,
                             })
 
-                        # If website is a third-party directory, demote it to provenance evidence and clear website
-                        if website and is_third_party_directory_or_aggregator(website):
-                            if not source_url:
-                                source_url = website
+                        # If website is a third-party directory/maps/Google, demote it to provenance evidence and keep full URL
+                        raw_site = (p.get("raw_source_url") or p.get("website") or p.get("link") or "").strip()
+                        if raw_site and is_third_party_directory_or_aggregator(raw_site):
+                            source_url = raw_site
                             website = ""
                             website_status = WebsiteAssociationStatus.NO_WEBSITE.value
+                        elif website:
+                            root_web = clean_website(website)
+                            if root_web:
+                                if raw_site and raw_site != root_web:
+                                    source_url = raw_site
+                                website = root_web
+                            elif is_third_party_directory_or_aggregator(website):
+                                source_url = website
+                                website = ""
+                                website_status = WebsiteAssociationStatus.NO_WEBSITE.value
 
                         # If website is missing, discover candidates instead of immediately declaring "No Website"
                         if not website:
@@ -2575,6 +2742,17 @@ class LeadDiscoveryService:
                             web_dom = extract_domain_from_url(website)
                             domain_match = (email_dom == web_dom) if (email_dom and web_dom) else False
 
+                            # PostgreSQL rejects NUL bytes (\x00 / \u0000) in text and JSON fields
+                            name = sanitize_null_bytes(name)
+                            phone = sanitize_null_bytes(phone)
+                            website = sanitize_null_bytes(website)
+                            source_url = sanitize_null_bytes(source_url)
+                            assoc_reason = sanitize_null_bytes(assoc_reason)
+                            quarantine_reason = sanitize_null_bytes(quarantine_reason)
+                            email_addr = sanitize_null_bytes(email_addr)
+                            website_candidates_list = sanitize_null_bytes(website_candidates_list)
+                            email_candidates_list = sanitize_null_bytes(email_candidates_list)
+
                             lead_record = {
                                 "business_name": name,
                                 "email": email_addr,
@@ -2615,6 +2793,10 @@ class LeadDiscoveryService:
                                             select(Lead).where(Lead.email == email_addr)
                                         )
                                         existing_lead = db_existing.scalar_one_or_none()
+                                        from app.services.niche_router import classify_lead_niche
+                                        p_cat = p.get("category") or (p.get("types")[0] if p.get("types") and isinstance(p.get("types"), list) else None)
+                                        disc_niche_id, disc_niche_kw, disc_niche_conf = classify_lead_niche(name, category=p_cat, query_keyword=kw)
+
                                         if not existing_lead:
                                             new_lead = Lead(
                                                 business_name=name,
@@ -2635,6 +2817,10 @@ class LeadDiscoveryService:
                                                 email_candidates=email_candidates_list,
                                                 is_quarantined=is_quarantined,
                                                 quarantine_reason=quarantine_reason,
+                                                niche_id=disc_niche_id,
+                                                niche_keyword=disc_niche_kw,
+                                                niche_confidence=disc_niche_conf,
+                                                niche_locked=False,
                                             )
                                             db.add(new_lead)
                                             log_entry = ActivityLog(
@@ -2650,6 +2836,10 @@ class LeadDiscoveryService:
                                             await db.commit()
                                         else:
                                             # Update existing lead safely without overwriting verified data or clearing quarantine
+                                            if not existing_lead.niche_locked and existing_lead.niche_id is None and disc_niche_id is not None:
+                                                existing_lead.niche_id = disc_niche_id
+                                                existing_lead.niche_keyword = disc_niche_kw
+                                                existing_lead.niche_confidence = disc_niche_conf
                                             if not existing_lead.website and website:
                                                 existing_lead.website = website
                                                 existing_lead.website_domain = web_dom

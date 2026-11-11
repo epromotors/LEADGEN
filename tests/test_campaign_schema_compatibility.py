@@ -25,7 +25,7 @@ import uuid
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
@@ -74,6 +74,8 @@ def _make_lead(
     association_status="matched",
     is_quarantined=False,
     last_emailed_at=None,
+    is_suppressed=False,
+    reply_type=None,
 ):
     lead = MagicMock(spec=Lead)
     lead.id = lead_id or uuid.uuid4()
@@ -85,6 +87,12 @@ def _make_lead(
     lead.is_quarantined = is_quarantined
     lead.quarantine_reason = "Manual safety hold" if is_quarantined else None
     lead.last_emailed_at = last_emailed_at
+    lead.is_suppressed = is_suppressed
+    lead.reply_type = reply_type
+    lead.sequence_paused_until = None
+    lead.sequence_touch_count = 0
+    lead.last_sequence_touch_at = None
+    lead.has_received_demo = False
     lead.status = LeadStatus.new
     return lead
 
@@ -116,7 +124,7 @@ def test_generic_campaign_listing_works_when_audit_references_is_absent():
         skipped_count=0,
         failed_count=0,
         pending_lead_ids=[],
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     camp.audit_references = {}
 
@@ -330,7 +338,8 @@ def test_audit_worker_refuses_to_send_if_required_audit_reference_cannot_be_retr
 
         with patch("app.config.Settings.get_smtp_accounts", return_value=[sender]), \
              patch("app.engines.outreach_engine.AsyncSessionLocal", return_value=session), \
-             patch("app.engines.outreach_engine._send_email_sync", side_effect=mocked_send):
+             patch("app.engines.outreach_engine._send_email_sync", side_effect=mocked_send), \
+             patch("app.services.suppression_service.is_suppressed", return_value=False):
             await _run_campaign_worker(str(campaign_id))
 
         return sent_emails, logs_added, campaign
@@ -472,7 +481,7 @@ def test_campaign_listing_and_retrieval_when_audit_references_column_exists():
         skipped_count=0,
         failed_count=0,
         status=CampaignStatus.draft,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
     mock_db = AsyncMock()
@@ -520,7 +529,7 @@ def test_audit_campaign_creation_and_worker_dispatch_when_column_exists():
     audit.id = audit_id
     audit.lead_id = lead_id
     audit.status = AuditStatus.done
-    audit.updated_at = datetime.utcnow()
+    audit.updated_at = datetime.now(timezone.utc)
     audit.error_message = None
     audit.site_summary = {"status": "ok", "response_time_ms": 250}
     audit.audited_url = "https://acmecorp.com"
@@ -555,16 +564,14 @@ def test_audit_campaign_creation_and_worker_dispatch_when_column_exists():
         skipped_count=0,
         failed_count=0,
         status=CampaignStatus.draft,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
     mock_db = AsyncMock()
     mock_db.execute = AsyncMock(side_effect=[
-        # 1. ready check
-        MagicMock(fetchall=MagicMock(return_value=[(lead_id,)])),
-        # 2. leads fetch
+        # 1. Unified eligibility path loads selected leads with their audit.
         MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[lead])))),
-        # 3. get_campaign_safe reload after commit
+        # 2. get_campaign_safe reload after commit
         MagicMock(scalar_one_or_none=MagicMock(return_value=mock_campaign)),
     ])
     mock_db.commit = AsyncMock()
@@ -604,7 +611,7 @@ def test_audit_campaign_creation_and_worker_dispatch_when_column_exists():
         campaign_type="valid_website_seo",
         audit_references={str(lead_id): rendered["audit_reference"]},
         status=CampaignStatus.sending,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
     worker_db = AsyncMock()
@@ -630,7 +637,8 @@ def test_audit_campaign_creation_and_worker_dispatch_when_column_exists():
     with patch("app.engines.outreach_engine.AsyncSessionLocal", return_value=session), \
          patch("app.engines.outreach_engine.get_campaign_safe", return_value=worker_campaign), \
          patch("app.engines.outreach_engine._send_email_sync", side_effect=mock_send), \
-         patch("app.config.Settings.get_smtp_accounts", return_value=[{"email": "info@tebsolutions.in"}]):
+         patch("app.config.Settings.get_smtp_accounts", return_value=[{"email": "info@tebsolutions.in"}]), \
+         patch("app.services.suppression_service.is_suppressed", return_value=False):
         asyncio.run(_run_campaign_worker(str(mock_campaign.id)))
 
     # Verify that the worker successfully dispatched the email because audit references matched
@@ -859,6 +867,4 @@ def test_same_dialect_targets_without_resolvable_urls_do_not_collide():
         assert len(css._cached_availability) == 0, "Unresolvable URL targets must not be retained in the global cache"
 
     asyncio.run(_test())
-
-
 

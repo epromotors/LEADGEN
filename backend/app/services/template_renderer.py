@@ -8,6 +8,8 @@ Features:
   {business_name}, {website}, {domain}, {audit_summary}, {audit_findings},
   {audit_recommendations}, {opportunity_summary}, {proposal_summary},
   {suggested_service}, {sender_name}, {company_name}, {company_website}, {reply_to}
+  + Batch 1-3 new tokens: {city}, {niche_label}, {finding_count}, {contact_name}
+- Business-name cleaning per guide section 6.4 (niche_router.clean_business_name)
 - Integration with canonical audit_results via OpportunityEngine
 - Safe HTML escaping for untrusted user inputs (XSS prevention)
 - Plain-text and HTML synchronized generation
@@ -15,15 +17,24 @@ Features:
 """
 
 import html
+import logging
 import re
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 from app.models import Lead, Audit
 from app.utils.spintax import process_template
 from app.engines.opportunity_engine import OpportunityEngine
 from app.services.audit_email_service import AuditEmailService, AuditEmailGenerationError
 from app.config import settings
+from app.services.niche_router import (
+    clean_business_name as _clean_business_name,
+    clean_domain as _clean_domain,
+    is_social_domain as _is_social_domain,
+    niche_name_from_id as _niche_name_from_id,
+)
 
 
 def sanitize_url(url: Optional[str], default: str = "") -> str:
@@ -91,12 +102,20 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
         "template": (
             "Hi {business_name},\n\n"
             "I was looking for {business_name} online and noticed you do not currently have an active website.\n\n"
-            "At {company_name}, we build clean, modern, mobile-friendly websites designed to help local businesses establish credibility and capture customer enquiries directly from search and WhatsApp.\n\n"
-            "Every website we build includes:\n"
-            "- Mobile-responsive design tailored to your services\n"
-            "- Clear enquiry capture and contact integration\n"
-            "- Foundational search engine and local discoverability setup\n\n"
-            "If you are currently reviewing your online presence, reply to this note and I'd be glad to share a few relevant examples and a tailored quotation for {business_name}.\n\n"
+            "### Why an Active Website is Essential:\n"
+            "Today, over 84% of customers search on Google and check a company's website before picking up the phone or hiring. Without an online presence:\n"
+            "- Credibility Risk: High-intent customers often question whether the business is active or legitimate.\n"
+            "- Direct Competitor Loss: Prospective clients searching for your services immediately click on competitors who have a modern website and active Google listing.\n"
+            "- Lost Revenue: Qualified inquiries, phone calls, and high-value jobs are handed directly to competitors every week.\n\n"
+            "At {company_name}, we build high-performing, modern websites engineered specifically to build immediate trust and convert searchers into paying customers.\n\n"
+            "### What We Provide in Your New Website:\n"
+            "- Custom, Conversion-Focused Design: Clean, modern layout tailored specifically to {business_name} and your services (no generic templates)\n"
+            "- 100% Mobile & Tablet Optimized: Fast-loading, responsive design that looks flawless on iPhones, Android devices, and tablets\n"
+            "- Instant Lead & Enquiry Capture: Direct WhatsApp chat integration, click-to-call buttons, and quote inquiry forms routed straight to your phone and email\n"
+            "- Google Search & Local SEO Setup: Essential search indexing, Google Maps linking, and local visibility configuration so customers find you first\n"
+            "- Turnkey Delivery & Full Ownership: Fast turnaround (live in 5–7 days), complete with domain connection, business email, and secure high-speed SSL hosting\n\n"
+            "Would you be open to a quick 5-minute conversation or seeing a free, no-obligation preview mockup of what a modern website for {business_name} could look like?\n\n"
+            "Just reply to this email and I would be glad to share a tailored concept for {business_name}.\n\n"
             "Best regards,\n"
             "{sender_name}\n"
             "{company_name} · {company_website}"
@@ -122,7 +141,6 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
             "Hi {business_name},\n\n"
             "I recently reviewed {domain} and noticed several opportunities to improve the visitor experience and modern mobile presentation:\n"
             "{audit_findings}\n\n"
-            "{audit_recommendations}\n\n"
             "Updating your site's mobile responsiveness and layout ensures visitors can easily navigate your offerings and get in touch from any device.\n\n"
             "Would you be open to a brief conversation this week to discuss a modernization plan for {domain}?\n\n"
             "Best regards,\n"
@@ -136,7 +154,6 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
             "Hi {business_name},\n\n"
             "We recently ran an objective technical audit of {domain} and identified a few specific technical factors that may be affecting your search discoverability:\n"
             "{audit_findings}\n\n"
-            "{audit_recommendations}\n\n"
             "Addressing these technical foundations helps search engines index your pages accurately and ensures prospective clients find your business.\n\n"
             "If you would like to review the complete findings and next steps, just let me know.\n\n"
             "Best regards,\n"
@@ -150,9 +167,8 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
             "Hi {business_name},\n\n"
             "I took a close look at {domain} and put together a few observations regarding visitor navigation, presentation, and conversion pathways:\n"
             "{audit_findings}\n\n"
-            "{audit_recommendations}\n\n"
             "A modern, streamlined user interface helps build immediate trust with prospective clients and makes reaching out effortless.\n\n"
-            "Happy to share a quick walkthrough of recommendations if this is something your team is evaluating.\n\n"
+            "Happy to share a quick walkthrough if this is something your team is evaluating.\n\n"
             "Best regards,\n"
             "{sender_name}\n"
             "{company_name} · {company_website}"
@@ -164,7 +180,6 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
             "Hi {business_name},\n\n"
             "While reviewing {domain}, we examined your search footprint and identified opportunities to strengthen your technical authority and digital references:\n"
             "{audit_findings}\n\n"
-            "{audit_recommendations}\n\n"
             "Building verified digital citations and search visibility helps prospective customers discover {business_name} ahead of competitors.\n\n"
             "Let me know if you would like to discuss a structured authority plan.\n\n"
             "Best regards,\n"
@@ -178,8 +193,20 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
             "Hi {business_name},\n\n"
             "I took a look at {domain} and identified opportunities to increase inbound customer enquiries and visibility:\n"
             "{audit_findings}\n\n"
-            "{audit_recommendations}\n\n"
             "Aligning your website's presentation with active search intent helps convert visitors into direct phone and WhatsApp enquiries.\n\n"
+            "Best regards,\n"
+            "{sender_name}\n"
+            "{company_name} · {company_website}"
+        ),
+    },
+    "audit_follow_up": {
+        "subject": "Following up on technical review for {domain}",
+        "template": (
+            "Hi {business_name},\n\n"
+            "Following up on our earlier note regarding {domain}. We completed the technical review and summarized the key findings below:\n\n"
+            "{audit_findings}\n\n"
+            "Addressing these priority points will help improve visitor conversion and prevent potential clients from encountering technical issues.\n\n"
+            "If you would like a quick walkthrough of the findings, just let me know.\n\n"
             "Best regards,\n"
             "{sender_name}\n"
             "{company_name} · {company_website}"
@@ -189,30 +216,23 @@ DEFAULT_SEGMENT_TEMPLATES: Dict[str, Dict[str, str]] = {
         "subject": "Website observation: {domain}",
         "template": (
             "Hi {business_name},\n\n"
-            "I took a look at {domain} while reviewing local business websites, and put together a few objective observations regarding visitor navigation, presentation, and technical setup.\n\n"
-            "At {company_name}, we design, build, and maintain high-performing websites for growing businesses.\n\n"
-            "Key factors that shape visitor confidence and usability:\n"
-            "- Modern First Impression: Clear communication of services immediately upon landing\n"
-            "- Mobile Responsiveness: Seamless layout and readable typography on small screens\n"
-            "- Direct Contact Pathways: Simple, intuitive access to phone and enquiry options\n"
-            "- Technical Foundations: Clean page indexing, XML sitemap configuration, and reliable performance\n\n"
-            "Sharing these notes purely as helpful background for your team's website planning. If this note is not relevant to your team, please feel free to disregard.\n\n"
+            "I recently reviewed {domain} while analyzing local business websites, and put together a few specific technical observations regarding your site's presentation, mobile experience, and performance:\n\n"
+            "{audit_findings}\n\n"
+            "At {company_name}, we help growing businesses resolve these technical factors to improve visitor trust and turn more visits into direct customer inquiries.\n\n"
+            "Sharing these notes as helpful background for your team. Would you be open to a brief conversation this week to discuss these points for {domain}?\n\n"
             "Best regards,\n"
             "{sender_name}\n"
-            "{company_name} · {company_website}\n\n"
-            "If this note is not relevant to your team, please feel free to disregard."
+            "{company_name} · {company_website}"
         ),
     },
     "public_provider_demo": {
         "subject": "Introduction & website demonstration for {business_name}",
         "template": (
             "Hi {business_name},\n\n"
-            "My name is {sender_name} with {company_name}. We design and build modern, mobile-friendly websites and digital presence solutions for growing businesses.\n\n"
-            "I am reaching out to offer a brief, no-obligation demonstration of how an updated online presence can help {business_name} capture prospective customer enquiries directly from search and messaging.\n\n"
-            "Our web solutions include:\n"
-            "- Mobile-friendly layouts tailored to your business offerings\n"
-            "- Direct enquiry capture via WhatsApp, phone, and contact forms\n"
-            "- Foundational search engine discoverability and fast loading performance\n\n"
+            "My name is {sender_name} with {company_name}. We design and build modern, high-performing websites for growing businesses.\n\n"
+            "While reviewing your web presence for {domain}, I noted several key areas that directly impact visitor conversion and customer inquiries:\n\n"
+            "{audit_findings}\n\n"
+            "I am reaching out to offer a brief, no-obligation demonstration showing how an updated website can resolve these factors and capture prospective customer enquiries directly from search and WhatsApp.\n\n"
             "If you would be open to seeing a quick demonstration for {business_name}, simply reply to this email and I will be glad to share a walkthrough with your team.\n\n"
             "Best regards,\n"
             "{sender_name}\n"
@@ -250,19 +270,32 @@ class TemplateRenderer:
         Extract approved variables from lead, audit, and sender configuration.
         Derives audit findings strictly from canonical audit_results via OpportunityEngine.
         """
-        business_name = (getattr(lead, "business_name", "") or "").strip() or "there"
+        if isinstance(campaign_type, dict) and sender_account is None:
+            sender_account = campaign_type
+            campaign_type = None
+
+        # ── Guide section 6.4: clean business name before substitution ─────────
+        raw_business_name = (getattr(lead, "business_name", "") or "").strip()
+        business_name = _clean_business_name(raw_business_name) if raw_business_name else "there"
+
         website_raw = (getattr(lead, "website", "") or "").strip()
         safe_website = sanitize_url(website_raw)
         website = safe_website
         domain = ""
         if safe_website:
-            domain = (
+            raw_domain = (
                 safe_website.replace("https://", "")
                 .replace("http://", "")
                 .replace("www.", "")
                 .rstrip("/")
                 .split("/")[0]
             )
+            # Guide section 6.4: treat social/directory domains as no-website
+            if _is_social_domain(raw_domain):
+                website = ""
+                domain = ""
+            else:
+                domain = _clean_domain(raw_domain)
         elif website_raw:
             # If the raw website had no scheme but is a clean domain like example.com
             clean_host = "".join(ch for ch in website_raw.strip() if ord(ch) >= 32 and ord(ch) != 127)
@@ -273,13 +306,14 @@ class TemplateRenderer:
                     domain = clean_host.replace("www.", "").rstrip("/").split("/")[0]
 
         # Sender context
-        sender_name = "Ashish"
+        sender_name = "Ashish Sharma"
         company_name = "TEB Solutions"
         company_website = "tebsolutions.in"
         reply_to = "info@tebsolutions.in"
 
         if sender_account:
             sender_name = sender_account.get("sender_name") or sender_name
+            company_name = sender_account.get("company_name") or company_name
             reply_to = sender_account.get("email") or reply_to
 
         # Defaults for audit-dependent variables
@@ -305,7 +339,7 @@ class TemplateRenderer:
             err_msg = audit.error_message
             audit_summary = f"Website check reported: {err_msg}"
             audit_findings = f"• Accessibility: {err_msg}"
-            audit_recommendations = "• Technical review and infrastructure recovery recommended."
+            audit_recommendations = ""
         elif audit and audit.audit_results:
             # Use OpportunityEngine for canonical findings
             opps = OpportunityEngine.evaluate_opportunities(
@@ -361,14 +395,32 @@ class TemplateRenderer:
             else:
                 audit_summary = audit.audit_summary or "Website audit completed with solid baseline results."
                 audit_findings = "• Core technical foundations are operational."
-                audit_recommendations = "• Maintain ongoing search engine and sitemap health."
+                audit_recommendations = ""
         elif audit and audit.error_message:
             err_msg = audit.error_message
             audit_summary = f"Website check reported: {err_msg}"
             audit_findings = f"• Accessibility: {err_msg}"
-            audit_recommendations = "• Technical review and infrastructure recovery recommended."
+            audit_recommendations = ""
         elif audit and audit.audit_summary:
             audit_summary = audit.audit_summary
+        elif website:
+            scheme = "HTTPS (Secure)" if website.lower().startswith("https://") else "HTTP (Unencrypted)"
+            audit_summary = f"Initial technical review for {domain}."
+            audit_findings = (
+                f"• URL Security: Connection is configured over {scheme}.\n"
+                f"• Search Discoverability: Domain {domain} requires local search and sitemap indexing review.\n"
+                f"• Mobile Experience: Responsive layout and viewport verification pending."
+            )
+
+        # ── Batch 1-3 new tokens (guide sections 6.1 / 11) ─────────────────
+        city = (getattr(lead, "city", "") or "").strip()
+        niche_id = getattr(lead, "niche_id", None)
+        niche_label = _niche_name_from_id(niche_id) or ""
+        finding_count = str(len([b for b in audit_findings.split("\n") if b.strip().startswith("•")]))
+        # contact_name: only use when a verified owner name exists
+        contact_name = ""
+        if sender_account:
+            contact_name = sender_account.get("contact_name", "") or ""
 
         return {
             "business_name": business_name,
@@ -384,6 +436,11 @@ class TemplateRenderer:
             "company_name": company_name,
             "company_website": company_website,
             "reply_to": reply_to,
+            # ── Batch 1-3 new tokens ──────────────────────────────────────
+            "city": city,
+            "niche_label": niche_label,
+            "finding_count": finding_count,
+            "contact_name": contact_name,
         }
 
     @classmethod
@@ -415,10 +472,16 @@ class TemplateRenderer:
         # either the body or subject remains an explicit custom override.
         c_type = str(campaign_type or "generic_first_contact").lower()
         defaults = cls.get_default_template(c_type)
-        uses_canonical_audit_content = (
-            AuditEmailService.is_audit_dependent(c_type)
-            and template.strip() == defaults["template"].strip()
+        is_default_template = (
+            template.strip() == defaults["template"].strip()
             and subject_template.strip() == defaults["subject"].strip()
+        )
+        is_niche_campaign = c_type in ("niche_outreach", "niche_campaign")
+
+        uses_canonical_audit_content = (
+            (AuditEmailService.is_audit_dependent(c_type) or bool(audit and getattr(audit, "audit_results", None)))
+            and is_default_template
+            and c_type != "no_website_design"
         )
         if uses_canonical_audit_content:
             try:
@@ -427,6 +490,7 @@ class TemplateRenderer:
                     audit=audit,
                     campaign_type=c_type,
                     sender_account=sender_account,
+                    include_recommended_actions=False,
                 )
             except AuditEmailGenerationError as exc:
                 raise TemplateRenderingError(str(exc)) from exc
@@ -444,6 +508,74 @@ class TemplateRenderer:
                 "service_classification": generated["service_classification"],
                 "renderer_version": generated["renderer_version"],
             }
+
+        # ── Batch 1-3: Niche Template Routing ─────────────────────────────────
+        # When a lead has a confirmed niche (or auto-detected with confidence >= 2)
+        # and default copy is requested, route to the 260-template niche library.
+        niche_id = getattr(lead, "niche_id", None)
+        if hasattr(niche_id, "_mock_name") or not isinstance(niche_id, (str, int)) or not str(niche_id).strip():
+            niche_id = None
+        if not niche_id and getattr(lead, "business_name", None):
+            try:
+                from app.services.niche_router import classify_lead_niche
+                detected_niche, _, conf = classify_lead_niche(lead.business_name, getattr(lead, "category", None))
+                if detected_niche and conf >= 2:
+                    niche_id = detected_niche
+                    try:
+                        lead.niche_id = detected_niche
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        if niche_id and (is_niche_campaign or (is_default_template and c_type not in ("no_website_design", "generic_first_contact", "public_provider_demo"))):
+            try:
+                from app.services.campaign_eligibility_service import evaluate_niche_segment
+                from app.services.niche_template_service import (
+                    render_niche_template,
+                    NicheTemplateError,
+                    CAMPAIGN_TYPE_TO_SEGMENT,
+                )
+                seg_no = None
+                if is_niche_campaign or c_type == "generic_first_contact":
+                    c_type_val, _ = evaluate_niche_segment(lead, audit)
+                    if c_type_val:
+                        seg_no = CAMPAIGN_TYPE_TO_SEGMENT.get(c_type_val)
+                else:
+                    seg_no = CAMPAIGN_TYPE_TO_SEGMENT.get(c_type)
+                    if seg_no is None:
+                        c_type_val, _ = evaluate_niche_segment(lead, audit)
+                        if c_type_val:
+                            seg_no = CAMPAIGN_TYPE_TO_SEGMENT.get(c_type_val)
+
+                if seg_no is not None:
+                    variables = cls.extract_context_variables(
+                        lead=lead,
+                        audit=audit,
+                        campaign_type=c_type,
+                        sender_account=sender_account,
+                    )
+                    niche_res = render_niche_template(niche_id, seg_no, variables)
+                    plain_body = niche_res["body"].strip()
+
+                    # AGENT_GUIDE Section 5 Step 6: Platform appends signature at send time
+                    if not re.search(r"^(best regards|regards|warm regards|sincerely)\b", plain_body, re.I | re.M):
+                        sender = variables.get("sender_name") or "Ashish Sharma"
+                        company = variables.get("company_name", "TEB Solutions")
+                        plain_body = f"{plain_body}\n\nBest regards,\n{sender}\n{company}"
+
+                    html_body = cls._wrap_plain_as_html(plain_body, variables)
+                    return {
+                        "subject": niche_res["subject"].strip(),
+                        "plain_body": plain_body,
+                        "html_body": html_body,
+                        "variables_used": variables,
+                        "content_strategy": f"niche_{niche_id}_seg_{seg_no}",
+                        "segment_no": seg_no,
+                        "niche_id": niche_id,
+                    }
+            except Exception as e:
+                logger.warning("Niche template rendering fallback: %s", e)
 
         variables = cls.extract_context_variables(
             lead=lead,
@@ -495,6 +627,8 @@ class TemplateRenderer:
             if text is None or hasattr(text, "_mock_name"):
                 return ""
             text = str(text)
+        # Clean up any leftover recommended action headings before substitution
+        text = re.sub(r"###?\s*(?:Recommended|Actionable|Priority)[^\n]*\n+\s*\{audit_recommendations\}", "", text, flags=re.IGNORECASE)
         for k, v in variables.items():
             pattern = re.compile(rf"\{{{k}\}}", re.IGNORECASE)
             val_str = str(v) if v is not None and not isinstance(v, str) else (v or "")
@@ -540,9 +674,110 @@ class TemplateRenderer:
         """Render plain-text email with clean, professional, responsive HTML styling."""
         safe_body = html.escape(plain_body, quote=True)
         linked_body = cls._link_urls_in_plain_text(safe_body)
-        linked_body = linked_body.replace("\n", "<br>")
 
-        company = html.escape(variables.get("company_name", "TEB Solutions"), quote=True)
+        # 1. Bold: **text** -> <strong>text</strong>
+        linked_body = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", linked_body)
+
+        # 2. Italic: *text* -> <em>text</em>
+        linked_body = re.sub(r"(?<!\*)\*([^\*\n]+)\*(?!\*)", r"<em>\1</em>", linked_body)
+
+        # 3. Format structured blocks (headings, check items, bullets, paragraphs)
+        blocks = linked_body.strip().split("\n\n")
+        formatted_blocks = []
+
+        contact_name = variables.get("contact_name") or variables.get("sender_name") or "Ashish Sharma"
+        company_name = variables.get("company_name") or "TEB Solutions"
+        contact_email = variables.get("reply_to") or "info@tebsolutions.in"
+
+        for block in blocks:
+            lines = [l.strip() for l in block.split("\n") if l.strip()]
+            if not lines:
+                continue
+
+            # Heading (### Subheading or ## Heading or # Heading)
+            first_line = lines[0]
+            if first_line.startswith("### ") or first_line.startswith("## ") or first_line.startswith("# "):
+                heading_text = re.sub(r"^#{1,3}\s*", "", first_line)
+                # If this was an audit recommendations heading, omit it
+                if any(k in heading_text.lower() for k in ("recommended", "recommendation", "next steps")):
+                    continue
+                h_html = f'<div style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 20px 0 10px 0; letter-spacing: -0.2px;">{heading_text}</div>'
+                rest = lines[1:]
+                if rest:
+                    b_lines = []
+                    for r in rest:
+                        if r.startswith("✓") or r.startswith("\u2713"):
+                            b_lines.append(f'<div style="margin: 8px 0; line-height: 1.55; color: #334155; font-size: 14.5px;"><span style="color: #2563eb; font-weight: bold; margin-right: 8px;">✓</span>{r[1:].strip()}</div>')
+                        elif r.startswith("- ") or r.startswith("• "):
+                            b_lines.append(f'<div style="margin: 8px 0; line-height: 1.55; color: #334155; font-size: 14.5px;"><span style="color: #64748b; font-weight: bold; margin-right: 8px;">•</span>{r[2:].strip()}</div>')
+                        else:
+                            b_lines.append(f'<div style="margin: 6px 0; line-height: 1.55; color: #334155; font-size: 14.5px;">{r}</div>')
+                    card_content = "\n".join(b_lines)
+                    formatted_blocks.append(
+                        f'{h_html}\n<div style="margin: 12px 0 16px 0; padding: 16px 18px; background: #f8fafc; border-left: 4px solid #2563eb; border-radius: 8px;">\n{card_content}\n</div>'
+                    )
+                else:
+                    formatted_blocks.append(h_html)
+                continue
+
+            # Bullet list or finding blocks without ###
+            is_bullet_block = any(l.startswith(("-", "•", "✓", "\u2713")) for l in lines)
+            is_audit_section = any(l.startswith(("Critical Issues:", "Warnings:")) for l in lines)
+            # Filter out any standalone recommendation headers
+            if any(l.startswith(("Recommended:", "Recommended Actions:", "Recommended Next Steps:", "Recommended Modernisation:", "Actionable Authority Strategy:", "High-Impact Adjustments:")) for l in lines):
+                continue
+
+            if is_bullet_block or is_audit_section:
+                b_lines = []
+                border_color = "#2563eb"
+                bg_color = "#f8fafc"
+                has_crit = any(l.startswith("Critical Issues:") for l in lines)
+                has_warn = any(l.startswith("Warnings:") for l in lines)
+
+                if has_crit:
+                    border_color = "#ef4444"
+                    bg_color = "#fef2f2"
+                elif has_warn:
+                    border_color = "#f59e0b"
+                    bg_color = "#fffbeb"
+
+                for l in lines:
+                    if l.startswith("Critical Issues:"):
+                        b_lines.append('<div style="font-size: 14px; font-weight: 700; color: #991b1b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Critical Issues:</div>')
+                    elif l.startswith("Warnings:"):
+                        b_lines.append('<div style="font-size: 14px; font-weight: 700; color: #92400e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Warnings:</div>')
+                    elif l.startswith("✓") or l.startswith("\u2713"):
+                        b_lines.append(f'<div style="margin: 8px 0; line-height: 1.55; color: #334155; font-size: 14.5px;"><span style="color: #2563eb; font-weight: bold; margin-right: 8px;">✓</span>{l[1:].strip()}</div>')
+                    elif l.startswith("- ") or l.startswith("• "):
+                        bullet_color = "#991b1b" if has_crit else ("#92400e" if has_warn else "#64748b")
+                        b_lines.append(f'<div style="margin: 8px 0; line-height: 1.55; color: #334155; font-size: 14.5px;"><span style="color: {bullet_color}; font-weight: bold; margin-right: 8px;">•</span>{l[2:].strip()}</div>')
+                    else:
+                        b_lines.append(f'<div style="font-weight: 600; margin: 8px 0 4px 0; color: #0f172a; font-size: 15px;">{l}</div>')
+                card_html = "\n".join(b_lines)
+                formatted_blocks.append(
+                    f'<div style="margin: 16px 0; padding: 16px 18px; background: {bg_color}; border-left: 4px solid {border_color}; border-radius: 8px;">\n{card_html}\n</div>'
+                )
+                continue
+
+            # Signature block: detect sign-off lines
+            if any(l.lower().startswith(("best regards,", "regards,", "warm regards,", "sincerely,")) for l in lines):
+                formatted_blocks.append(
+                    f"""<div style="margin-top: 26px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 15px; line-height: 1.55;">
+  <div style="color: #475569; margin-bottom: 4px;">Best regards,</div>
+  <div style="font-weight: 700; color: #0f172a; font-size: 16px;">{html.escape(contact_name)}</div>
+  <div style="font-weight: 600; color: #334155; font-size: 14px;">{html.escape(company_name)}</div>
+  <div style="font-size: 13.5px; color: #64748b; margin-top: 4px;">Contact: {html.escape(contact_email)}</div>
+</div>"""
+                )
+                continue
+
+            # Regular paragraph
+            p_content = "<br>".join(lines)
+            formatted_blocks.append(f'<p style="margin: 0 0 16px 0; line-height: 1.65; color: #1e293b; font-size: 15px;">{p_content}</p>')
+
+        content_html = "\n".join(formatted_blocks)
+
+        company = html.escape(company_name, quote=True)
         return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -556,12 +791,12 @@ class TemplateRenderer:
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.04);">
         <tr><td style="height:4px;background:#2563eb;font-size:0;line-height:0;">&nbsp;</td></tr>
         <tr><td style="padding:28px 32px;font-size:15px;line-height:1.7;color:#1e293b;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#2563eb;margin-bottom:18px;text-transform:uppercase;">
+          <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:#2563eb;margin-bottom:18px;text-transform:uppercase;">
             {company} · Web Solutions
           </div>
-          {linked_body}
+          {content_html}
         </td></tr>
-        <tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;line-height:1.4;">
+        <tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;font-size:11.5px;color:#64748b;line-height:1.45;">
           This message was sent regarding business web presence. If this note is not relevant to your team, please feel free to disregard.
         </td></tr>
       </table>

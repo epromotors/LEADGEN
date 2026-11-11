@@ -152,6 +152,7 @@ class ProposalService:
                 ai_observations=ai_observations,
                 allow_clean_baseline=True,
                 lead_id=lead_key,
+                include_recommended_actions=False,
             )
         except AuditEmailGenerationError as exc:
             if association_status and association_status not in ("matched", "approved"):

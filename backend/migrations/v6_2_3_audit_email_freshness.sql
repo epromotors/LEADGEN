@@ -31,6 +31,7 @@ DO $$
 BEGIN
     IF current_database() IN (
         'leadgen', 'leadgen_test', 'leads_db', 'linkgen', 'offpage',
+        'leadgen_release_sandbox',
         'postgres', 'template0', 'template1'
     ) THEN
         RAISE EXCEPTION 'MIGRATION ABORTED: Target database "%" is in the protected database list and cannot be modified.', current_database();

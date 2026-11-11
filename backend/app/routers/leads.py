@@ -49,10 +49,14 @@ def _make_lead_response(lead: Lead) -> dict:
     skipped-site banner appears correctly in the frontend table.
     """
     audit = getattr(lead, 'audit', None)
+    niche_id = getattr(lead, 'niche_id', None)
+    from app.services.niche_router import niche_name_from_id
+    niche_lbl = niche_name_from_id(niche_id) if niche_id else None
     return LeadResponse.model_validate(lead).model_copy(
         update={
             "audit_error": audit.error_message if audit else None,
             "audit_status": audit.status if audit else None,
+            "niche_label": niche_lbl,
         }
     )
 
@@ -121,6 +125,14 @@ async def upload_leads(
             lead.website = ""
             lead.website_domain = ""
             lead.website_association_status = "no_website"
+        elif lead.website:
+            from app.utils.csv_parser import clean_website
+            root_web = clean_website(lead.website)
+            if root_web:
+                if not lead.email_source_url and lead.website != root_web:
+                    lead.email_source_url = lead.website
+                lead.website = root_web
+                lead.website_domain = extract_domain_from_url(root_web)
 
         if is_inferred and lead.website:
             lead.website_domain = extract_domain_from_url(lead.website)
@@ -154,6 +166,15 @@ async def upload_leads(
         # CSV imports aligned with scraped records without treating candidates as
         # verified websites or approved business contacts.
         lead_quality_repair_service.apply_static_rules(lead)
+
+        # Niche classification intake guard
+        if not getattr(lead, "niche_id", None):
+            from app.services.niche_router import classify_lead_niche
+            n_id, n_kw, n_conf = classify_lead_niche(lead.business_name)
+            lead.niche_id = n_id
+            lead.niche_keyword = n_kw
+            lead.niche_confidence = n_conf
+            lead.niche_locked = False
 
         db.add(lead)
         new_leads.append(lead)
@@ -580,14 +601,14 @@ async def retry_lead_quality_discovery(
     changes.extend(lead_quality_repair_service.add_discovery_candidates(lead, discovered_sites, discovered_emails))
 
     if payload.reverify_email:
-        verification = await email_verifier.verify_email(lead.email, smtp_probe_enabled=False, catch_all_probe_enabled=False)
-        lead.email_verification_status = verification.status
-        lead.email_verification_details = verification.to_dict()
-        # A positive DNS result may not release a hold. A negative result may add one.
-        if not verification.is_sendable:
-            lead.is_quarantined = True
-            lead.quarantine_reason = verification.exclusion_reason or f"Email verification failed: {verification.status}"
-        changes.append("email_reverified_without_smtp")
+        from app.routers.email_verification import reverify_lead_ownership_and_deliverability
+        reverify_outcome = await reverify_lead_ownership_and_deliverability(
+            lead=lead,
+            db=db,
+            website_scrape_enabled=True,
+            dry_run=False,
+        )
+        changes.append(f"email_reverify_{reverify_outcome.get('outcome_status', 'complete')}")
 
     db.add(ActivityLog(
         event_type="lead_quality_discovery_retry",
@@ -697,7 +718,30 @@ async def update_lead(
         lead.phone = body.phone.strip() or None
         updated_fields.append("phone")
     if body.website is not None:
-        lead.website = body.website.strip()
+        raw_web = body.website.strip()
+        from app.utils.email_constants import is_third_party_directory_or_aggregator
+        from app.utils.csv_parser import clean_website
+        from app.services.lead_discovery_service import extract_domain_from_url
+        if raw_web and is_third_party_directory_or_aggregator(raw_web):
+            if not lead.email_source_url:
+                lead.email_source_url = raw_web
+            lead.website = ""
+            lead.website_domain = ""
+            lead.website_association_status = "no_website"
+        elif raw_web:
+            root_web = clean_website(raw_web)
+            if root_web:
+                if not lead.email_source_url and raw_web != root_web:
+                    lead.email_source_url = raw_web
+                lead.website = root_web
+                lead.website_domain = extract_domain_from_url(root_web)
+            else:
+                lead.website = raw_web
+                lead.website_domain = extract_domain_from_url(raw_web)
+        else:
+            lead.website = ""
+            lead.website_domain = ""
+            lead.website_association_status = "no_website"
         updated_fields.append("website")
     if body.email_source_url is not None:
         lead.email_source_url = body.email_source_url.strip() or None
@@ -727,6 +771,16 @@ async def update_lead(
     if body.quarantine_reason is not None:
         lead.quarantine_reason = body.quarantine_reason.strip() or None
         updated_fields.append("quarantine_reason")
+    if body.niche_id is not None:
+        lead.niche_id = body.niche_id
+        lead.niche_locked = True if body.niche_locked is None else body.niche_locked
+        from app.services.niche_router import niche_name_from_id
+        lead.niche_keyword = niche_name_from_id(body.niche_id) or "manual_override"
+        lead.niche_confidence = 1.0
+        updated_fields.append("niche_id")
+    elif body.niche_locked is not None:
+        lead.niche_locked = body.niche_locked
+        updated_fields.append("niche_locked")
 
     await db.commit()
 
@@ -848,21 +902,36 @@ async def clean_all_urls(db: AsyncSession = Depends(get_db)):
     """
     Iterate every lead and normalise its website to the root URL
     (scheme + domain + trailing slash), stripping any internal page paths.
-
-    Example: https://balanicustom.com/custom-suits-indianapolis
-          →  https://balanicustom.com/
+    If source is Google, maps, directory: keep lead source full URL in email_source_url and clear website.
     """
     from app.utils.csv_parser import clean_website
+    from app.utils.email_constants import is_third_party_directory_or_aggregator
+    from app.services.lead_discovery_service import extract_domain_from_url
 
     result = await db.execute(select(Lead))
     leads = result.scalars().all()
 
     cleaned_count = 0
     for lead in leads:
-        trimmed = clean_website(lead.website or "")
-        if trimmed and trimmed != lead.website:
-            lead.website = trimmed
+        raw_web = (lead.website or "").strip()
+        if not raw_web:
+            continue
+
+        if is_third_party_directory_or_aggregator(raw_web):
+            if not lead.email_source_url:
+                lead.email_source_url = raw_web
+            lead.website = ""
+            lead.website_domain = ""
+            lead.website_association_status = "no_website"
             cleaned_count += 1
+        else:
+            trimmed = clean_website(raw_web)
+            if trimmed and trimmed != lead.website:
+                if not lead.email_source_url and raw_web != trimmed:
+                    lead.email_source_url = raw_web
+                lead.website = trimmed
+                lead.website_domain = extract_domain_from_url(trimmed)
+                cleaned_count += 1
 
     if cleaned_count:
         await db.commit()

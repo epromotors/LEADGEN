@@ -346,6 +346,13 @@ def crawl_site(
 
     with ThreadPoolExecutor(max_workers=CRAWL_WORKERS) as executor:
         while queue and len(pages) < max_pages:
+            try:
+                from app.routers.audits import is_batch_cancelled
+                if is_batch_cancelled():
+                    logger.info("[crawler] Batch cancelled, aborting crawl early")
+                    break
+            except Exception:
+                pass
             batch = []
             batch_limit = min(CRAWL_WORKERS, max_pages - len(pages))
             while queue and len(batch) < batch_limit:
@@ -599,6 +606,14 @@ def audit_page_seo(page: dict, target_keywords: list[str] | None = None) -> dict
     if not og_image:
         issues.append({"severity": "WARN", "check": "Missing og:image", "msg": "No Open Graph preview image declared"})
 
+    # 9b. Redirect Chain & Loop Detection (Linkinator & SEOnaut parity)
+    if page.get("is_redirect_loop"):
+        chain_str = " -> ".join(page.get("redirect_chain", []))
+        issues.append({"severity": "FAIL", "check": "Redirect Loop", "msg": f"Circular redirect loop detected: {chain_str or url}"})
+    elif page.get("redirect_count", 0) >= 3:
+        chain_str = " -> ".join(page.get("redirect_chain", []))
+        issues.append({"severity": "WARN", "check": "Redirect Chain", "msg": f"Multiple redirect hops ({page.get('redirect_count')}): {chain_str}"})
+
     # 10. Target Keyword Analysis for this Page
     page_kw_results: list[dict[str, Any]] = []
     if target_keywords:
@@ -619,6 +634,9 @@ def audit_page_seo(page: dict, target_keywords: list[str] | None = None) -> dict
         "meta_desc_length": desc_len,
         "canonical_url": can_href,
         "canonical_relationship": can_relationship,
+        "redirect_chain": page.get("redirect_chain", []),
+        "redirect_count": page.get("redirect_count", 0),
+        "is_redirect_loop": page.get("is_redirect_loop", False),
         "word_count": word_count,
         "h1_count": len(h1s),
         "h2_count": len(h2s),

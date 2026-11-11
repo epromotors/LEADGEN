@@ -149,7 +149,7 @@ def check_audit_freshness(
     if hasattr(raw_ts, "_mock_name") and not isinstance(raw_ts, (datetime, str)):
         raw_ts = getattr(raw_ts, "return_value", None)
         if hasattr(raw_ts, "_mock_name") or not isinstance(raw_ts, (datetime, str)):
-            raw_ts = datetime.utcnow()
+            raw_ts = datetime.now(timezone.utc)
 
     if raw_ts is None:
         return (
@@ -176,14 +176,11 @@ def check_audit_freshness(
             None,
         )
 
-    if now is None:
-        now_dt = datetime.now(timezone.utc) if getattr(ts, "tzinfo", None) is not None else datetime.utcnow()
-    else:
-        now_dt = now
-        if getattr(ts, "tzinfo", None) is not None and getattr(now_dt, "tzinfo", None) is None:
-            now_dt = now_dt.replace(tzinfo=timezone.utc)
-        elif getattr(ts, "tzinfo", None) is None and getattr(now_dt, "tzinfo", None) is not None:
-            now_dt = now_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    now_dt = now if now is not None else datetime.now(timezone.utc)
+    if getattr(now_dt, "tzinfo", None) is not None and getattr(ts, "tzinfo", None) is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    elif getattr(now_dt, "tzinfo", None) is None and getattr(ts, "tzinfo", None) is not None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
 
     diff_seconds = (now_dt - ts).total_seconds()
     if diff_seconds < 0:
@@ -506,10 +503,12 @@ def classify_email_sendability(
     if last_emailed:
         if getattr(last_emailed, "tzinfo", None) is not None:
             now_dt = datetime.now(timezone.utc)
+            le_dt = last_emailed
         else:
-            now_dt = datetime.utcnow()
+            now_dt = datetime.now(timezone.utc)
+            le_dt = last_emailed.replace(tzinfo=timezone.utc)
         seven_days_ago = now_dt - timedelta(days=7)
-        if last_emailed > seven_days_ago:
+        if le_dt > seven_days_ago:
             return EmailSendabilityClassification.COOLDOWN
 
     if assoc_status in ("matched", "approved"):
@@ -556,7 +555,7 @@ def evaluate_lead_campaign_eligibility(
 
     if c_type == CampaignType.PUBLIC_PROVIDER_DEMO.value:
         # Check one-time demo policy limit
-        if has_received_demo or getattr(lead, "has_received_demo", False):
+        if has_received_demo or (getattr(lead, "has_received_demo", False) is True):
             return LeadCampaignEligibility(
                 False,
                 "Lead or normalized address has already received a one-time demo outreach email under public-provider policy",
@@ -951,3 +950,191 @@ async def request_bounded_audit_refresh(
         "audit_id": str(audit.id),
     }
 
+
+# ---------------------------------------------------------------------------
+# Niche-aware segment router  (guide section 4 — confirmed by owner)
+# ---------------------------------------------------------------------------
+
+def evaluate_niche_segment(
+    lead: Lead,
+    audit: Optional[Audit] = None,
+    *,
+    now: Optional[datetime] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Determine the correct campaign segment for a lead per the 8-rule priority
+    defined in AGENT_GUIDE_all_batches.md section 4.
+
+    Returns (campaign_type, exclusion_reason).
+    campaign_type is None when the lead must not be sent (exclusion_reason explains why).
+
+    Priority order (first match wins):
+    1. Suppressed / unsubscribed / bounced / complained / replied → send nothing.
+    2. Public email provider + business not verified → Segment 10 (once only).
+    3. No website → Segment 1.
+    4. Website broken → Segment 2.
+    5. Website outdated → Segment 3.
+    6. Website valid + audited → Segments 4-7 by finding priority.
+    7. Website exists but not audited → Segment 8.
+    8. Follow-up (Segment 9) only when earlier email sent + audit done + no reply.
+    """
+    now_dt = now or datetime.now(timezone.utc)
+
+    # ── Rule 1: Hard exclusions ─────────────────────────────────────────────
+    if getattr(lead, "is_suppressed", False):
+        return None, "Lead is globally suppressed (unsubscribe/bounce/complaint)."
+
+    if getattr(lead, "is_quarantined", False):
+        return None, f"Lead is quarantined: {getattr(lead, 'quarantine_reason', 'quarantined')}."
+
+    reply_type = getattr(lead, "reply_type", None)
+    if reply_type in ("stop", "bounce", "hard_bounce", "complained"):
+        return None, f"Lead has reply_type='{reply_type}'; sequence ended."
+
+    if getattr(lead, "replied_at", None) is not None:
+        return None, "Lead has already replied; do not send further automated emails."
+
+    # ── Rule 2: Public email → Segment 10 (once only) ───────────────────────
+    email = getattr(lead, "email", "") or ""
+    domain = email.split("@")[-1].lower() if "@" in email else ""
+    assoc = getattr(lead, "email_business_association_status", "") or ""
+    if is_public_email_provider(domain) and assoc not in ("matched", "approved"):
+        if getattr(lead, "has_received_demo", False):
+            return None, "Segment 10 (public-provider demo) already sent; never resend."
+        return CampaignType.PUBLIC_PROVIDER_DEMO.value, None
+
+    # ── Rule 3: No website → Segment 1 ─────────────────────────────────────
+    site_class = classify_website(lead, audit)
+    if site_class == WebsiteClassification.NO_WEBSITE:
+        return CampaignType.NO_WEBSITE_DESIGN.value, None
+
+    # ── Rule 4: Website broken → Segment 2 ──────────────────────────────────
+    if site_class == WebsiteClassification.WEBSITE_BROKEN:
+        return CampaignType.BROKEN_WEBSITE_REPAIR.value, None
+
+    # ── Rule 5: Website outdated → Segment 3 ────────────────────────────────
+    if site_class == WebsiteClassification.WEBSITE_OUTDATED:
+        return CampaignType.OUTDATED_WEBSITE_MODERNIZATION.value, None
+
+    # ── Rule 6: Valid + audited → Segments 4-7 by finding priority ──────────
+    if site_class == WebsiteClassification.WEBSITE_VALID and audit and audit.audit_results:
+        results = audit.audit_results or {}
+
+        def _failing(keys):
+            for k in keys:
+                val = results.get(k)
+                if val is None:
+                    for cat_dict in results.values():
+                        if isinstance(cat_dict, dict):
+                            if k in cat_dict:
+                                val = cat_dict[k]
+                                break
+                            short_k = k.replace("has_", "").replace("missing_", "")
+                            if short_k in cat_dict:
+                                val = cat_dict[short_k]
+                                break
+                if val is False:
+                    return True
+                if isinstance(val, dict):
+                    status = str(val.get("status", "")).upper()
+                    if status in ("FAIL", "WARN", "FALSE"):
+                        return True
+            return False
+
+        # Priority: SEO → Design/UX → Conversion → Authority
+        SEO_KEYS = [
+            "has_sitemap", "has_robots", "has_page_title", "has_meta_desc",
+            "has_canonical", "has_json_ld", "missing_h1", "has_noindex",
+            "heading_hierarchy_ok", "keyword_in_title_ok", "city_in_title_ok",
+        ]
+        UX_KEYS = [
+            "mobile_friendly", "has_cta", "cta_above_fold", "has_hero_headline",
+            "font_size_ok", "contrast_ok", "has_contact", "has_whatsapp",
+            "has_phone_number",
+        ]
+        CONVERSION_KEYS = [
+            "has_nap", "has_google_maps", "has_business_hours",
+            "has_local_business_schema", "has_trust", "has_whatsapp",
+        ]
+        AUTHORITY_KEYS = [
+            "has_og_tags", "has_review_schema", "has_faq_schema",
+            "internal_links_count", "anchor_text_ok",
+        ]
+
+        if _failing(SEO_KEYS):
+            return CampaignType.VALID_WEBSITE_SEO.value, None
+        if _failing(UX_KEYS):
+            return CampaignType.VALID_WEBSITE_REDESIGN.value, None
+        if _failing(CONVERSION_KEYS):
+            return CampaignType.VALID_WEBSITE_MARKETING.value, None
+        if _failing(AUTHORITY_KEYS):
+            return CampaignType.VALID_WEBSITE_LINK_BUILDING.value, None
+
+    # ── Rule 8: Follow-up — Segment 9 ───────────────────────────────────────
+    # Only when: earlier email sent + audit done + no reply
+    last_touch = getattr(lead, "last_sequence_touch_at", None)
+    if hasattr(last_touch, "_mock_name"):
+        last_touch = None
+    raw_tc = getattr(lead, "sequence_touch_count", 0)
+    touch_count = int(raw_tc) if isinstance(raw_tc, (int, float)) and not hasattr(raw_tc, "_mock_name") else 0
+    if last_touch and touch_count >= 1 and not getattr(lead, "replied_at", None):
+        if audit and audit.audit_results:
+            return CampaignType.AUDIT_FOLLOW_UP.value, None
+
+    # ── Rule 7: Website exists but not yet audited → Segment 8 ──────────────
+    if site_class in (
+        WebsiteClassification.WEBSITE_NOT_AUDITED,
+        WebsiteClassification.AUDIT_PENDING,
+        WebsiteClassification.AUDIT_INCONCLUSIVE,
+        WebsiteClassification.AUDIT_FAILED,
+        WebsiteClassification.WEBSITE_VALID,  # valid but no failing findings found
+    ):
+        return CampaignType.GENERIC_FIRST_CONTACT.value, None
+
+    return None, f"No matching segment for site_class={site_class.value!r}; lead requires review."
+
+
+def check_sequence_gate(lead: Lead, *, now: Optional[datetime] = None) -> Optional[str]:
+    """
+    Enforce guide section 7.5 sequence rules.
+    Returns an exclusion reason string, or None if the lead can be contacted.
+
+    Rules:
+    - Max 3 touches per lead per 90 days.
+    - At least 4 days between touch 1→2, at least 6 days between touch 2→3.
+    - Sequence paused if sequence_paused_until is in the future.
+    """
+    now_dt = now or datetime.now(timezone.utc)
+    if getattr(now_dt, "tzinfo", None) is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+
+    paused_until = getattr(lead, "sequence_paused_until", None)
+    if isinstance(paused_until, datetime):
+        p_dt = paused_until.replace(tzinfo=timezone.utc) if getattr(paused_until, "tzinfo", None) is None else paused_until
+        if p_dt > now_dt:
+            return f"Sequence paused until {paused_until.date()} (out-of-office or manual pause)."
+
+    raw_touch_count = getattr(lead, "sequence_touch_count", 0)
+    touch_count = int(raw_touch_count) if isinstance(raw_touch_count, (int, float)) else 0
+    last_touch = getattr(lead, "last_sequence_touch_at", None)
+
+    if isinstance(last_touch, datetime):
+        lt_dt = last_touch.replace(tzinfo=timezone.utc) if getattr(last_touch, "tzinfo", None) is None else last_touch
+        days_since = (now_dt - lt_dt).total_seconds() / 86400
+        if days_since >= 90:
+            # 90-day window expired — fresh window, caller must reset counters
+            return None
+        if touch_count >= 3:
+            return (
+                f"Maximum 3 touches reached in 90-day window "
+                f"(last touch {days_since:.0f} days ago; "
+                f"next window in {90 - days_since:.0f} days)."
+            )
+        min_days = 4 if touch_count == 1 else 6
+        if days_since < min_days:
+            return (
+                f"Too soon for touch {touch_count + 1}: only {days_since:.1f} days "
+                f"since last touch; minimum {min_days} days required."
+            )
+
+    return None

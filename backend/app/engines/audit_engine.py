@@ -447,26 +447,36 @@ def _run_audit_sync(
     # ── Domain email detection ──────────────────────────────────────────────
     found_email  = None
     email_source = "not_found"
-    logger.info("[audit_engine] Starting domain email discovery for %s", url)
-    t_email_start = time.perf_counter()
+    is_cancelled_now = False
     try:
-        found_email, email_source = find_domain_email(
-            website_url=url,
-            homepage_soup=soup,
-            homepage_html=html,
-            session=session,
-        )
-        email_duration_ms = round((time.perf_counter() - t_email_start) * 1000)
-        logger.info(
-            "[audit_engine] Completed domain email discovery for %s in %d ms (email=%s, source=%s)",
-            url, email_duration_ms, found_email, email_source
-        )
-    except Exception as _ee:
-        email_duration_ms = round((time.perf_counter() - t_email_start) * 1000)
-        logger.warning(
-            "[audit_engine] email_finder failed for %s after %d ms: %s",
-            url, email_duration_ms, _ee
-        )
+        from app.routers.audits import is_batch_cancelled
+        is_cancelled_now = is_batch_cancelled()
+    except Exception:
+        pass
+
+    if not is_cancelled_now:
+        logger.info("[audit_engine] Starting domain email discovery for %s", url)
+        t_email_start = time.perf_counter()
+        try:
+            found_email, email_source = find_domain_email(
+                website_url=url,
+                homepage_soup=soup,
+                homepage_html=html,
+                session=session,
+            )
+            email_duration_ms = round((time.perf_counter() - t_email_start) * 1000)
+            logger.info(
+                "[audit_engine] Completed domain email discovery for %s in %d ms (email=%s, source=%s)",
+                url, email_duration_ms, found_email, email_source
+            )
+        except Exception as _ee:
+            email_duration_ms = round((time.perf_counter() - t_email_start) * 1000)
+            logger.warning(
+                "[audit_engine] email_finder failed for %s after %d ms: %s",
+                url, email_duration_ms, _ee
+            )
+    else:
+        logger.info("[audit_engine] Batch cancelled, skipping domain email discovery for %s", url)
 
 
     # ── Phase 2/3: browser evidence capture ───────────────────────────────────
@@ -549,6 +559,44 @@ def _run_audit_sync(
     except Exception as _cd_err:
         logger.warning(f"[audit_engine] Client diagnostics attachment error: {_cd_err}")
 
+    # ── GEO Supplement & Actionable Remediation Plan (Additive) ─────────────
+    try:
+        from auditor.geo_supplement import audit_geo_supplement
+        from auditor.remediation_plan import generate_remediation_plan
+        from auditor.core import get_origin
+        
+        origin_root = get_origin(url)
+        robots_content = None
+        try:
+            r_rob = session.get(f"{origin_root}/robots.txt", timeout=min(TIMEOUT, 4))
+            if r_rob.status_code == 200:
+                robots_content = r_rob.text
+        except Exception:
+            pass
+
+        llms_content = None
+        try:
+            r_llms = session.get(f"{origin_root}/llms.txt", timeout=min(TIMEOUT, 4))
+            if r_llms.status_code == 200:
+                llms_content = r_llms.text
+        except Exception:
+            pass
+
+        geo_supp = audit_geo_supplement(
+            soup=soup,
+            html=html,
+            url=url,
+            robots_text=robots_content,
+            llms_text=llms_content,
+        )
+        site_summary["geo_supplement"] = geo_supp
+        site_summary["remediation_plan"] = generate_remediation_plan(
+            audit_results=audit_results,
+            geo_supplement=geo_supp,
+            site_summary=site_summary,
+        )
+    except Exception as _geo_err:
+        logger.warning(f"[audit_engine] GEO supplement generation error: {_geo_err}")
 
     return {
         "audit_results": audit_results,
@@ -564,6 +612,8 @@ def _run_audit_sync(
         "browser_status":   browser_status,
         "browser_pages":    browser_pages,
         "url_info": url_info,
+        "geo_supplement": site_summary.get("geo_supplement"),
+        "remediation_plan": site_summary.get("remediation_plan"),
     }
 
 
@@ -824,7 +874,11 @@ async def _db_micro(callback):
             raise
 
 
-async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> None:
+async def run_audit(
+    lead_id: str,
+    target_keywords: list[str] | None = None,
+    **kwargs,
+) -> None:
     """
     Main audit entry point. Called as a FastAPI background task.
     Signature is identical to v3.x — the router does not need to change.
@@ -842,6 +896,31 @@ async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> N
 
     Each DB session is open for < 100ms; connections return to the pool between steps.
     """
+    def _is_cancelled() -> bool:
+        try:
+            from app.routers.audits import is_batch_cancelled
+            return is_batch_cancelled()
+        except Exception:
+            return False
+
+    async def _abort_cancelled(lead_u, aud_id):
+        try:
+            async def _cleanup_tx(db):
+                ld = await db.get(Lead, lead_u)
+                if ld and ld.status == LeadStatus.auditing:
+                    ld.status = LeadStatus.new
+                if aud_id:
+                    aud = await db.get(Audit, aud_id)
+                    if aud and aud.status in (AuditStatus.running, AuditStatus.pending):
+                        await db.delete(aud)
+            await _db_micro(_cleanup_tx)
+        except Exception as err:
+            logger.warning(f"[audit_engine] Abort cleanup for lead {lead_u} failed: {err}")
+
+    if _is_cancelled():
+        logger.info(f"[audit_engine] Batch cancelled before start for lead {lead_id}")
+        return
+
     # ── PHASE 1: Load lead + prepare audit record (short DB write) ────────────
     lead_data = {}   # snapshot of lead fields we need outside DB
     audit_id  = None
@@ -853,19 +932,59 @@ async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> N
                 logger.error(f"[audit_engine] Lead {lead_id} not found")
                 return None
 
+            from sqlalchemy import select as _select
+            audit_result = await db.execute(_select(Audit).where(Audit.lead_id == lead.id))
+            audit = audit_result.scalar_one_or_none()
+
             website = (lead.website or "").strip()
             if not website:
-                logger.warning(f"[audit_engine] Lead {lead_id} has no website — skipping")
+                logger.warning(f"[audit_engine] Lead {lead_id} has no website — recording skip")
+                if not audit:
+                    audit = Audit(lead_id=lead.id, status=AuditStatus.pending)
+                    db.add(audit)
+                    await db.flush()
+                audit.error_message = "SITE_STATUS:no_website"
+                audit.audit_summary = "Lead has no website. Full SEO audit skipped."
+                audit.status = AuditStatus.done
+                audit.audit_lifecycle = "BLOCKED"
+                audit.audit_results = {
+                    "lifecycle": "BLOCKED",
+                    "classification": {"status": "no_website", "reason": "No website URL provided for lead"}
+                }
+                if lead.status not in (LeadStatus.emailed, LeadStatus.replied, LeadStatus.converted):
+                    lead.status = LeadStatus.audited
+                log = ActivityLog(
+                    event_type="audit_skipped",
+                    lead_id=lead.id,
+                    message=_safe(f"Skipped audit for {lead.business_name}: No website URL provided."),
+                )
+                db.add(log)
                 return None
 
             from app.utils.email_constants import is_third_party_directory_or_aggregator
             if is_third_party_directory_or_aggregator(website):
-                logger.warning(f"[audit_engine] Lead {lead_id} website '{website}' is a third-party directory/platform — skipping audit")
+                logger.warning(f"[audit_engine] Lead {lead_id} website '{website}' is a third-party directory/platform — recording skip")
+                if not audit:
+                    audit = Audit(lead_id=lead.id, status=AuditStatus.pending)
+                    db.add(audit)
+                    await db.flush()
+                audit.error_message = "SITE_STATUS:third_party_directory"
+                audit.audit_summary = f"Website '{website}' is a third-party directory/aggregator. Full SEO audit skipped."
+                audit.status = AuditStatus.done
+                audit.audit_lifecycle = "BLOCKED"
+                audit.audit_results = {
+                    "lifecycle": "BLOCKED",
+                    "classification": {"status": "third_party_directory", "reason": f"Aggregator or directory site: {website}"}
+                }
+                if lead.status not in (LeadStatus.emailed, LeadStatus.replied, LeadStatus.converted):
+                    lead.status = LeadStatus.audited
+                log = ActivityLog(
+                    event_type="audit_skipped",
+                    lead_id=lead.id,
+                    message=_safe(f"Skipped audit for {lead.business_name} ({website}): Third-party directory/aggregator."),
+                )
+                db.add(log)
                 return None
-
-            from sqlalchemy import select as _select
-            audit_result = await db.execute(_select(Audit).where(Audit.lead_id == lead.id))
-            audit = audit_result.scalar_one_or_none()
 
             if not audit:
                 audit = Audit(lead_id=lead.id, status=AuditStatus.pending)
@@ -898,6 +1017,11 @@ async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> N
     audit_id      = lead_data["audit_id"]
     lead_uuid     = lead_data["lead_id"]
     business_name = lead_data["business_name"]
+
+    if _is_cancelled():
+        logger.info(f"[audit_engine] Batch cancelled after phase 1 for lead {lead_id}")
+        await _abort_cancelled(lead_uuid, audit_id)
+        return
 
     # ── PHASE 2: Site classification (async network I/O — NO DB connection) ───
     logger.info(f"[audit_engine] Starting site classification for {website}")
@@ -962,6 +1086,11 @@ async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> N
     )
 
     # ── PHASE 3: audit in thread pool (NO DB connection) ───────────
+    if _is_cancelled():
+        logger.info(f"[audit_engine] Batch cancelled before phase 3 for lead {lead_id}")
+        await _abort_cancelled(lead_uuid, audit_id)
+        return
+
     loop = asyncio.get_running_loop()
     try:
         data = await loop.run_in_executor(
@@ -1158,13 +1287,20 @@ async def run_audit(lead_id: str, target_keywords: list[str] | None = None) -> N
                 from urllib.parse import urlparse as _up
                 host = _up(audit_target).netloc.lower().lstrip("www.")
                 if _sue(lead.email or "", found_email, host):
-                    old_email_snapshot  = lead.email
-                    corrected_email     = found_email
-                    lead.email          = found_email
-                    logger.info(
-                        f"[audit_engine] Email corrected: {old_email_snapshot} → "
-                        f"{found_email} ({email_source})"
-                    )
+                    from sqlalchemy import select as _select
+                    existing_lead = (await db.execute(_select(Lead).where(Lead.email == found_email, Lead.id != lead.id))).scalar_one_or_none()
+                    if not existing_lead:
+                        old_email_snapshot  = lead.email
+                        corrected_email     = found_email
+                        lead.email          = found_email
+                        logger.info(
+                            f"[audit_engine] Email corrected: {old_email_snapshot} → "
+                            f"{found_email} ({email_source})"
+                        )
+                    else:
+                        logger.info(
+                            f"[audit_engine] Discovered email '{found_email}' already assigned to lead {existing_lead.id}; preserving existing email '{lead.email}' to maintain unique constraint."
+                        )
 
         await _db_micro(_results_write)
     except Exception as e:

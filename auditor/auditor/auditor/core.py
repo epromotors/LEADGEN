@@ -286,6 +286,7 @@ def fetch_page(url: str, session: requests.Session) -> dict:
     result = {
         "ok": False, "url": url, "final_url": url,
         "is_redirected": False, "redirect_url": None,
+        "redirect_chain": [], "redirect_count": 0, "is_redirect_loop": False,
         "status_code": None, "html": "", "soup": None,
         "headers": {}, "error": None, "truncated": False,
     }
@@ -295,6 +296,27 @@ def fetch_page(url: str, session: requests.Session) -> dict:
             result["final_url"] = resp.url
             result["is_redirected"] = normalize_url(url) != normalize_url(resp.url)
             result["redirect_url"] = resp.url if result["is_redirected"] else None
+            
+            # Linkinator/SEOnaut benchmark: capture full redirect chain and loop detection
+            history = getattr(resp, "history", None) or []
+            if history:
+                chain = [getattr(r, "url", str(r)) for r in history] + [resp.url]
+                result["redirect_chain"] = chain
+                result["redirect_count"] = len(history)
+                seen_urls = set()
+                is_loop = False
+                for u in chain:
+                    norm_u = normalize_url(u)
+                    if norm_u in seen_urls:
+                        is_loop = True
+                        break
+                    seen_urls.add(norm_u)
+                result["is_redirect_loop"] = is_loop
+            else:
+                result["redirect_chain"] = []
+                result["redirect_count"] = 0
+                result["is_redirect_loop"] = False
+
             result["status_code"] = resp.status_code
             html_text = read_response_text(resp, max_bytes=MAX_BODY_BYTES, max_elapsed=MAX_READ_TIME)
             result["html"] = html_text
@@ -303,6 +325,10 @@ def fetch_page(url: str, session: requests.Session) -> dict:
             if result["truncated"]:
                 result["headers"]["x-content-truncated"] = "true"
             result["soup"] = BeautifulSoup(html_text, "lxml")
+    except requests.exceptions.TooManyRedirects as e:
+        result["error"] = f"Too Many Redirects (Loop detected): {e}"
+        result["is_redirect_loop"] = True
+        result["status_code"] = 310
     except requests.exceptions.SSLError as e:
         result["error"] = f"SSL Error: {e}"
     except requests.exceptions.ConnectionError as e:
