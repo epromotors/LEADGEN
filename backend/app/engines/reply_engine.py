@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import email
 import imaplib
 import json
@@ -321,6 +322,10 @@ def fetch_unseen_emails() -> list[dict]:
                         "body":      body,
                         "snippet":   body[:500].strip(),
                         "headers":   headers,
+                        # Phase 3: pass the real parsed Message object so the AI
+                        # classifier can inspect Content-Type, DSN parts, auto-reply
+                        # headers, and body without rebuilding from strings.
+                        "msg":       msg,
                     })
 
                     # Mark as SEEN immediately
@@ -412,6 +417,120 @@ async def _flag_soft_bounce(db, lead: Lead, snippet: str) -> None:
 
 # ── Main processor ────────────────────────────────────────────────────────────
 
+# ── AI plan applicator (REPLY_AI_MODE=on only) ────────────────────────────────
+
+async def apply_ai_plan(
+    db,
+    lead: Optional[Lead],
+    result,          # ClassificationResult
+    plan: dict,
+    now: datetime,
+    target_email: str,
+    snippet: str,
+) -> None:
+    """
+    Apply the declarative plan from plan_actions() to the database.
+
+    Safety rules (hard-coded, not config-driven):
+    - Purge ONLY when plan["purge_lead"] is True (requires source in ("dsn","rules")
+      AND confidence >= 0.85 AND needs_review is False — all enforced in plan_actions).
+    - If bounced_recipient != lead.email, do NOT purge; flag needs_review instead.
+    - Suppress is always safe and reversible.
+    - Soft-bounce counter: lead.bounce_count increments; at >= 3 treat as hard bounce.
+    """
+    from app.services.suppression_service import suppress_email  # local import — no circular dep
+
+    if lead is None and not plan["suppress"]:
+        # Nothing we can do without a lead and no suppression either
+        return
+
+    # ── Suppression ──────────────────────────────────────────────────────────
+    if plan["suppress"] and lead is not None:
+        await suppress_email(
+            email=target_email,
+            reason=plan["suppress"],
+            source="inbound_reply",
+            db=db,
+            lead=lead,
+        )
+
+    # ── Purge safety check ───────────────────────────────────────────────────
+    want_purge = plan["purge_lead"] and lead is not None
+    if want_purge and result.bounced_recipient and lead is not None:
+        if result.bounced_recipient.lower() != lead.email.lower():
+            # Bounced address doesn't match our lead — flag for review, do NOT purge
+            want_purge = False
+            if lead is not None:
+                lead.needs_review = True
+            logger.warning(
+                "[reply_engine/ai] Bounce recipient %s != lead %s — flagging needs_review, skipping purge",
+                result.bounced_recipient, lead.email,
+            )
+
+    if want_purge and lead is not None:
+        await _delete_lead(db, lead, f"AI classifier: {result.category.value} (source={result.source})")
+        return   # lead is gone — nothing more to set
+
+    # ── Lead field updates ───────────────────────────────────────────────────
+    if lead is not None:
+        lead.reply_type      = plan["reply_type"]
+        lead.reply_category  = plan["reply_category"]
+        lead.reply_confidence = result.confidence
+        lead.reply_source    = result.source
+        lead.reply_reasoning = (result.reasoning or "")[:255]
+        lead.intent_score    = result.intent_score
+        lead.reply_snippet   = snippet[:500]
+
+        if plan["count_as_reply"]:
+            lead.replied_at = now
+
+        if plan["set_status"]:
+            lead.status = LeadStatus(plan["set_status"])
+
+        if plan["halt_sequence"]:
+            lead.sequence_touch_count = lead.sequence_touch_count  # preserve; halt via suppression/status
+
+        if plan["pause_until"]:
+            from app.engines.ai_reply_classifier import resolve_pause_until
+            lead.sequence_paused_until = resolve_pause_until(plan["pause_until"], now)
+
+        if plan["review_queue"]:
+            lead.needs_review = True
+
+        # Soft-bounce counter: accumulate; at 3 escalate to hard-bounce suppression
+        if result.category.value == "soft_bounce":
+            lead.bounce_count = (lead.bounce_count or 0) + 1
+            if lead.bounce_count >= 3:
+                logger.warning(
+                    "[reply_engine/ai] %s reached 3 soft bounces — escalating to hard bounce suppression",
+                    lead.email,
+                )
+                await suppress_email(
+                    email=lead.email,
+                    reason="bounce",
+                    source="inbound_reply",
+                    db=db,
+                    lead=lead,
+                )
+
+        db.add(lead)
+
+    # ── Activity log ─────────────────────────────────────────────────────────
+    log_msg = (
+        f"[AI/{result.source}] {result.category.value} conf={result.confidence:.2f} "
+        f"| {target_email} | {result.reasoning[:80]}"
+    )
+    log = ActivityLog(
+        event_type=plan["event"],
+        lead_id=lead.id if lead is not None else None,
+        message=log_msg,
+    )
+    db.add(log)
+    # Commit is done by the caller (process_replies loop)
+
+
+# ── Main processor ────────────────────────────────────────────────────────────
+
 async def process_replies() -> dict:
     """
     Full reply processing cycle:
@@ -429,6 +548,9 @@ async def process_replies() -> dict:
         "soft_bounce": 0,
         "other":       0,
         "errors":      0,
+        # AI-mode shadow/on stats (always present, 0 when mode=off)
+        "ai_classified": 0,
+        "ai_review":     0,
     }
 
     try:
@@ -448,7 +570,107 @@ async def process_replies() -> dict:
                 body      = em["body"]
                 snippet   = em["snippet"]
                 headers   = em["headers"]
+                raw_msg   = em.get("msg")   # email.message.Message — present from Phase 3+
+                now       = datetime.now(timezone.utc)
 
+                ai_mode = getattr(settings, "REPLY_AI_MODE", "off")
+
+                # ── AI path (shadow or on) ────────────────────────────────────
+                if ai_mode in ("shadow", "on") and raw_msg is not None:
+                    try:
+                        from app.engines.ai_reply_classifier import (
+                            classify_reply as ai_classify,
+                            plan_actions,
+                        )
+                        # Blocking HTTP call to Ollama — must NOT run on the event loop
+                        ai_result = await asyncio.to_thread(
+                            ai_classify,
+                            raw_msg,
+                            {"subject": subject, "segment": getattr(settings, "DEFAULT_SEGMENT", "")},
+                        )
+                        ai_plan = plan_actions(ai_result)
+
+                        logger.info(
+                            "[reply_engine/ai:%s] %s | %s (conf=%.2f src=%s needs_review=%s) | '%s'",
+                            ai_mode, from_addr, ai_result.category.value,
+                            ai_result.confidence, ai_result.source,
+                            ai_result.needs_review, subject[:60],
+                        )
+
+                        # Determine target email for lead lookup
+                        if ai_result.bounced_recipient:
+                            target_email = ai_result.bounced_recipient
+                        elif ai_plan["reply_type"] == "bounce":
+                            target_email = _extract_original_to(headers, body) or from_addr
+                        else:
+                            target_email = from_addr
+
+                        if ai_mode == "shadow":
+                            # Shadow: log to activity_log only — zero DB state changes
+                            lead = await _find_lead_by_email(db, target_email)
+                            shadow_log = ActivityLog(
+                                event_type=f"shadow_{ai_plan['event']}",
+                                lead_id=lead.id if lead else None,
+                                message=(
+                                    f"[SHADOW/{ai_result.source}] {ai_result.category.value} "
+                                    f"conf={ai_result.confidence:.2f} needs_review={ai_result.needs_review} "
+                                    f"| {target_email} | {ai_result.reasoning[:80]}"
+                                ),
+                            )
+                            db.add(shadow_log)
+                            try:
+                                await db.commit()
+                            except Exception as commit_err:
+                                await db.rollback()
+                                logger.warning("[reply_engine/shadow] commit failed: %s", commit_err)
+                            stats["ai_classified"] += 1
+                            if ai_result.needs_review:
+                                stats["ai_review"] += 1
+                            # Fall through to legacy path below
+
+                        else:  # ai_mode == "on"
+                            lead = await _find_lead_by_email(db, target_email)
+                            try:
+                                await apply_ai_plan(
+                                    db=db, lead=lead, result=ai_result,
+                                    plan=ai_plan, now=now,
+                                    target_email=target_email, snippet=snippet,
+                                )
+                                await db.commit()
+                            except Exception as apply_err:
+                                await db.rollback()
+                                logger.error(
+                                    "[reply_engine/ai] apply_ai_plan failed for %s: %s — falling back to legacy",
+                                    target_email, apply_err,
+                                )
+                                # Fall through to legacy path
+                            else:
+                                # AI path succeeded — update stats and move on
+                                stats["ai_classified"] += 1
+                                if ai_result.needs_review:
+                                    stats["ai_review"] += 1
+                                cat = ai_result.category.value
+                                if cat in ("hot_interest", "question"):
+                                    stats["positive"] += 1
+                                elif cat in ("hard_bounce",):
+                                    stats["deleted"] += 1
+                                elif cat in ("soft_bounce", "out_of_office"):
+                                    stats["soft_bounce"] += 1
+                                elif cat in ("unsubscribe", "complaint", "not_interested"):
+                                    stats["deleted"] += (1 if ai_plan["purge_lead"] else 0)
+                                    stats["other"]   += (0 if ai_plan["purge_lead"] else 1)
+                                else:
+                                    stats["other"] += 1
+                                continue   # skip legacy path entirely
+
+                    except Exception as ai_err:
+                        logger.warning(
+                            "[reply_engine/ai] classifier raised unexpectedly for %s: %s — using legacy",
+                            from_addr, ai_err,
+                        )
+                        # Fall through to legacy path
+
+                # ── Legacy path (always runs when mode=off; fallback when AI fails) ──
                 reply_type, tier_tag = classify_reply_with_tag(subject, body, from_addr)
                 logger.info(
                     f"[reply_engine] {from_addr} | {reply_type.upper()}"

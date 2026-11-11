@@ -79,3 +79,4 @@ COMMENT ON COLUMN leads.bounce_count IS
     'Soft-bounce counter. Resets to 0 on successful delivery. At 3 → escalate to hard.';
 
 COMMIT;
+
