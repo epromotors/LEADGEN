@@ -193,7 +193,7 @@ export const refreshCampaignAudit   = (leadId)          => api.post(`/campaigns/
 
 // ─── Replies & Inbox ───────────────────────────────────────────────────────
 export const checkReplies         = ()                  => api.post('/replies/check')
-export const checkRepliesNow      = ()                  => api.post('/replies/check-now')
+export const checkRepliesNow      = ()                  => api.post('/replies/check-now', null, { timeout: 120000 })
 export const getConvertedLeads    = ({ page = 1, page_size = 50 } = {}) =>
   api.get('/replies/converted', { params: { page, page_size } })
 export const getAllReplies        = ({ page = 1, page_size = 100 } = {}) =>

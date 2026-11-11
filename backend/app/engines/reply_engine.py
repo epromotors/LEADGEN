@@ -270,7 +270,7 @@ def fetch_unseen_emails() -> list[dict]:
     results = []
 
     try:
-        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT, timeout=30)
         imap.login(imap_user, imap_pass)
     except Exception as e:
         raise RuntimeError(f"IMAP login failed for {imap_user}: {e}")
@@ -554,7 +554,7 @@ async def process_replies() -> dict:
     }
 
     try:
-        emails = fetch_unseen_emails()
+        emails = await asyncio.to_thread(fetch_unseen_emails)
     except Exception as e:
         logger.error(f"[reply_engine] fetch_unseen_emails failed: {e}")
         stats["errors"] += 1
