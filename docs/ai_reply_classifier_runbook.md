@@ -158,3 +158,4 @@ All columns on the `leads` table, all nullable/defaulted:
 4. **Full rollback:** Restore from `backend/backups/leadgen_pre_ai_reply_*.dump` (only if data corruption).
 
 > ⚠️ **Never** run `git reset --hard` on the production branch without explicit confirmation.
+

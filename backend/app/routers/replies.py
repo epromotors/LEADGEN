@@ -416,3 +416,64 @@ async def list_needs_review(
     )
     leads = result.scalars().all()
     return LeadListResponse(total=total, items=leads)
+
+
+@router.get(
+    "/ai-status",
+    summary="AI reply classifier status and Ollama health",
+)
+async def ai_classifier_status(db: AsyncSession = Depends(get_db)):
+    """
+    Returns current AI mode, Ollama connectivity, model availability,
+    and pending needs-review count. Used by the frontend status panel.
+    """
+    import urllib.request
+    import urllib.error
+    from app.config import settings
+
+    mode = getattr(settings, "REPLY_AI_MODE", "off")
+    ollama_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
+    fast_model = getattr(settings, "REPLY_LLM_FAST_MODEL", "qwen2.5:3b")
+    strong_model = getattr(settings, "REPLY_LLM_STRONG_MODEL", "") or None
+
+    # Check Ollama connectivity
+    ollama_ok = False
+    models_available: list[str] = []
+    ollama_error: str | None = None
+    try:
+        req = urllib.request.urlopen(f"{ollama_url}/api/tags", timeout=3)
+        import json as _json
+        data = _json.loads(req.read())
+        models_available = [m["name"] for m in data.get("models", [])]
+        ollama_ok = True
+    except Exception as e:
+        ollama_error = str(e)[:120]
+
+    fast_model_ready = any(fast_model in m for m in models_available) if ollama_ok else False
+    strong_model_ready = any(strong_model in m for m in models_available) if (ollama_ok and strong_model) else None
+
+    # Needs-review count
+    needs_review_count = (
+        await db.execute(
+            select(func.count()).select_from(Lead).where(Lead.needs_review == True)
+        )
+    ).scalar_one()
+
+    return {
+        "mode": mode,
+        "ollama_reachable": ollama_ok,
+        "ollama_url": ollama_url,
+        "ollama_error": ollama_error,
+        "fast_model": fast_model,
+        "fast_model_ready": fast_model_ready,
+        "strong_model": strong_model,
+        "strong_model_ready": strong_model_ready,
+        "models_available": models_available,
+        "needs_review_count": needs_review_count,
+        "layers": {
+            "structural_dsn": True,
+            "strict_rules": True,
+            "llm": fast_model_ready,
+            "keyword_fallback": True,
+        },
+    }
