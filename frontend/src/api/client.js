@@ -202,6 +202,10 @@ export const getReplyStats        = ()                  => api.get('/replies/sta
 export const previewEmail2        = (leadId)            => api.get(`/replies/preview-email2/${leadId}`)
 export const sendEmail2           = (leadId, data = {}) => api.post(`/replies/send-email2/${leadId}`, data)
 export const reclassifyReply      = (leadId)            => api.patch(`/replies/reclassify/${leadId}`)
+export const getNeedsReview       = ({ page = 1, page_size = 50 } = {}) =>
+  api.get('/replies/needs-review', { params: { page, page_size } })
+export const clearNeedsReview     = (leadId, unSuppress = false) =>
+  api.patch(`/replies/reclassify/${leadId}/review`, { un_suppress: unSuppress })
 
 // ─── Activity / Metrics ────────────────────────────────────────────────────
 export const getActivity = (limit = 50)  => api.get('/activity/', { params: { limit } })

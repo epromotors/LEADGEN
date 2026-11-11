@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Inbox, RefreshCw, TrendingUp, Mail, AlertTriangle,
-  Server, ShieldCheck, CheckCircle2, XCircle
+  Server, ShieldCheck, CheckCircle2, XCircle, ClipboardList
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -11,6 +11,8 @@ import {
   checkRepliesNow,
   reclassifyReply,
   deleteLead,
+  getNeedsReview,
+  clearNeedsReview,
 } from '../api/client'
 import InboxKpiCards from '../components/inbox/InboxKpiCards'
 import ConvertedLeadsTable from '../components/inbox/ConvertedLeadsTable'
@@ -19,9 +21,10 @@ import InboxSyncPanel from '../components/inbox/InboxSyncPanel'
 import ReplyDetailModal from '../components/inbox/ReplyDetailModal'
 import Email2ComposeModal from '../components/inbox/Email2ComposeModal'
 import InboxSkeleton from '../components/inbox/InboxSkeleton'
+import NeedsReviewTable from '../components/inbox/NeedsReviewTable'
 
 export default function InboxPage() {
-  const [activeTab, setActiveTab] = useState('converted') // 'converted' | 'all_replies' | 'sync'
+  const [activeTab, setActiveTab] = useState('converted') // 'converted' | 'all_replies' | 'needs_review' | 'sync'
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -34,6 +37,12 @@ export default function InboxPage() {
   // All replies state
   const [allReplies, setAllReplies] = useState([])
   const [allRepliesTotal, setAllRepliesTotal] = useState(0)
+
+  // Needs Review (AI classifier) state
+  const [needsReviewLeads, setNeedsReviewLeads] = useState([])
+  const [needsReviewTotal, setNeedsReviewTotal] = useState(0)
+  const [needsReviewPage, setNeedsReviewPage] = useState(1)
+  const [clearingIds, setClearingIds] = useState(new Set())
 
   // Stats & sync state
   const [stats, setStats] = useState(null)
@@ -86,6 +95,22 @@ export default function InboxPage() {
     }
   }, [])
 
+
+  // Load needs-review leads
+  const fetchNeedsReview = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true)
+    setError('')
+    try {
+      const res = await getNeedsReview({ page: needsReviewPage, page_size: 50 })
+      setNeedsReviewLeads(res.data?.items || [])
+      setNeedsReviewTotal(res.data?.total || 0)
+    } catch (err) {
+      setError('Failed to load needs-review leads.')
+    } finally {
+      if (!isSilent) setLoading(false)
+    }
+  }, [needsReviewPage])
+
   // Initial load
   useEffect(() => {
     fetchStats()
@@ -96,8 +121,10 @@ export default function InboxPage() {
       fetchConverted()
     } else if (activeTab === 'all_replies') {
       fetchAllReplies()
+    } else if (activeTab === 'needs_review') {
+      fetchNeedsReview()
     }
-  }, [activeTab, fetchConverted, fetchAllReplies])
+  }, [activeTab, fetchConverted, fetchAllReplies, fetchNeedsReview])
 
   // Sync inbox trigger
   const handleSync = async () => {
@@ -154,6 +181,24 @@ export default function InboxPage() {
     }
   }
 
+
+  // Clear needs_review flag (operator override)
+  const handleClearReview = async (lead, unSuppress = false) => {
+    setClearingIds(prev => new Set(prev).add(lead.id))
+    try {
+      await clearNeedsReview(lead.id, unSuppress)
+      const action = unSuppress ? 'cleared review & removed suppression' : 'cleared review flag'
+      toast.success(`${lead.business_name}: ${action}`)
+      setNeedsReviewLeads(prev => prev.filter(l => l.id !== lead.id))
+      setNeedsReviewTotal(prev => Math.max(0, prev - 1))
+      fetchStats()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to clear review flag')
+    } finally {
+      setClearingIds(prev => { const s = new Set(prev); s.delete(lead.id); return s })
+    }
+  }
+
   const tabs = [
     {
       id: 'converted',
@@ -168,6 +213,13 @@ export default function InboxPage() {
       icon: Mail,
       count: allRepliesTotal || null,
       countColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    },
+    {
+      id: 'needs_review',
+      label: 'Needs Review',
+      icon: ClipboardList,
+      count: stats?.needs_review || null,
+      countColor: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
     },
     {
       id: 'sync',
@@ -274,6 +326,18 @@ export default function InboxPage() {
           onCompose={setComposeLead}
           onReclassify={handleReclassify}
           onDelete={handleDelete}
+          loading={loading}
+        />
+      ) : activeTab === 'needs_review' ? (
+        <NeedsReviewTable
+          leads={needsReviewLeads}
+          total={needsReviewTotal}
+          page={needsReviewPage}
+          pageSize={50}
+          onPageChange={setNeedsReviewPage}
+          onClearReview={handleClearReview}
+          onPreview={setPreviewLead}
+          clearing={clearingIds}
           loading={loading}
         />
       ) : (
