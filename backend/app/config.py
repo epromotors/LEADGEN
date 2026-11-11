@@ -136,6 +136,16 @@ class Settings(BaseSettings):
     DISCOVERY_MAX_COMBINATIONS_LIMIT: int = 500
     DISCOVERY_STORAGE_FILE: str = "reports/.lead_discovery_jobs.json"
 
+    # -- AI Reply Classifier (Phase 2+) -----------------------------------------
+    # REPLY_AI_MODE: off | shadow | on
+    #   off    -> 100% legacy behaviour (default, safe to deploy before migration)
+    #   shadow -> classify silently, log to activity_log only, no DB state changes
+    #   on     -> full AI-driven classification replaces keyword cascade
+    REPLY_AI_MODE: str = "off"
+    OLLAMA_URL: str = "http://localhost:11434"
+    REPLY_LLM_FAST_MODEL: str = "qwen2.5:3b"
+    REPLY_LLM_STRONG_MODEL: str = ""   # leave blank to skip escalation
+
     model_config = ConfigDict(env_file=".env", extra="ignore")
 
     def get_smtp_accounts(self) -> List[dict]:

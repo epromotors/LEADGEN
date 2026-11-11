@@ -2,7 +2,7 @@ import uuid
 import enum
 from datetime import datetime, timezone
 from sqlalchemy import (
-    String, Boolean, Integer, Text, DateTime, ForeignKey, Enum as SAEnum, JSON, event
+    String, Boolean, Integer, Float, Text, DateTime, ForeignKey, Enum as SAEnum, JSON, event
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Mapper
@@ -76,6 +76,14 @@ class Lead(Base):
     replied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     reply_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)       # first 500 chars of reply
     reply_type: Mapped[str | None] = mapped_column(String(30), nullable=True)    # positive|stop|bounce|soft_bounce
+    # ── AI Reply Classifier columns (Phase 2 — v8_0_0_ai_reply_columns.sql) ─────
+    reply_category: Mapped[str | None] = mapped_column(String(30), nullable=True)   # fine-grained category
+    reply_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)     # 0.0-1.0
+    reply_source: Mapped[str | None] = mapped_column(String(20), nullable=True)      # dsn|rules|llm_fast|...
+    reply_reasoning: Mapped[str | None] = mapped_column(String(255), nullable=True)  # short explanation
+    intent_score: Mapped[int | None] = mapped_column(Integer, nullable=True)         # 0-100 buying intent
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # operator review flag
+    bounce_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)    # soft-bounce counter
 
     # ── Niche Classification (Batches 1-3) ──────────────────────────────────────
     # Assigned via niche_router.classify_lead_niche(); 1-26 per templates_all.json.

@@ -122,3 +122,4 @@ def test_cfg_prefers_env_and_has_safe_defaults(monkeypatch):
     assert m._cfg("OLLAMA_URL", "d") == "http://x:1"
     monkeypatch.delenv("REPLY_LLM_STRONG_MODEL", raising=False)
     assert m._cfg("REPLY_LLM_STRONG_MODEL", "") == ""
+
