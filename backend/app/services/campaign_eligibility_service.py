@@ -498,6 +498,20 @@ def classify_email_sendability(
         else:
             return EmailSendabilityClassification.QUARANTINED
 
+    # AI reply classifier: needs_review blocks automated outreach (operator must clear first)
+    if getattr(lead, "needs_review", False):
+        return EmailSendabilityClassification.QUARANTINED
+
+    # AI reply classifier: sequence pause (OOO / not_now) — treat as COOLDOWN
+    paused_until = getattr(lead, "sequence_paused_until", None)
+    if paused_until is not None:
+        now_dt = datetime.now(timezone.utc)
+        # Normalise naive datetimes (DB may return naive UTC)
+        if getattr(paused_until, "tzinfo", None) is None:
+            paused_until = paused_until.replace(tzinfo=timezone.utc)
+        if paused_until > now_dt:
+            return EmailSendabilityClassification.COOLDOWN
+
     # Check cooldown (7-day rule)
     last_emailed = getattr(lead, "last_emailed_at", None)
     if last_emailed:

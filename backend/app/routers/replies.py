@@ -148,10 +148,18 @@ async def reply_stats(db: AsyncSession = Depends(get_db)):
         )
     ).scalar_one()
 
+    # AI: needs-review count (always present, 0 when REPLY_AI_MODE=off)
+    needs_review_count = (
+        await db.execute(
+            select(func.count()).select_from(Lead).where(Lead.needs_review == True)
+        )
+    ).scalar_one()
+
     return {
         "converted": converted_count,
         "soft_bounce": soft_bounce_count,
         "deleted_today": deleted_today,
+        "needs_review": needs_review_count,
     }
 
 
@@ -318,3 +326,93 @@ async def reclassify_reply(
     await db.refresh(lead)
     logger.info(f"[replies] Reclassified lead {lead.email} → other")
     return lead
+
+
+class ReclassifyRequest(BaseModel):
+    """Optional body for reclassify. When un_suppress=True the operator overrules
+    an AI-driven stop/bounce decision and removes the suppression record."""
+    un_suppress: bool = False
+
+
+@router.patch(
+    "/reclassify/{lead_id}/review",
+    response_model=LeadResponse,
+    summary="Operator overrule: clear needs_review flag, optionally un-suppress",
+)
+async def clear_needs_review(
+    lead_id: uuid.UUID,
+    body: ReclassifyRequest = ReclassifyRequest(),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Clear needs_review=True on a lead flagged by the AI classifier.
+    Optionally removes the suppression record when the operator overrules
+    an AI-driven stop/bounce decision.
+
+    Does NOT change lead status — operator decides what to do next.
+    """
+    from app.models import SuppressionList
+    from sqlalchemy import delete as sql_delete
+
+    result = await db.execute(select(Lead).where(Lead.id == lead_id))
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    lead.needs_review = False
+    action_notes = ["needs_review cleared"]
+
+    if body.un_suppress:
+        lead.is_suppressed = False
+        lead.suppressed_at = None
+        lead.suppression_reason = None
+        await db.execute(
+            sql_delete(SuppressionList).where(SuppressionList.email == lead.email)
+        )
+        action_notes.append("suppression removed")
+
+    log = ActivityLog(
+        event_type="lead_review_cleared",
+        lead_id=lead.id,
+        message=(
+            f"Operator cleared review flag for {lead.business_name} <{lead.email}>"
+            f" - {', '.join(action_notes)}"
+        ),
+    )
+    db.add(log)
+    await db.commit()
+    await db.refresh(lead)
+    logger.info("[replies] Cleared needs_review for %s (un_suppress=%s)", lead.email, body.un_suppress)
+    return lead
+
+
+@router.get(
+    "/needs-review",
+    response_model=LeadListResponse,
+    summary="List leads flagged for operator review by the AI classifier",
+)
+async def list_needs_review(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return all leads with needs_review=True, ordered by most recently replied.
+    These leads had low-confidence or ambiguous AI classifications and require
+    an operator decision before automated outreach resumes.
+    """
+    total = (
+        await db.execute(
+            select(func.count()).select_from(Lead).where(Lead.needs_review == True)
+        )
+    ).scalar_one()
+
+    result = await db.execute(
+        select(Lead)
+        .where(Lead.needs_review == True)
+        .order_by(Lead.replied_at.desc().nulls_last())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    leads = result.scalars().all()
+    return LeadListResponse(total=total, items=leads)
