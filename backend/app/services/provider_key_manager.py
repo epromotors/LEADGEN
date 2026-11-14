@@ -690,7 +690,16 @@ class ProviderKeyManager:
         )
         self.pools["serpapi"] = ProviderKeyPool("serpapi", serpapi_keys, quota_scopes=serpapi_scopes)
 
-        # 5. Optional discovery providers (HasData, Outscraper, Hunter, etc.)
+        # 5. Scrape.do (HTTP Proxy Scraper for Google Maps HTML)
+        scrapedo_keys, scrapedo_scopes = self._collect_keys_and_scopes(
+            provider="scrape_do",
+            numbered_names=["SCRAPE_DO_API_KEY_1", "SCRAPE_DO_API_KEY_2"],
+            legacy_aliases=["SCRAPE_DO_API_KEY"],
+            numbered_scope_names=["SCRAPE_DO_QUOTA_SCOPE_1", "SCRAPE_DO_QUOTA_SCOPE_2"],
+        )
+        self.pools["scrape_do"] = ProviderKeyPool("scrape_do", scrapedo_keys, quota_scopes=scrapedo_scopes)
+
+        # 6. Optional discovery providers (HasData, Outscraper, Hunter, etc.)
         for prov, prefix in [
             ("hasdata", "HASDATA_API_KEY"),
             ("outscraper", "OUTSCRAPER_API_KEY"),

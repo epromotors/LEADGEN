@@ -124,10 +124,74 @@ DEFAULT_PRESET_KEYWORDS: List[str] = [
 ]
 
 DEFAULT_PRESET_LOCATIONS: List[str] = [
-    "Austin, Texas, USA", "Dallas, Texas, USA", "Houston, Texas, USA",
-    "London, UK", "Manchester, UK", "Birmingham, UK",
-    "Delhi, India", "Dehradun, Uttarakhand, India", "Roorkee, Uttarakhand, India", "Haridwar, Uttarakhand, India",
-    "Sydney, Australia", "Melbourne, Australia", "Toronto, Canada",
+    "Delhi, India",
+    "Mumbai, India",
+    "Bangalore, India",
+    "Hyderabad, India",
+    "Chennai, India",
+    "Pune, India",
+    "Ahmedabad, India",
+    "Surat, India",
+    "Jaipur, India",
+    "Lucknow, India",
+    "Meerut, India",
+    "Noida, India",
+    "Gurgaon, India",
+    "Faridabad, India",
+    "Ghaziabad, India",
+    "Kanpur, India",
+    "Nagpur, India",
+    "Indore, India",
+    "Bhopal, India",
+    "Patna, India",
+    "Vadodara, India",
+    "Coimbatore, India",
+    "Visakhapatnam, India",
+    "Manesar, India",
+    "Bhiwadi, India",
+    "Neemrana, India",
+    "Vapi, India",
+    "Ankleshwar, India",
+    "Sanand, India",
+    "Hosur, India",
+    "Sriperumbudur, India",
+    "Chakan, India",
+    "MIDC Pune, India",
+    "Peenya Bangalore, India",
+    "Kolkata, India",
+    "Chandigarh, India",
+    "Ludhiana, India",
+    "Amritsar, India",
+    "Jalandhar, India",
+    "Dehradun, India",
+    "Haridwar, India",
+    "Roorkee, India",
+    "Haldwani, India",
+    "Rudrapur, India",
+    "Agra, India",
+    "Varanasi, India",
+    "Prayagraj, India",
+    "Bareilly, India",
+    "Moradabad, India",
+    "Aligarh, India",
+    "Saharanpur, India",
+    "Gorakhpur, India",
+    "Udaipur, India",
+    "Jodhpur, India",
+    "Kota, India",
+    "Ajmer, India",
+    "Rajkot, India",
+    "Bharuch, India",
+    "Gandhinagar, India",
+    "Jamnagar, India",
+    "Morbi, India",
+    "Nashik, India",
+    "Aurangabad, India",
+    "Thane, India",
+    "Navi Mumbai, India",
+    "Kolhapur, India",
+    "Solapur, India",
+    "Raipur, India"
 ]
 
 
@@ -1097,6 +1161,7 @@ class LeadDiscoveryService:
         hasdata_pool = km.get_pool("hasdata")
         outscraper_pool = km.get_pool("outscraper")
         hunter_pool = km.get_pool("hunter")
+        scrapedo_pool = km.get_pool("scrape_do")
 
         serper_conf = (serper_pool.is_configured() if serper_pool else False) or bool(getattr(settings, "SERPER_API_KEY", ""))
         treg_conf = (treg_pool.is_configured() if treg_pool else False) or bool(getattr(settings, "TREG_API_TOKEN", "") or getattr(settings, "TREG_API_KEY", ""))
@@ -1106,6 +1171,7 @@ class LeadDiscoveryService:
         hasdata_conf = (hasdata_pool.is_configured() if hasdata_pool else False) or bool(getattr(settings, "HASDATA_API_KEY", ""))
         outscraper_conf = (outscraper_pool.is_configured() if outscraper_pool else False) or bool(getattr(settings, "OUTSCRAPER_API_KEY", ""))
         hunter_conf = (hunter_pool.is_configured() if hunter_pool else False) or bool(getattr(settings, "HUNTER_API_KEY", ""))
+        scrapedo_conf = scrapedo_pool.is_configured() if scrapedo_pool else False
 
         self._provider_status = {
             "serper": {
@@ -1146,6 +1212,33 @@ class LeadDiscoveryService:
                 "status": ProviderStatus.AVAILABLE if treg_conf else ProviderStatus.DISABLED,
                 "configured": treg_conf,
                 "key_masked": self._mask_key(getattr(settings, "TREG_API_TOKEN", "") or (treg_pool.keys[0].secret if treg_pool and treg_pool.keys else "")),
+                "last_error": None,
+            },
+            "scrape_do": {
+                "status": ProviderStatus.AVAILABLE if scrapedo_conf else ProviderStatus.DISABLED,
+                "configured": scrapedo_conf,
+                "key_masked": self._mask_key(
+                    scrapedo_pool.keys[0].secret if scrapedo_pool and scrapedo_pool.keys else ""
+                ),
+                "last_error": None,
+            },
+            # GitHub open-source Google Maps scrapers (local subprocess, no API key needed)
+            "gosom_gmaps": {
+                "status": ProviderStatus.AVAILABLE,
+                "configured": True,
+                "key_masked": "N/A (open-source CLI)",
+                "last_error": None,
+            },
+            "botasaurus_gmaps": {
+                "status": ProviderStatus.AVAILABLE,
+                "configured": True,
+                "key_masked": "N/A (open-source CLI)",
+                "last_error": None,
+            },
+            "mahanaicoach_gmaps": {
+                "status": ProviderStatus.AVAILABLE,
+                "configured": True,
+                "key_masked": "N/A (open-source CLI)",
                 "last_error": None,
             },
             "http_direct": {
@@ -1261,11 +1354,13 @@ class LeadDiscoveryService:
 
         total_combinations = len(active_kws) * len(active_locs)
         max_allowed = getattr(settings, "DISCOVERY_MAX_COMBINATIONS_LIMIT", 500)
+        if mode == "presets_only":
+            max_allowed = max(max_allowed, total_combinations)
         offset = max(0, batch_offset or 0)
         remaining = max(0, total_combinations - offset)
 
         budget = custom_budget if custom_budget and custom_budget > 0 else total_combinations
-        exceeds_safety_limit = total_combinations > max_allowed and (budget > max_allowed)
+        exceeds_safety_limit = (mode != "presets_only") and (total_combinations > max_allowed and budget > max_allowed)
         effective_budget = min(budget, remaining) if remaining > 0 else 0
 
         batch_start = (offset + 1) if (total_combinations > 0 and effective_budget > 0) else 0
@@ -1603,6 +1698,233 @@ class LeadDiscoveryService:
             except Exception as exc:
                 self._provider_status["outscraper"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
                 self._provider_status["outscraper"]["last_error"] = str(exc)
+
+        # 6. Scrape.do (HTTP Proxy - Google Search local results)
+        scrapedo_pool = km.get_pool("scrape_do")
+        if scrapedo_pool and scrapedo_pool.is_configured() and not scrapedo_pool.shared_quota_exhausted:
+            attempts = 0
+            max_scrapedo_attempts = max(1, len(scrapedo_pool.keys))
+            while attempts < max_scrapedo_attempts:
+                attempts += 1
+                key_item = await scrapedo_pool.get_next_key()
+                if not key_item:
+                    break
+                prov_key, slot_id = key_item
+                try:
+                    import re as _re
+                    # Use Google Local Search (tbm=lcl) which returns structured HTML
+                    local_search_url = (
+                        "https://www.google.com/search"
+                        f"?q={urllib.parse.quote(query)}&tbm=lcl"
+                    )
+                    scrape_url = (
+                        f"https://api.scrape.do"
+                        f"?token={prov_key.secret}"
+                        f"&url={urllib.parse.quote(local_search_url)}"
+                        "&super=true"
+                    )
+                    async with session.get(scrape_url, timeout=35) as resp:
+                        retry_after = resp.headers.get("Retry-After")
+                        ra_val = float(retry_after) if retry_after and retry_after.isdigit() else None
+                        err_text = ""
+                        if resp.status != 200:
+                            err_text = await _extract_resp_text(resp)
+                        is_quota = (resp.status == 402) or any(
+                            q in err_text.lower() for q in ("quota", "credit", "limit exceeded")
+                        )
+                        scrapedo_pool.report_result(
+                            prov_key, resp.status,
+                            retry_after=ra_val, error_message=err_text, quota_exhausted=is_quota,
+                        )
+                        if resp.status == 200:
+                            html = await resp.text()
+                            # Pattern 1: span class r (Google Local Pack listing titles)
+                            names_local = _re.findall(r'<span class="[^"]*OSrXXb[^"]*"[^>]*>([^<]+)', html)
+                            # Pattern 2: h3 headings for local results
+                            names_h3 = _re.findall(r'<h3[^>]*class="[^"]*"[^>]*>([^<]{5,80})', html)
+                            # Pattern 3: span role=heading in local cards
+                            names_heading = _re.findall(r'<span[^>]*role="heading"[^>]*>([^<]{5,80})', html)
+                            # Merge, deduplicate, filter noise & review snippets
+                            _noise_words = {
+                                "google", "search", "menu", "map", "direction", "website",
+                                "review", "photo", "call", "hour", "address", "open", "close",
+                                "javascript", "window", "function", "undefined",
+                            }
+                            seen: set = set()
+                            names_all = []
+                            for n in (names_local + names_h3 + names_heading):
+                                n = n.strip()
+                                nl = n.lower()
+                                # Reject review snippets: start with quote char or contain sentence punctuation
+                                if n.startswith('"') or n.startswith("'") or n.startswith("\u201c"):
+                                    continue
+                                # Reject sentence-like strings (contain period/comma mid-text or > 5 words)
+                                word_count = len(n.split())
+                                if word_count > 7:
+                                    continue
+                                # Reject if contains common review/sentence words
+                                _review_signals = {
+                                    "was very", "done here", "had my", "process was", "i had",
+                                    "he was", "she was", "they were", "smoothly", "painless",
+                                    "friendly", "hassle", "smooth", "extraction", "procedure",
+                                    "treatment", "advised", "symptoms", "confidence", "flaunt",
+                                }
+                                if any(sig in nl for sig in _review_signals):
+                                    continue
+                                if (n and len(n) >= 4 and len(n) <= 80
+                                        and not any(w in nl for w in _noise_words)
+                                        and n not in seen):
+                                    seen.add(n)
+                                    names_all.append(n)
+                            if names_all:
+                                return [
+                                    {
+                                        "name": n,
+                                        "website": "",
+                                        "phone": None,
+                                        "email": None,
+                                        "source": "scrape_do",
+                                        "endpoint": "google_local_search",
+                                        "key_slot": slot_id,
+                                        "account_id": prov_key.account_id,
+                                        "quota_scope": prov_key.quota_scope.scope_id,
+                                        "method": "html_proxy_local",
+                                    }
+                                    for n in names_all[:20]
+                                ], "scrape_do", "html_proxy_local"
+                        if resp.status in (401, 403) or is_quota:
+                            if scrapedo_pool.shared_quota_exhausted:
+                                break
+                            continue
+                except Exception as exc:
+                    scrapedo_pool.report_result(prov_key, 500, error_message=str(exc))
+                    break
+
+        # 7. GitHub open-source Google Maps scrapers (subprocess wrappers)
+        # gosom/google-maps-scraper — Go CLI
+        gosom_bin = getattr(settings, "GOSOM_GMAPS_BIN", "") or os.environ.get("GOSOM_GMAPS_BIN", "")
+        if gosom_bin and os.path.isfile(gosom_bin) and self._provider_status.get("gosom_gmaps", {}).get("status") == ProviderStatus.AVAILABLE:
+            try:
+                import asyncio as _asyncio
+                proc = await _asyncio.create_subprocess_exec(
+                    gosom_bin, "-input", f"{keyword},{city}", "-exit-on-inactivity", "5s",
+                    stdout=_asyncio.subprocess.PIPE, stderr=_asyncio.subprocess.PIPE,
+                )
+                try:
+                    stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=60)
+                except _asyncio.TimeoutError:
+                    proc.kill()
+                    stdout = b""
+                raw_lines = (stdout or b"").decode("utf-8", errors="ignore").splitlines()
+                places_gosom = []
+                for line in raw_lines:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    try:
+                        item = json.loads(line)
+                        places_gosom.append({
+                            "name": (item.get("title") or item.get("name", "")).strip(),
+                            "website": clean_website(item.get("website") or item.get("webSite", "")),
+                            "phone": item.get("phone"),
+                            "email": extract_email(json.dumps(item)),
+                            "source": "gosom_gmaps",
+                            "endpoint": "github_cli",
+                            "key_slot": 0,
+                            "method": "oss_cli",
+                        })
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                if places_gosom:
+                    return places_gosom, "gosom_gmaps", "oss_cli"
+            except Exception as exc:
+                logger.warning("gosom gmaps scraper error: %s", exc)
+                self._provider_status["gosom_gmaps"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
+                self._provider_status["gosom_gmaps"]["last_error"] = str(exc)
+
+        # omkarcloud/google-maps-scraper — Botasaurus CLI
+        botasaurus_bin = getattr(settings, "BOTASAURUS_GMAPS_BIN", "") or os.environ.get("BOTASAURUS_GMAPS_BIN", "")
+        if botasaurus_bin and os.path.isfile(botasaurus_bin) and self._provider_status.get("botasaurus_gmaps", {}).get("status") == ProviderStatus.AVAILABLE:
+            try:
+                import asyncio as _asyncio
+                proc = await _asyncio.create_subprocess_exec(
+                    botasaurus_bin, "--queries", f"{keyword} {city}", "--max", "20", "--format", "json",
+                    stdout=_asyncio.subprocess.PIPE, stderr=_asyncio.subprocess.PIPE,
+                )
+                try:
+                    stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=120)
+                except _asyncio.TimeoutError:
+                    proc.kill()
+                    stdout = b""
+                raw = (stdout or b"").decode("utf-8", errors="ignore").strip()
+                if raw:
+                    try:
+                        items = json.loads(raw)
+                        if isinstance(items, dict):
+                            items = items.get("data", items.get("results", []))
+                        places_botasaurus = [
+                            {
+                                "name": (i.get("name") or i.get("title", "")).strip(),
+                                "website": clean_website(i.get("website") or i.get("link", "")),
+                                "phone": i.get("phone"),
+                                "email": extract_email(json.dumps(i)),
+                                "source": "botasaurus_gmaps",
+                                "endpoint": "github_cli",
+                                "key_slot": 0,
+                                "method": "oss_cli",
+                            }
+                            for i in items if isinstance(i, dict)
+                        ]
+                        if places_botasaurus:
+                            return places_botasaurus, "botasaurus_gmaps", "oss_cli"
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+            except Exception as exc:
+                logger.warning("botasaurus gmaps scraper error: %s", exc)
+                self._provider_status["botasaurus_gmaps"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
+                self._provider_status["botasaurus_gmaps"]["last_error"] = str(exc)
+
+        # Mahanaicoach/google-maps-scraper-kit
+        mahanai_bin = getattr(settings, "MAHANAI_GMAPS_BIN", "") or os.environ.get("MAHANAI_GMAPS_BIN", "")
+        if mahanai_bin and os.path.isfile(mahanai_bin) and self._provider_status.get("mahanaicoach_gmaps", {}).get("status") == ProviderStatus.AVAILABLE:
+            try:
+                import asyncio as _asyncio
+                proc = await _asyncio.create_subprocess_exec(
+                    mahanai_bin, "--query", f"{keyword} {city}", "--limit", "20",
+                    stdout=_asyncio.subprocess.PIPE, stderr=_asyncio.subprocess.PIPE,
+                )
+                try:
+                    stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=120)
+                except _asyncio.TimeoutError:
+                    proc.kill()
+                    stdout = b""
+                raw = (stdout or b"").decode("utf-8", errors="ignore").strip()
+                if raw:
+                    try:
+                        items = json.loads(raw)
+                        if isinstance(items, dict):
+                            items = items.get("data", items.get("results", items.get("businesses", [])))
+                        places_mahanai = [
+                            {
+                                "name": (i.get("name") or i.get("title", "")).strip(),
+                                "website": clean_website(i.get("website") or i.get("url", "")),
+                                "phone": i.get("phone"),
+                                "email": extract_email(json.dumps(i)),
+                                "source": "mahanaicoach_gmaps",
+                                "endpoint": "github_cli",
+                                "key_slot": 0,
+                                "method": "oss_cli",
+                            }
+                            for i in items if isinstance(i, dict)
+                        ]
+                        if places_mahanai:
+                            return places_mahanai, "mahanaicoach_gmaps", "oss_cli"
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+            except Exception as exc:
+                logger.warning("mahanaicoach gmaps scraper error: %s", exc)
+                self._provider_status["mahanaicoach_gmaps"]["status"] = ProviderStatus.TEMPORARILY_UNAVAILABLE
+                self._provider_status["mahanaicoach_gmaps"]["last_error"] = str(exc)
 
         return [], "none", "no_results"
 

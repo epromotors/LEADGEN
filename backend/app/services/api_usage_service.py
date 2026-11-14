@@ -16,6 +16,7 @@ API Usage, Credit Visibility & Audit Engine Provenance Service:
 import asyncio
 from datetime import datetime, timezone
 import logging
+import os
 import time
 from typing import Any, Dict, List, Optional
 import httpx
@@ -448,6 +449,72 @@ class ApiUsageService:
             "dashboard_url": "https://serpapi.com/dashboard",
             "slots": serpapi_slots,
         })
+
+        # Scrape.do (HTTP Proxy Scraper)
+        scrapedo_pool = self.mgr.get_pool("scrape_do")
+        scrapedo_diag = scrapedo_pool.get_status() if scrapedo_pool else {}
+        scrapedo_slots = []
+        for idx, key_secret in enumerate([settings.SCRAPE_DO_API_KEY_1, settings.SCRAPE_DO_API_KEY_2], start=1):
+            configured = bool(key_secret and len(key_secret) >= 8 and "paste_" not in key_secret.lower())
+            scope_label = getattr(settings, f"SCRAPE_DO_QUOTA_SCOPE_{idx}", "") or f"scrapedo_account_{idx}"
+            slot_diag = next((s for s in scrapedo_diag.get("slots", []) if s.get("slot_id") == idx), {})
+            scrapedo_slots.append({
+                "slot_id": idx,
+                "scope_id": scope_label,
+                "configured": configured,
+                "status": slot_diag.get("status", "available" if configured else "unconfigured"),
+                "success_count": slot_diag.get("success_count", 0),
+                "failure_count": slot_diag.get("failure_count", 0),
+                "in_cooldown": slot_diag.get("in_cooldown", False),
+                "cooldown_remaining_seconds": slot_diag.get("cooldown_remaining_seconds", 0),
+                "last_status_code": slot_diag.get("last_status_code"),
+                "balance_available": False,
+                "balance_note": "Check usage at https://scrape.do/dashboard" if configured else "API key not configured",
+            })
+
+        discovery_providers.append({
+            "name": "Scrape.do",
+            "service_type": "scraping_discovery",
+            "purpose": "HTTP proxy scraping for Google Maps HTML results (JS-rendered)",
+            "code_path": "backend/app/services/lead_discovery_service.py (LeadDiscoveryService.search_places scrape_do)",
+            "enabled": any(s["configured"] for s in scrapedo_slots),
+            "cost_model": "API credits per request (scrape.do pay-per-use)",
+            "estimated_cost": "Billed per proxied request",
+            "balance_api_supported": False,
+            "dashboard_url": "https://scrape.do/dashboard",
+            "slots": scrapedo_slots,
+        })
+
+        # GitHub open-source scrapers (local CLI, no API key)
+        for gh_name, gh_env, gh_repo, gh_purpose in [
+            ("gosom/google-maps-scraper", "GOSOM_GMAPS_BIN", "https://github.com/gosom/google-maps-scraper", "Go CLI — scrapes Google Maps search results to JSONL"),
+            ("omkarcloud/google-maps-scraper", "BOTASAURUS_GMAPS_BIN", "https://github.com/omkarcloud/google-maps-scraper", "Botasaurus-based Python CLI — full business data extraction"),
+            ("Mahanaicoach/google-maps-scraper-kit", "MAHANAI_GMAPS_BIN", "https://github.com/Mahanaicoach/google-maps-scraper-kit", "Scraper kit CLI — bulk Google Maps extraction"),
+        ]:
+            bin_path = getattr(settings, gh_env, "") or os.environ.get(gh_env, "")
+            is_installed = bool(bin_path and os.path.isfile(bin_path))
+            discovery_providers.append({
+                "name": gh_name,
+                "service_type": "scraping_discovery",
+                "purpose": gh_purpose,
+                "code_path": f"backend/app/services/lead_discovery_service.py (subprocess, {gh_env})",
+                "enabled": is_installed,
+                "status": "available" if is_installed else "unconfigured",
+                "cost_model": "$0.00 (open-source, local execution)",
+                "estimated_cost": "$0.00",
+                "balance_api_supported": False,
+                "balance_note": f"Binary ready: {bin_path}" if is_installed else f"Set {gh_env} env var to path of installed binary to enable",
+                "dashboard_url": gh_repo,
+                "install_env_var": gh_env,
+                "slots": [{
+                    "slot_id": 1,
+                    "scope_id": f"{gh_name.replace('/', '_').lower()}_local",
+                    "configured": is_installed,
+                    "status": "available" if is_installed else "unconfigured",
+                    "balance_available": is_installed,
+                    "balance_note": f"Binary: {bin_path}" if is_installed else "Binary path: not set",
+                }],
+            })
 
         # Optional Discovery Providers
         for prov_name, key_name, purpose, portal_url, code_p in [

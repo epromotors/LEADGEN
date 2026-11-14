@@ -1,12 +1,12 @@
 {
   "project": {
     "name": "LEADGEN",
-    "version": "6.2.1",
-    "purpose": "Lead generation, website auditing, email deliverability verification, PDF reporting, and outreach operations.",
-    "status": "Audit correctness verified; Email Deliverability Hub, Association Provenance, and Fail-Closed Gates implemented in working tree (HEAD commit c0a5947 on fix/audit-url-sitemap-correctness)."
+    "version": "7.2.0",
+    "purpose": "Lead generation, website auditing, email deliverability verification, AI reply classification, PDF reporting, and outreach operations.",
+    "status": "Working checkpoint established; AI Reply Classifier (Phases 1-5) and Google Maps scraping extensions (Scrape.do, open-source CLIs) integrated; Leads.jsx batch audit modal stale count error guard deployed; working tree captured in recovery checkpoint branch and stash (2026-11-14)."
   },
   "architecture": {
-    "frontend": "React 18 + Vite at frontend/ (Audits page with SEO and Email Deliverability tabs)",
+    "frontend": "React 18 + Vite at frontend/ (Audits, Leads, Campaigns, Needs Review, Email Review, ApiUsage)",
     "backend": "FastAPI + SQLAlchemy async at backend/app/",
     "audit_engine": "backend/app/engines/audit_engine.py (canonical 62 factors across 11 groups)",
     "audit_modules": "auditor/auditor/auditor/",
@@ -17,11 +17,13 @@
     "reporting": "ReportLab renderer at auditor/auditor/reporter/pdf_report.py",
     "crawler": "HTTP crawler at auditor/auditor/auditor/crawler.py",
     "email_verification": "Async 6-layer verifier at backend/app/services/email_verifier_service.py",
-    "lead_discovery": "Candidate scoring and context-aware extraction at backend/app/services/lead_discovery_service.py",
+    "lead_discovery": "Candidate scoring, context-aware extraction, Scrape.do proxy scraping, and local open-source scrapers at backend/app/services/lead_discovery_service.py",
     "campaign_segmentation": "Deterministic 2-axis eligibility routing at backend/app/services/campaign_eligibility_service.py",
     "template_renderer": "Authoritative variable substitution and safe HTML/plain rendering at backend/app/services/template_renderer.py",
     "outreach": "Pre-send gatekeeper, opportunity-backed audit bullets, and sender classification at backend/app/engines/outreach_engine.py",
-    "key_rotation": "Account-aware key rotation at backend/app/services/provider_key_manager.py"
+    "key_rotation": "Account-aware key rotation at backend/app/services/provider_key_manager.py",
+    "ai_reply_classifier": "AI reply intent classification and sentiment engine at backend/app/engines/ai_reply_classifier.py",
+    "reply_engine": "IMAP email reply polling, AI classification hook, and NeedsReview queue dispatch at backend/app/engines/reply_engine.py"
   },
   "entrypoints": {
     "backend": "backend/run.py -> backend/app/main.py",
@@ -30,6 +32,7 @@
     "browser": "auditor/auditor/browser/provider.py:BrowserProvider",
     "email_verification": "backend/app/routers/email_verification.py",
     "lead_discovery": "backend/app/services/lead_discovery_service.py",
+    "replies": "backend/app/routers/replies.py",
     "api": "backend/app/routers/",
     "database": "backend/app/database.py and backend/app/models.py"
   },
@@ -40,13 +43,17 @@
     "crawler": "auditor/auditor/auditor/crawler.py",
     "email_verifier": "backend/app/services/email_verifier_service.py",
     "email_verification_ui": "frontend/src/components/EmailVerificationAudit.jsx",
+    "ai_reply_classifier": "backend/app/engines/ai_reply_classifier.py",
+    "reply_engine": "backend/app/engines/reply_engine.py",
+    "needs_review_ui": "frontend/src/components/NeedsReviewTable.jsx",
     "models": "backend/app/models.py",
     "schemas": "backend/app/schemas.py",
     "frontend_audits": "frontend/src/pages/Audits.jsx",
+    "frontend_leads": "frontend/src/pages/Leads.jsx",
     "pdf_reports": "auditor/auditor/reporter/pdf_report.py"
   },
   "data_flow": [
-    "lead intake via CSV, keyword/location discovery, or search candidates",
+    "lead intake via CSV, keyword/location discovery, Scrape.do, or search candidates",
     "context-aware extraction & agency credit detection (quarantines designer credits)",
     "email verification via 6-layer async service (syntax, typo, disposable, DNS/MX, SSRF; optional SMTP disabled by default)",
     "POST /audits/trigger/{lead_id}",
@@ -59,7 +66,7 @@
     "Audits.jsx (Website SEO & Email Deliverability tabs) and ReportLab PDF",
     "fail-closed campaign gatekeeper check: assoc in ('matched', 'approved') and not quarantined and valid verification",
     "outbound SMTP sending with sender error classification (auto-pause on 553/535)",
-    "IMAP reply triage and activity logging"
+    "IMAP reply triage with AI classification under REPLY_AI_MODE and NeedsReview operator review queue"
   ],
   "critical_rules": [
     "Runtime code is authoritative; record documentation drift explicitly.",
@@ -77,15 +84,12 @@
     "DOCUMENTATION_DRIFT: archived prose says 55 factors; runtime builds 62.",
     "LIMITATION: Browser evidence is disabled by default; enabled only when BROWSER_ENABLED=true.",
     "LIMITATION: HTTP request duration is not TTFB or Core Web Vitals.",
+    "STATUS: AI Reply Classifier Phases 1-5 integrated and operational on feature/ai-reply-classifier.",
     "STATUS: Multi-page browser crawl (Phase 3 WS-C) is implemented and verified; lab Core Web Vitals (WS-B) active.",
-    "FINDING F1 (low severity): proxy relay (_relay in browser/proxy.py) has only a 30-second idle timeout; no absolute wall-clock cap or byte limit on relay sessions. Blast radius is zero when BROWSER_ENABLED=false.",
-    "FINDING F2 (low severity): _handle_plain_http in browser/proxy.py uses rpartition(':') to split host:port; a bare IPv6 literal without brackets would be mis-parsed. Chromium sends well-formed requests so not exploitable in practice, but parse failure is silent.",
-    "OBSERVED SENDER ERROR: Hostinger 553 5.7.1 sender address rejected occurs if mailbox credentials mismatch envelope sender or plan is expired; classified as permanent sender failure to auto-pause campaigns.",
-    "HISTORICAL SENDER TEST: Single controlled test message to epromotors@gmail.com confirmed received; recorded as historical test evidence, not an ongoing runtime guarantee.",
-    "UNCOMMITTED WORKING TREE: 24 modified and 17 untracked files in LEADGEN-RELEASE implement email verification, provenance, and fail-closed gates."
+    "RECOVERY_CHECKPOINT: 2026-11-14 working checkpoint secured via recovery branch recovery/checkpoint-20261114-working, tag checkpoint-20261114-working, stash@{0}, git bundle, and working-tree patch."
   ],
-  "current_phase": "Phase 3 — Workstreams A, B, and C complete; Email Verification & Deliverability Hub and Association Provenance complete in working tree.",
-  "next_action": "Await operator review of consolidated status report and explicit approval before committing working-tree changes on fix/audit-url-sitemap-correctness.",
+  "current_phase": "AI Reply Classifier & Lead Discovery Scraper Extensions — Working Checkpoint Verified (2026-11-14).",
+  "next_action": "Working checkpoint established. Operator can resume development, test lead discovery scraping, or run tests with full rollback safety.",
   "do_not_touch": [
     "protected original checkout C:\\Users\\LENOVO\\LEADGEN",
     "docs/LEADGEN_MASTER_PRODUCT_PLAN.md (read-only product plan)",
@@ -94,10 +98,8 @@
   ],
   "verification_commands": [
     "python scripts/validate_agent_brain.py --strict --report",
-    "python -m pytest tests/test_fail_closed_association_gate.py -v",
-    "python -m pytest tests/test_email_*.py -v",
-    "python -m pytest tests/test_smtp_sender_and_deliverability.py -v",
-    "python -m compileall backend/app auditor/auditor scripts/validate_agent_brain.py",
+    "python -m pytest tests/test_classifier_failure.py -v",
+    "python -m py_compile backend/app/config.py backend/app/services/api_usage_service.py backend/app/services/lead_discovery_service.py backend/app/services/provider_key_manager.py",
     "npm run build (from frontend)"
   ],
   "source_of_truth": {
@@ -110,6 +112,7 @@
     "pdf": "auditor/auditor/reporter/pdf_report.py",
     "status_report": "docs/LEADGEN_CURRENT_IMPLEMENTATION_STATUS.md",
     "architecture_doc": "docs/LEADGEN_SYSTEM_ARCHITECTURE_PRODUCT_DOCUMENTATION.md",
-    "master_product_plan": "docs/LEADGEN_MASTER_PRODUCT_PLAN.md"
+    "master_product_plan": "docs/LEADGEN_MASTER_PRODUCT_PLAN.md",
+    "recovery_checkpoint": ".agent/snapshots/recovery-checkpoint-2026-11-14.json"
   }
 }

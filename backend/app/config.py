@@ -131,6 +131,18 @@ class Settings(BaseSettings):
     TREG_QUOTA_SCOPE_1: str = ""
     TREG_QUOTA_SCOPE_2: str = ""
     TREG_ENABLE_PAID_ENDPOINTS: bool = False
+
+    # Scrape.do (Web Scraping Proxy - Google Maps HTML scraping)
+    SCRAPE_DO_API_KEY_1: str = ""
+    SCRAPE_DO_API_KEY_2: str = ""
+    SCRAPE_DO_QUOTA_SCOPE_1: str = ""
+    SCRAPE_DO_QUOTA_SCOPE_2: str = ""
+
+    # Local Open-Source Google Maps Scrapers
+    GOSOM_GMAPS_BIN: str = ""
+    BOTASAURUS_GMAPS_BIN: str = ""
+    MAHANAI_GMAPS_BIN: str = ""
+
     DISCOVERY_MAX_FILE_SIZE_BYTES: int = 1_048_576
     DISCOVERY_MAX_ENTRIES_PER_FILE: int = 1000
     DISCOVERY_MAX_COMBINATIONS_LIMIT: int = 500

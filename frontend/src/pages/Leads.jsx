@@ -475,7 +475,9 @@ export default function Leads() {
         return
       }
     } catch {
-      // Show modal even if stats check had an issue
+      // Do not open the modal with a stale cached count when the refresh fails.
+      toast.error('Could not refresh audit counts. Please try again before starting a batch.')
+      return
     }
     setAuditModeModal(true)
   }
